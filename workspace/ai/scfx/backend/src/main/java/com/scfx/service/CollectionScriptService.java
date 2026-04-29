@@ -426,6 +426,17 @@ public class CollectionScriptService {
     }
 
     /**
+     * 更新最后执行时间
+     */
+    public void updateLastExecutionTime(Long scriptId) {
+        CollectionScript script = scriptMapper.selectById(scriptId);
+        if (script != null) {
+            script.setLastExecutionTime(LocalDateTime.now());
+            scriptMapper.updateById(script);
+        }
+    }
+
+    /**
      * 获取脚本统计
      */
     public Result<Map<String, Object>> getStatistics() {
