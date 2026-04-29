@@ -31,6 +31,12 @@ const routes = [
         meta: { title: '脚本管理' }
       },
       {
+        path: 'scripts/:id',
+        name: 'TaskDetail',
+        component: () => import('../views/scripts/TaskDetail.vue'),
+        meta: { title: '任务详情' }
+      },
+      {
         path: 'logs',
         name: 'Logs',
         component: () => import('../views/logs/Logs.vue'),
