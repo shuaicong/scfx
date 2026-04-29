@@ -114,6 +114,19 @@ import TriggerConfig from './components/TriggerConfig.vue'
 import ExecutionLogViewer from '@/components/ExecutionLogViewer.vue'
 import type { CollectionScript, ExecutionLog } from '@/api'
 
+interface TriggerConfig {
+  triggerType: string
+  repeatType?: string
+  repeatTime?: string
+  weeklyDays?: string
+  monthlyDay?: number
+  monthlyLastDay?: boolean
+  cronExpression?: string
+  endType?: string
+  endTime?: string
+  repeatCount?: number
+}
+
 const route = useRoute()
 const router = useRouter()
 
@@ -156,7 +169,9 @@ const triggerDescription = computed(() => {
 
 const editForm = ref({
   scriptName: '',
-  triggerConfig: {},
+  triggerConfig: {
+    triggerType: 'repeat'
+  },
   changeDescription: ''
 })
 
@@ -175,7 +190,7 @@ onUnmounted(() => {
 async function loadScript() {
   try {
     const res = await scriptApi.getById(scriptId.value)
-    script.value = res.data
+    script.value = (res as unknown as { data: CollectionScript }).data
   } catch (e) {
     ElMessage.error('加载任务失败')
   }
@@ -257,10 +272,10 @@ async function handleToggleStatus() {
 async function handleSaveEdit() {
   try {
     await scriptApi.update(scriptId.value, {
-      ...script.value,
+      ...script.value!,
       scriptName: editForm.value.scriptName,
       ...editForm.value.triggerConfig
-    })
+    } as CollectionScript)
     showEditDialog.value = false
     await loadScript()
   } catch (e) {

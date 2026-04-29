@@ -106,7 +106,7 @@ export interface CollectionScript {
   collObject?: string
   status?: 'enabled' | 'disabled'
   reportIntervalSeconds?: number
-  triggerType?: 'manual' | 'single' | 'repeat' | 'cron'
+  triggerType?: 'manual' | 'single' | 'once' | 'repeat' | 'cron'
   triggerConfig?: string
   cronExpression?: string
   repeatType?: 'daily' | 'weekly' | 'monthly'
@@ -121,6 +121,14 @@ export interface CollectionScript {
   createdBy?: string
   createdAt?: string
   updatedAt?: string
+  // 扩展字段
+  repeatTime?: string
+  weeklyDays?: string
+  monthlyDay?: number
+  monthlyLastDay?: boolean
+  endType?: 'never' | 'date' | 'count'
+  repeatCount?: number
+  currentVersion?: number
 }
 
 export interface ScriptStats {
@@ -221,19 +229,19 @@ export interface ExecutionLog {
 
 export const executionApi = {
   execute: (scriptId: number) =>
-    request.post<{ data: { executionId: string } }>(`/scripts/${scriptId}/execute`),
+    request.post<{ executionId: string }>(`/scripts/${scriptId}/execute`),
 
   list: (scriptId: number, params: { page?: number; size?: number }) =>
-    request.get<{ data: any }>(`/scripts/${scriptId}/executions`, { params }),
+    request.get<any>(`/scripts/${scriptId}/executions`, { params }),
 
   get: (executionId: string) =>
-    request.get<{ data: TaskExecution }>(`/scripts/executions/${executionId}`),
+    request.get<TaskExecution>(`/scripts/executions/${executionId}`),
 
   cancel: (executionId: string) =>
     request.post(`/scripts/executions/${executionId}/cancel`),
 
   logs: (executionId: string) =>
-    request.get<{ data: ExecutionLog[] }>(`/scripts/executions/${executionId}/logs`),
+    request.get<ExecutionLog[]>(`/scripts/executions/${executionId}/logs`),
 }
 
 // ==================== 版本管理 API ====================
@@ -265,20 +273,20 @@ export interface ScriptVersion {
 
 export const versionApi = {
   list: (scriptId: number) =>
-    request.get<{ data: ScriptVersion[] }>(`/scripts/${scriptId}/versions`),
+    request.get<ScriptVersion[]>(`/scripts/${scriptId}/versions`),
 
   get: (scriptId: number, versionId: number) =>
-    request.get<{ data: ScriptVersion }>(`/scripts/${scriptId}/versions/${versionId}`),
+    request.get<ScriptVersion>(`/scripts/${scriptId}/versions/${versionId}`),
 
   restore: (scriptId: number, versionId: number, changeDescription: string) =>
-    request.post<{ data: CollectionScript }>(
+    request.post<CollectionScript>(
       `/scripts/${scriptId}/versions/${versionId}/restore`,
       null,
       { params: { changeDescription } }
     ),
 
   compare: (scriptId: number, versionId1: number, versionId2: number) =>
-    request.get<{ data: { v1: ScriptVersion; v2: ScriptVersion } }>(
+    request.get<{ v1: ScriptVersion; v2: ScriptVersion }>(
       `/scripts/${scriptId}/versions/compare`,
       { params: { versionId1, versionId2 } }
     ),
@@ -286,10 +294,17 @@ export const versionApi = {
 
 // ==================== Cron 校验 API ====================
 
+export interface CronValidationResult {
+  valid: boolean
+  description?: string
+  error?: string
+  nextExecutions?: string[]
+}
+
 export const cronApi = {
   validate: (cron: string) =>
-    request.post<{ data: { valid: boolean; description?: string; error?: string; nextExecutions?: string[] } }>(
+    request.post<{ data: CronValidationResult }>(
       '/scripts/validate-cron',
       { cron }
-    ),
+    ).then(res => res.data),
 }
