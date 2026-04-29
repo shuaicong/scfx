@@ -88,4 +88,25 @@ public class CollectionScript {
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    /** 重复时间 HH:mm:ss */
+    private String repeatTime;
+
+    /** 每周执行日，多个用逗号分隔如 "1,3,5" */
+    private String weeklyDays;
+
+    /** 每月执行日 */
+    private Integer monthlyDay;
+
+    /** 是否每月最后一天 */
+    private Boolean monthlyLastDay;
+
+    /** 结束类型：never/date/count */
+    private String endType;
+
+    /** 重复次数（end_type=count时有效） */
+    private Integer repeatCount;
+
+    /** 版本号 */
+    private Integer currentVersion;
 }
