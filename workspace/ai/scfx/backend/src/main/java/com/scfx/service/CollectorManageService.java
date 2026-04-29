@@ -1,6 +1,7 @@
 package com.scfx.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.scfx.common.Result;
 import com.scfx.entity.CollectorInfo;
 import com.scfx.mapper.CollectorInfoMapper;
 import lombok.RequiredArgsConstructor;
@@ -9,7 +10,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 采集器管理服务
@@ -102,6 +105,98 @@ public class CollectorManageService {
         LambdaQueryWrapper<CollectorInfo> wrapper = new LambdaQueryWrapper<>();
         wrapper.orderByDesc(CollectorInfo::getLastHeartbeat);
         wrapper.last("LIMIT " + size + " OFFSET " + ((page - 1) * size));
+        return collectorInfoMapper.selectList(wrapper);
+    }
+
+    /**
+     * 获取采集器详情
+     */
+    public Result<CollectorInfo> getCollectorById(Long id) {
+        CollectorInfo info = collectorInfoMapper.selectById(id);
+        if (info == null) {
+            return Result.error("采集器不存在");
+        }
+        return Result.success(info);
+    }
+
+    /**
+     * 更新采集器信息
+     */
+    public Result<CollectorInfo> updateCollector(CollectorInfo info) {
+        CollectorInfo existing = collectorInfoMapper.selectById(info.getId());
+        if (existing == null) {
+            return Result.error("采集器不存在");
+        }
+        collectorInfoMapper.updateById(info);
+        log.info("采集器信息已更新: {}", info.getCollectorName());
+        return Result.success(collectorInfoMapper.selectById(info.getId()));
+    }
+
+    /**
+     * 启用采集器
+     */
+    public Result<Void> enableCollector(Long id) {
+        CollectorInfo info = collectorInfoMapper.selectById(id);
+        if (info == null) {
+            return Result.error("采集器不存在");
+        }
+        info.setStatus("online");
+        collectorInfoMapper.updateById(info);
+        log.info("采集器已启用: {}", info.getCollectorName());
+        return Result.success();
+    }
+
+    /**
+     * 禁用采集器
+     */
+    public Result<Void> disableCollector(Long id) {
+        CollectorInfo info = collectorInfoMapper.selectById(id);
+        if (info == null) {
+            return Result.error("采集器不存在");
+        }
+        info.setStatus("disabled");
+        collectorInfoMapper.updateById(info);
+        log.info("采集器已禁用: {}", info.getCollectorName());
+        return Result.success();
+    }
+
+    /**
+     * 删除采集器
+     */
+    public Result<Void> deleteCollector(Long id) {
+        collectorInfoMapper.deleteById(id);
+        log.info("采集器已删除: id={}", id);
+        return Result.success();
+    }
+
+    /**
+     * 获取采集器统计信息
+     */
+    public Result<Map<String, Object>> getStatistics() {
+        Map<String, Object> stats = new HashMap<>();
+
+        long total = collectorInfoMapper.selectCount(null);
+        long online = collectorInfoMapper.selectCount(
+            new LambdaQueryWrapper<CollectorInfo>().eq(CollectorInfo::getStatus, "online"));
+        long offline = collectorInfoMapper.selectCount(
+            new LambdaQueryWrapper<CollectorInfo>().eq(CollectorInfo::getStatus, "offline"));
+        long disabled = collectorInfoMapper.selectCount(
+            new LambdaQueryWrapper<CollectorInfo>().eq(CollectorInfo::getStatus, "disabled"));
+
+        stats.put("total", total);
+        stats.put("online", online);
+        stats.put("offline", offline);
+        stats.put("disabled", disabled);
+
+        return Result.success(stats);
+    }
+
+    /**
+     * 按来源获取采集器列表
+     */
+    public List<CollectorInfo> getCollectorsBySource(String source) {
+        LambdaQueryWrapper<CollectorInfo> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(CollectorInfo::getSource, source);
         return collectorInfoMapper.selectList(wrapper);
     }
 

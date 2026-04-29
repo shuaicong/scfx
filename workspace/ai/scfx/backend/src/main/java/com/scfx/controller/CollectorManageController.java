@@ -6,7 +6,6 @@ import com.scfx.service.CollectorManageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -62,23 +61,81 @@ public class CollectorManageController {
     }
 
     /**
+     * 获取所有采集器（分页）
+     * GET /collector/all?page=1&size=20&status=&source=
+     */
+    @GetMapping("/all")
+    public Result<List<CollectorInfo>> getAllCollectors(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String source) {
+        List<CollectorInfo> list = collectorManageService.getCollectors(page, size);
+        return Result.success(list);
+    }
+
+    /**
+     * 获取采集器详情
+     * GET /collector/{id}
+     */
+    @GetMapping("/{id}")
+    public Result<CollectorInfo> getCollectorById(@PathVariable Long id) {
+        return collectorManageService.getCollectorById(id);
+    }
+
+    /**
+     * 更新采集器信息
+     * PUT /collector/{id}
+     */
+    @PutMapping("/{id}")
+    public Result<CollectorInfo> updateCollector(@PathVariable Long id, @RequestBody CollectorInfo info) {
+        info.setId(id);
+        return collectorManageService.updateCollector(info);
+    }
+
+    /**
+     * 启用采集器
+     * PUT /collector/{id}/enable
+     */
+    @PutMapping("/{id}/enable")
+    public Result<Void> enableCollector(@PathVariable Long id) {
+        return collectorManageService.enableCollector(id);
+    }
+
+    /**
+     * 禁用采集器
+     * PUT /collector/{id}/disable
+     */
+    @PutMapping("/{id}/disable")
+    public Result<Void> disableCollector(@PathVariable Long id) {
+        return collectorManageService.disableCollector(id);
+    }
+
+    /**
+     * 删除采集器
+     * DELETE /collector/{id}
+     */
+    @DeleteMapping("/{id}")
+    public Result<Void> deleteCollector(@PathVariable Long id) {
+        return collectorManageService.deleteCollector(id);
+    }
+
+    /**
+     * 获取采集器统计信息
+     * GET /collector/stats
+     */
+    @GetMapping("/stats")
+    public Result<Map<String, Object>> getStatistics() {
+        return collectorManageService.getStatistics();
+    }
+
+    /**
      * 获取在线采集器列表
      * GET /collector/online
      */
     @GetMapping("/online")
     public Result<List<CollectorInfo>> getOnlineCollectors() {
         return Result.success(collectorManageService.getOnlineCollectors());
-    }
-
-    /**
-     * 获取采集器列表（分页）
-     * GET /collector/list?page=1&size=20
-     */
-    @GetMapping("/list")
-    public Result<List<CollectorInfo>> getCollectors(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return Result.success(collectorManageService.getCollectors(page, size));
     }
 
     /**
