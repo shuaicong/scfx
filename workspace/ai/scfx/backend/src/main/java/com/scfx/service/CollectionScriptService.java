@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
 import com.scfx.entity.CollectionScript;
+import com.scfx.entity.TaskExecution;
 import com.scfx.mapper.CollectionScriptMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -32,7 +33,45 @@ public class CollectionScriptService {
     @Autowired
     private ScriptFileService scriptFileService;
 
-/**
+    @Autowired
+    private TaskExecutionService executionService;
+
+    /**
+     * 立即执行脚本
+     */
+    @Transactional
+    public Result<Map<String, Object>> executeScriptNow(Long id) {
+        CollectionScript script = scriptMapper.selectById(id);
+        if (script == null) {
+            return Result.error("脚本不存在");
+        }
+        if ("disabled".equals(script.getStatus())) {
+            return Result.error("脚本已禁用，请先启用");
+        }
+
+        // 创建执行记录
+        TaskExecution execution = executionService.createExecution(id, "manual");
+
+        // 更新执行状态
+        script.setLastExecutionTime(LocalDateTime.now());
+        script.setExecutionCount(script.getExecutionCount() == null ? 1 : script.getExecutionCount() + 1);
+        scriptMapper.updateById(script);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("executionId", execution.getExecutionId());
+        result.put("scriptId", id);
+        result.put("scriptName", script.getScriptName());
+        result.put("scriptPath", script.getScriptPath());
+        result.put("scriptContent", script.getScriptContent());
+        result.put("startTime", script.getLastExecutionTime());
+        result.put("source", script.getSource());
+        result.put("subject", script.getSubject());
+
+        log.info("立即执行采集脚本: {}", script.getScriptName());
+        return Result.success(result);
+    }
+
+    /**
      * 新增脚本（简化为只需要名称和描述）
      */
     public Result<CollectionScript> createScript(String scriptName, String description, String scriptContent) {

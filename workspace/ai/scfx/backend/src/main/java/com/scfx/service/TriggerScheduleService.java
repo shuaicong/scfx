@@ -10,6 +10,8 @@ import org.springframework.stereotype.Service;
 import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.util.Date;
 import java.util.List;
 
 @Slf4j
@@ -41,24 +43,25 @@ public class TriggerScheduleService {
      * 判断是否应该执行
      */
     private boolean shouldExecute(CollectionScript script, LocalDateTime now, LocalTime nowTime) {
+        // 检查是否在有效期内
         if (script.getStartTime() != null && now.isBefore(script.getStartTime())) {
             return false;
         }
-        if (script.getEndTime() != null && now.isAfter(script.getEndTime())) {
-            return false;
-        }
 
+        // 检查结束类型
         if ("date".equals(script.getEndType()) && script.getEndTime() != null && now.isAfter(script.getEndTime())) {
             return false;
         }
 
         String triggerType = script.getTriggerType();
         if ("once".equals(triggerType)) {
+            // 单次触发：检查是否已执行过
             if (script.getLastExecutionTime() != null) {
                 return false;
             }
             return isTimeMatch(script.getRepeatTime(), nowTime) && isDateMatch(script, now);
         } else if ("repeat".equals(triggerType)) {
+            // 周期触发
             String repeatType = script.getRepeatType();
             if ("daily".equals(repeatType)) {
                 return isTimeMatch(script.getRepeatTime(), nowTime);
@@ -68,7 +71,7 @@ public class TriggerScheduleService {
                 return isMonthlyMatch(script, now) && isTimeMatch(script.getRepeatTime(), nowTime);
             }
         } else if ("cron".equals(triggerType)) {
-            return isCronMatch(script.getCronExpression());
+            return isCronMatch(script, now, nowTime);
         }
 
         return false;
@@ -114,14 +117,26 @@ public class TriggerScheduleService {
         return false;
     }
 
-    private boolean isCronMatch(String cronExpression) {
-        if (cronExpression == null || cronExpression.isEmpty()) {
+    private boolean isCronMatch(CollectionScript script, LocalDateTime now, LocalTime nowTime) {
+        if (script.getCronExpression() == null || script.getCronExpression().isEmpty()) {
             return false;
         }
         try {
-            org.springframework.scheduling.support.CronExpression.parse(cronExpression);
-            return true;
+            org.springframework.scheduling.support.CronExpression cron =
+                org.springframework.scheduling.support.CronExpression.parse(script.getCronExpression());
+
+            // 计算当前时间对应的下一个执行时间
+            Date nowDate = Date.from(now.atZone(ZoneId.systemDefault()).toInstant());
+            Date next = cron.next(nowDate);
+            if (next == null) return false;
+
+            // 检查下一个执行时间是否在当前分钟范围内
+            LocalDateTime nextExec = LocalDateTime.ofInstant(next.toInstant(), ZoneId.systemDefault());
+            LocalDateTime minuteEnd = now.plusMinutes(1).withSecond(0).withNano(0);
+
+            return !nextExec.isBefore(now) && nextExec.isBefore(minuteEnd);
         } catch (Exception e) {
+            log.warn("Invalid cron expression: {}", script.getCronExpression(), e);
             return false;
         }
     }
