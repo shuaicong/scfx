@@ -25,6 +25,12 @@ const routes = [
         meta: { title: 'SDK管理' }
       },
       {
+        path: 'scripts',
+        name: 'Scripts',
+        component: () => import('../views/scripts/Scripts.vue'),
+        meta: { title: '脚本管理' }
+      },
+      {
         path: 'logs',
         name: 'Logs',
         component: () => import('../views/logs/Logs.vue'),

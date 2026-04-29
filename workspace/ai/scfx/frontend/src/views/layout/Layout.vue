@@ -25,6 +25,10 @@
           <el-icon><Aim /></el-icon>
           <span>SDK管理</span>
         </el-menu-item>
+        <el-menu-item index="/scripts">
+          <el-icon><Document /></el-icon>
+          <span>脚本管理</span>
+        </el-menu-item>
         <el-menu-item index="/logs">
           <el-icon><Document /></el-icon>
           <span>日志查看</span>
@@ -61,7 +65,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { collectLiangxinwang } from '@/api/dashboard'
-import { DataAnalysis, Collection, Document, Setting, Refresh, Aim } from '@element-plus/icons-vue'
+import { DataAnalysis, Collection, Document, Setting, Refresh, Aim, Tickets } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const collecting = ref(false)

@@ -123,6 +123,35 @@ CREATE TABLE IF NOT EXISTS t_collector_info (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 采集脚本表
+CREATE TABLE IF NOT EXISTS t_collection_script (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    script_name VARCHAR(100) NOT NULL,
+    description VARCHAR(500),
+    script_content TEXT,
+    source VARCHAR(50),
+    subject VARCHAR(50),
+    coll_type VARCHAR(50),
+    coll_object VARCHAR(50),
+    status VARCHAR(20) DEFAULT 'enabled',
+    report_interval_seconds INT DEFAULT 60,
+    trigger_type VARCHAR(20) DEFAULT 'manual',
+    trigger_config VARCHAR(2000),
+    cron_expression VARCHAR(100),
+    repeat_type VARCHAR(20),
+    repeat_config VARCHAR(500),
+    start_time TIMESTAMP,
+    end_time TIMESTAMP,
+    last_execution_time TIMESTAMP,
+    next_execution_time TIMESTAMP,
+    execution_count INT DEFAULT 0,
+    success_count INT DEFAULT 0,
+    failed_count INT DEFAULT 0,
+    created_by VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 初始化粮信网采集任务
 INSERT INTO t_collection_task (task_name, task_type, source_name, source_url, status)
 SELECT '粮信网-玉米晨报采集', 'scheduled', 'liangxinwang', 'https://www.chinagrain.cn/report/', 'pending'

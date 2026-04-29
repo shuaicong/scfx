@@ -91,3 +91,93 @@ export const collectorApi = {
   online: () =>
     request.get<{ data: CollectorInfo[] }>('/collector/online'),
 }
+
+// ==================== 采集脚本管理 API ====================
+
+export interface CollectionScript {
+  id?: number
+  scriptName: string
+  description?: string
+  scriptContent?: string
+  source?: string
+  subject?: string
+  collType?: string
+  collObject?: string
+  status?: 'enabled' | 'disabled'
+  reportIntervalSeconds?: number
+  triggerType?: 'manual' | 'single' | 'repeat' | 'cron'
+  triggerConfig?: string
+  cronExpression?: string
+  repeatType?: 'daily' | 'weekly' | 'monthly'
+  repeatConfig?: string
+  startTime?: string
+  endTime?: string
+  lastExecutionTime?: string
+  nextExecutionTime?: string
+  executionCount?: number
+  successCount?: number
+  failedCount?: number
+  createdBy?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ScriptStats {
+  total: number
+  enabled: number
+  disabled: number
+}
+
+export const scriptApi = {
+  // 获取脚本列表
+  list: (params: { page?: number; size?: number; status?: string; source?: string }) =>
+    request.get<{ data: any }>('/scripts', { params }),
+
+  // 获取脚本详情
+  getById: (id: number) =>
+    request.get<{ data: CollectionScript }>(`/scripts/${id}`),
+
+  // 获取脚本内容
+  getContent: (id: number) =>
+    request.get<{ data: { content: string } }>(`/scripts/${id}/content`),
+
+  // 创建脚本
+  create: (data: CollectionScript) =>
+    request.post<{ data: CollectionScript }>('/scripts', data),
+
+  // 更新脚本
+  update: (id: number, data: CollectionScript) =>
+    request.put<{ data: CollectionScript }>(`/scripts/${id}`, data),
+
+  // 更新脚本内容
+  updateContent: (id: number, content: string) =>
+    request.put<{ data: CollectionScript }>(`/scripts/${id}/content`, { content }),
+
+  // 删除脚本
+  delete: (id: number) =>
+    request.delete(`/scripts/${id}`),
+
+  // 启用脚本
+  enable: (id: number) =>
+    request.put(`/scripts/${id}/enable`),
+
+  // 禁用脚本
+  disable: (id: number) =>
+    request.put(`/scripts/${id}/disable`),
+
+  // 执行脚本
+  execute: (id: number) =>
+    request.post<{ data: any }>(`/scripts/${id}/execute`),
+
+  // 获取统计信息
+  stats: () =>
+    request.get<{ data: ScriptStats }>('/scripts/stats'),
+
+  // 获取所有启用的脚本
+  enabled: () =>
+    request.get<{ data: CollectionScript[] }>('/scripts/enabled'),
+
+  // 验证Cron表达式
+  validateCron: (cron: string) =>
+    request.post<{ data: { valid: boolean } }>('/scripts/validate-cron', { cron }),
+}
