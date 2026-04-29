@@ -1,196 +1,107 @@
 package com.scfx.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.scfx.common.Result;
-import com.scfx.entity.CollectionTask;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.entity.TaskExecution;
-import com.scfx.mapper.CollectionTaskMapper;
+import com.scfx.entity.TaskExecutionLog;
+import com.scfx.mapper.TaskExecutionLogMapper;
 import com.scfx.mapper.TaskExecutionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.UUID;
 
-/**
- * 任务执行服务 - 管理采集任务的执行生命周期
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class TaskExecutionService {
 
     private final TaskExecutionMapper executionMapper;
-    private final CollectionTaskMapper taskMapper;
-    private final CollectionLogService logService;
+    private final TaskExecutionLogMapper logMapper;
 
     /**
-     * 开始执行任务
-     * 检查任务是否已在运行，避免并发冲突
+     * 创建执行记录
      */
-    @Transactional
-    public Result<TaskExecution> startExecution(Long taskId) {
-        // 检查任务是否存在
-        CollectionTask task = taskMapper.selectById(taskId);
-        if (task == null) {
-            return Result.error("任务不存在");
-        }
-
-        // 检查是否已有运行中的执行
-        LambdaQueryWrapper<TaskExecution> runningWrapper = new LambdaQueryWrapper<>();
-        runningWrapper.eq(TaskExecution::getTaskId, taskId)
-                      .eq(TaskExecution::getStatus, "running");
-        long runningCount = executionMapper.selectCount(runningWrapper);
-        if (runningCount > 0) {
-            return Result.error("任务正在执行中，请稍后再试");
-        }
-
-        // 创建新的执行记录
+    public TaskExecution createExecution(Long scriptId, String triggerType) {
         TaskExecution execution = new TaskExecution();
-        execution.setTaskId(taskId);
-        execution.setExecutionId(UUID.randomUUID().toString());
-        execution.setStatus("running");
+        execution.setExecutionId(UUID.randomUUID().toString().replace("-", ""));
+        execution.setScriptId(scriptId);
+        execution.setTriggerType(triggerType);
+        execution.setStatus("pending");
         execution.setStartTime(LocalDateTime.now());
-        execution.setCollectedCount(0);
         executionMapper.insert(execution);
-
-        // 更新任务状态为 running
-        task.setStatus("running");
-        task.setUpdatedAt(LocalDateTime.now());
-        taskMapper.updateById(task);
-
-        // 记录日志
-        logService.addLog(taskId, task.getTaskName(), "INFO",
-            "开始执行采集任务", task.getSourceName(), execution.getExecutionId(),
-            null, null, null);
-
-        return Result.success(execution);
+        return execution;
     }
 
     /**
-     * 上报进度
+     * 更新执行状态
      */
-    public void reportProgress(String executionId, int collectedCount) {
-        TaskExecution execution = findByExecutionId(executionId);
-        if (execution != null) {
-            execution.setCollectedCount(collectedCount);
-            executionMapper.updateById(execution);
-
-            logService.addLog(execution.getTaskId(), null, "INFO",
-                "采集进度: 已采集 " + collectedCount + " 条数据",
-                getSourceName(execution.getTaskId()),
-                executionId, null, null, null);
-        }
-    }
-
-    /**
-     * 上报日志
-     */
-    public void addLog(String executionId, String level, String message) {
-        TaskExecution execution = findByExecutionId(executionId);
-        if (execution != null) {
-            logService.addLog(execution.getTaskId(), null, level,
-                message, getSourceName(execution.getTaskId()), executionId, null, null, null);
-        }
-    }
-
-    /**
-     * 上报错误
-     */
-    @Transactional
-    public void reportError(String executionId, String errorMessage) {
-        TaskExecution execution = findByExecutionId(executionId);
-        if (execution != null) {
-            execution.setStatus("failed");
-            execution.setErrorMessage(errorMessage);
-            execution.setEndTime(LocalDateTime.now());
-            calculateDuration(execution);
-            executionMapper.updateById(execution);
-
-            // 更新任务状态
-            updateTaskFinalStatus(execution.getTaskId(), "failed");
-
-            // 记录错误日志
-            logService.addLog(execution.getTaskId(), null, "ERROR",
-                "采集失败: " + errorMessage, getSourceName(execution.getTaskId()), executionId, null, null, null);
-        }
-    }
-
-    /**
-     * 完成执行
-     */
-    @Transactional
-    public void completeExecution(String executionId, String status, int collectedCount) {
+    public void updateStatus(String executionId, String status, String errorMessage) {
         TaskExecution execution = findByExecutionId(executionId);
         if (execution != null) {
             execution.setStatus(status);
-            execution.setCollectedCount(collectedCount);
-            execution.setEndTime(LocalDateTime.now());
-            calculateDuration(execution);
-            executionMapper.updateById(execution);
-
-            // 更新任务状态
-            updateTaskFinalStatus(execution.getTaskId(), status);
-
-            // 记录完成日志
-            String message = "success".equals(status)
-                ? "采集完成，成功 " + collectedCount + " 条数据"
-                : "采集结束，状态: " + status;
-            logService.addLog(execution.getTaskId(), null, "INFO",
-                message, getSourceName(execution.getTaskId()), executionId, null, null, null);
-        }
-    }
-
-    /**
-     * 根据 executionId 查询执行记录
-     */
-    public TaskExecution findByExecutionId(String executionId) {
-        LambdaQueryWrapper<TaskExecution> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(TaskExecution::getExecutionId, executionId);
-        return executionMapper.selectOne(wrapper);
-    }
-
-    /**
-     * 获取任务最近一次执行
-     */
-    public TaskExecution getLastExecution(Long taskId) {
-        LambdaQueryWrapper<TaskExecution> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(TaskExecution::getTaskId, taskId)
-               .orderByDesc(TaskExecution::getStartTime)
-               .last("LIMIT 1");
-        return executionMapper.selectOne(wrapper);
-    }
-
-    private void updateTaskFinalStatus(Long taskId, String status) {
-        CollectionTask task = taskMapper.selectById(taskId);
-        if (task != null) {
-            task.setStatus(status);
-            task.setLastExecutionTime(LocalDateTime.now());
-            task.setUpdatedAt(LocalDateTime.now());
-
-            if ("success".equals(status)) {
-                task.setSuccessCount(task.getSuccessCount() == null ? 1 : task.getSuccessCount() + 1);
-            } else if ("failed".equals(status)) {
-                task.setFailedCount(task.getFailedCount() == null ? 1 : task.getFailedCount() + 1);
+            if (errorMessage != null) {
+                execution.setErrorMessage(errorMessage);
             }
-
-            taskMapper.updateById(task);
+            if ("success".equals(status) || "failed".equals(status) || "cancelled".equals(status)) {
+                execution.setEndTime(LocalDateTime.now());
+                execution.setDurationMs(
+                    java.time.Duration.between(execution.getStartTime(), execution.getEndTime()).toMillis()
+                );
+            }
+            executionMapper.updateById(execution);
         }
     }
 
-    private void calculateDuration(TaskExecution execution) {
-        if (execution.getStartTime() != null && execution.getEndTime() != null) {
-            long seconds = java.time.Duration.between(
-                execution.getStartTime(), execution.getEndTime()).getSeconds();
-            execution.setDurationSeconds((int) seconds);
-        }
+    /**
+     * 分页查询执行记录
+     */
+    public Page<TaskExecution> getExecutions(Long scriptId, int page, int size) {
+        Page<TaskExecution> pageInfo = new Page<>(page, size);
+        LambdaQueryWrapper<TaskExecution> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(scriptId != null, TaskExecution::getScriptId, scriptId)
+               .orderByDesc(TaskExecution::getStartTime);
+        return executionMapper.selectPage(pageInfo, wrapper);
     }
 
-    private String getSourceName(Long taskId) {
-        CollectionTask task = taskMapper.selectById(taskId);
-        return task != null ? task.getSourceName() : null;
+    /**
+     * 获取执行详情
+     */
+    public TaskExecution getExecution(String executionId) {
+        return findByExecutionId(executionId);
+    }
+
+    /**
+     * 添加日志
+     */
+    public void addLog(String executionId, Long scriptId, String level, String message) {
+        TaskExecutionLog logEntry = new TaskExecutionLog();
+        logEntry.setExecutionId(executionId);
+        logEntry.setScriptId(scriptId);
+        logEntry.setLevel(level);
+        logEntry.setMessage(message);
+        logEntry.setTimestamp(LocalDateTime.now());
+        logMapper.insert(logEntry);
+    }
+
+    /**
+     * 获取执行日志
+     */
+    public List<TaskExecutionLog> getLogs(String executionId) {
+        return logMapper.selectList(
+            new LambdaQueryWrapper<TaskExecutionLog>()
+                .eq(TaskExecutionLog::getExecutionId, executionId)
+                .orderByAsc(TaskExecutionLog::getTimestamp)
+        );
+    }
+
+    private TaskExecution findByExecutionId(String executionId) {
+        return executionMapper.selectOne(
+            new LambdaQueryWrapper<TaskExecution>()
+                .eq(TaskExecution::getExecutionId, executionId)
+        );
     }
 }
