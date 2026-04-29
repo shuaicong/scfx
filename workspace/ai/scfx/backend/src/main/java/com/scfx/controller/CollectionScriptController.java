@@ -3,11 +3,16 @@ package com.scfx.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
 import com.scfx.entity.CollectionScript;
+import com.scfx.entity.TaskExecution;
+import com.scfx.entity.TaskExecutionLog;
 import com.scfx.service.CollectionScriptService;
+import com.scfx.service.TaskExecutionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -19,6 +24,9 @@ import java.util.Map;
 public class CollectionScriptController {
 
     private final CollectionScriptService scriptService;
+
+    @Autowired
+    private TaskExecutionService executionService;
 
     /**
      * 获取脚本列表（分页）
@@ -140,6 +148,50 @@ public class CollectionScriptController {
     @PostMapping("/{id}/execute")
     public Result<Map<String, Object>> executeScript(@PathVariable Long id) {
         return scriptService.executeScriptByPath(id);
+    }
+
+    /**
+     * 立即执行脚本
+     */
+    @PostMapping("/{id}/execute-now")
+    public Result<Map<String, Object>> executeScriptNow(@PathVariable Long id) {
+        return scriptService.executeScriptNow(id);
+    }
+
+    /**
+     * 取消执行
+     */
+    @PostMapping("/executions/{executionId}/cancel")
+    public Result<Void> cancelExecution(@PathVariable String executionId) {
+        executionService.updateStatus(executionId, "cancelled", "用户取消");
+        return Result.success();
+    }
+
+    /**
+     * 获取执行记录列表
+     */
+    @GetMapping("/{scriptId}/executions")
+    public Result<Page<TaskExecution>> getExecutions(
+        @PathVariable Long scriptId,
+        @RequestParam(defaultValue = "1") int page,
+        @RequestParam(defaultValue = "10") int size) {
+        return Result.success(executionService.getExecutions(scriptId, page, size));
+    }
+
+    /**
+     * 获取执行详情
+     */
+    @GetMapping("/executions/{executionId}")
+    public Result<TaskExecution> getExecution(@PathVariable String executionId) {
+        return Result.success(executionService.getExecution(executionId));
+    }
+
+    /**
+     * 获取执行日志
+     */
+    @GetMapping("/executions/{executionId}/logs")
+    public Result<List<TaskExecutionLog>> getExecutionLogs(@PathVariable String executionId) {
+        return Result.success(executionService.getLogs(executionId));
     }
 
     /**
