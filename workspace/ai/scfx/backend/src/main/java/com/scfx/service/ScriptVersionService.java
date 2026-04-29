@@ -9,7 +9,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @Service
@@ -109,5 +111,46 @@ public class ScriptVersionService {
         currentScript.setRepeatCount(version.getRepeatCount());
 
         return currentScript;
+    }
+
+    /**
+     * 版本对比
+     */
+    public Map<String, Object> compareVersions(Long versionId1, Long versionId2) {
+        ScriptVersion v1 = versionMapper.selectById(versionId1);
+        ScriptVersion v2 = versionMapper.selectById(versionId2);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("version1", v1);
+        result.put("version2", v2);
+
+        if (v1 != null && v2 != null) {
+            Map<String, Object> diff = new HashMap<>();
+            if (!equals(v1.getScriptContent(), v2.getScriptContent())) {
+                diff.put("scriptContent", new String[]{
+                    v1.getScriptContent() != null ? v1.getScriptContent() : "",
+                    v2.getScriptContent() != null ? v2.getScriptContent() : ""
+                });
+            }
+            if (!equals(v1.getTriggerType(), v2.getTriggerType())) {
+                diff.put("triggerType", new String[]{
+                    v1.getTriggerType() != null ? v1.getTriggerType() : "",
+                    v2.getTriggerType() != null ? v2.getTriggerType() : ""
+                });
+            }
+            if (!equals(v1.getRepeatType(), v2.getRepeatType())) {
+                diff.put("repeatType", new String[]{
+                    v1.getRepeatType() != null ? v1.getRepeatType() : "",
+                    v2.getRepeatType() != null ? v2.getRepeatType() : ""
+                });
+            }
+            result.put("diff", diff);
+        }
+
+        return result;
+    }
+
+    private boolean equals(Object a, Object b) {
+        return a == null ? b == null : a.equals(b);
     }
 }
