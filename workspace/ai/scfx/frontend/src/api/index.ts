@@ -193,3 +193,103 @@ export const scriptApi = {
   validateCron: (cron: string) =>
     request.post<{ data: { valid: boolean } }>('/scripts/validate-cron', { cron }),
 }
+
+// ==================== 执行记录 API ====================
+
+export interface TaskExecution {
+  id?: number
+  executionId: string
+  scriptId: number
+  versionId?: number
+  triggerType: 'manual' | 'scheduled' | 'api'
+  status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
+  startTime?: string
+  endTime?: string
+  durationMs?: number
+  errorMessage?: string
+  createdAt?: string
+}
+
+export interface ExecutionLog {
+  id?: number
+  executionId: string
+  scriptId?: number
+  level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
+  message: string
+  timestamp: string
+}
+
+export const executionApi = {
+  execute: (scriptId: number) =>
+    request.post<{ data: { executionId: string } }>(`/scripts/${scriptId}/execute`),
+
+  list: (scriptId: number, params: { page?: number; size?: number }) =>
+    request.get<{ data: any }>(`/scripts/${scriptId}/executions`, { params }),
+
+  get: (executionId: string) =>
+    request.get<{ data: TaskExecution }>(`/scripts/executions/${executionId}`),
+
+  cancel: (executionId: string) =>
+    request.post(`/scripts/executions/${executionId}/cancel`),
+
+  logs: (executionId: string) =>
+    request.get<{ data: ExecutionLog[] }>(`/scripts/executions/${executionId}/logs`),
+}
+
+// ==================== 版本管理 API ====================
+
+export interface ScriptVersion {
+  id?: number
+  scriptId: number
+  versionNum: number
+  scriptName?: string
+  scriptContent?: string
+  triggerType?: string
+  repeatType?: string
+  repeatTime?: string
+  weeklyDays?: string
+  monthlyDay?: number
+  monthlyLastDay?: boolean
+  cronExpression?: string
+  endType?: string
+  endTime?: string
+  repeatCount?: number
+  changeDescription: string
+  createdBy?: string
+  createdAt?: string
+  isCurrent?: boolean
+  executionCount?: number
+  successCount?: number
+  failedCount?: number
+}
+
+export const versionApi = {
+  list: (scriptId: number) =>
+    request.get<{ data: ScriptVersion[] }>(`/scripts/${scriptId}/versions`),
+
+  get: (scriptId: number, versionId: number) =>
+    request.get<{ data: ScriptVersion }>(`/scripts/${scriptId}/versions/${versionId}`),
+
+  restore: (scriptId: number, versionId: number, changeDescription: string) =>
+    request.post<{ data: CollectionScript }>(
+      `/scripts/${scriptId}/versions/${versionId}/restore`,
+      null,
+      { params: { changeDescription } }
+    ),
+
+  compare: (scriptId: number, versionId1: number, versionId2: number) =>
+    request.get<{ data: { v1: ScriptVersion; v2: ScriptVersion } }>(
+      `/scripts/${scriptId}/versions/compare`,
+      { params: { versionId1, versionId2 } }
+    ),
+}
+
+// ==================== Cron 校验 API ====================
+
+export const cronApi = {
+  validate: (cron: string) =>
+    request.post<{ data: { valid: boolean; description?: string; error?: string; nextExecutions?: string[] } }>(
+      '/scripts/validate-cron',
+      { cron }
+    ),
+}
