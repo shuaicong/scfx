@@ -98,6 +98,7 @@ export interface CollectionScript {
   id?: number
   scriptName: string
   description?: string
+  scriptPath?: string
   scriptContent?: string
   source?: string
   subject?: string
@@ -137,21 +138,32 @@ export const scriptApi = {
   getById: (id: number) =>
     request.get<{ data: CollectionScript }>(`/scripts/${id}`),
 
-  // 获取脚本内容
+  // 获取脚本内容（从文件读取）
   getContent: (id: number) =>
-    request.get<{ data: { content: string } }>(`/scripts/${id}/content`),
+    request.get<{ data: string }>(`/scripts/${id}/content`),
 
-  // 创建脚本
-  create: (data: CollectionScript) =>
-    request.post<{ data: CollectionScript }>('/scripts', data),
+  // 创建脚本（简化版）
+  create: (scriptName: string, description: string, scriptContent: string) =>
+    request.post<{ data: CollectionScript }>('/scripts', { scriptName, description, scriptContent }),
+
+  // 上传脚本文件
+  upload: (scriptName: string, description: string, file: File) => {
+    const formData = new FormData()
+    formData.append('scriptName', scriptName)
+    formData.append('description', description)
+    formData.append('file', file)
+    return request.post<{ data: CollectionScript }>('/scripts/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
 
   // 更新脚本
   update: (id: number, data: CollectionScript) =>
     request.put<{ data: CollectionScript }>(`/scripts/${id}`, data),
 
-  // 更新脚本内容
-  updateContent: (id: number, content: string) =>
-    request.put<{ data: CollectionScript }>(`/scripts/${id}/content`, { content }),
+  // 更新脚本内容（同时更新文件）
+  updateContent: (id: number, scriptContent: string) =>
+    request.put<{ data: CollectionScript }>(`/scripts/${id}/content`, { scriptContent }),
 
   // 删除脚本
   delete: (id: number) =>

@@ -6,6 +6,7 @@ import com.scfx.entity.CollectionScript;
 import com.scfx.service.CollectionScriptService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -42,29 +43,48 @@ public class CollectionScriptController {
     }
 
     /**
-     * 获取脚本内容
+     * 获取脚本内容（从文件读取）
      * GET /scripts/{id}/content
      */
     @GetMapping("/{id}/content")
-    public Result<Map<String, String>> getScriptContent(@PathVariable Long id) {
-        CollectionScript script = scriptService.getScriptById(id).getData();
-        if (script == null) {
-            return Result.error("脚本不存在");
-        }
-        return Result.success(Map.of("content", script.getScriptContent()));
+    public Result<String> getScriptContent(@PathVariable Long id) {
+        return scriptService.getScriptContent(id);
     }
 
     /**
-     * 创建脚本
+     * 创建脚本（简化版：只需名称、描述、内容）
      * POST /scripts
      */
     @PostMapping
-    public Result<CollectionScript> createScript(@RequestBody CollectionScript script) {
-        return scriptService.createScript(script);
+    public Result<CollectionScript> createScript(@RequestBody Map<String, String> request) {
+        String scriptName = request.get("scriptName");
+        String description = request.get("description");
+        String scriptContent = request.get("scriptContent");
+
+        if (scriptName == null || scriptName.isBlank()) {
+            return Result.error("脚本名称不能为空");
+        }
+        if (scriptContent == null || scriptContent.isBlank()) {
+            return Result.error("脚本内容不能为空");
+        }
+
+        return scriptService.createScript(scriptName, description, scriptContent);
     }
 
     /**
-     * 更新脚本
+     * 上传脚本文件
+     * POST /scripts/upload
+     */
+    @PostMapping("/upload")
+    public Result<CollectionScript> uploadScript(
+            @RequestParam("scriptName") String scriptName,
+            @RequestParam(value = "description", required = false) String description,
+            @RequestParam("file") MultipartFile file) {
+        return scriptService.uploadScript(scriptName, description, file);
+    }
+
+    /**
+     * 更新脚本（元数据）
      * PUT /scripts/{id}
      */
     @PutMapping("/{id}")
@@ -74,21 +94,20 @@ public class CollectionScriptController {
     }
 
     /**
-     * 更新脚本内容
+     * 更新脚本内容（同时更新文件）
      * PUT /scripts/{id}/content
      */
     @PutMapping("/{id}/content")
     public Result<CollectionScript> updateScriptContent(@PathVariable Long id, @RequestBody Map<String, String> request) {
-        CollectionScript script = scriptService.getScriptById(id).getData();
-        if (script == null) {
-            return Result.error("脚本不存在");
+        String content = request.get("scriptContent");
+        if (content == null || content.isBlank()) {
+            return Result.error("脚本内容不能为空");
         }
-        script.setScriptContent(request.get("content"));
-        return scriptService.updateScript(script);
+        return scriptService.updateScriptContent(id, content);
     }
 
     /**
-     * 删除脚本
+     * 删除脚本（同时删除文件）
      * DELETE /scripts/{id}
      */
     @DeleteMapping("/{id}")
@@ -115,12 +134,12 @@ public class CollectionScriptController {
     }
 
     /**
-     * 手动执行脚本
+     * 执行脚本（通过文件路径）
      * POST /scripts/{id}/execute
      */
     @PostMapping("/{id}/execute")
     public Result<Map<String, Object>> executeScript(@PathVariable Long id) {
-        return scriptService.executeScript(id);
+        return scriptService.executeScriptByPath(id);
     }
 
     /**
@@ -154,7 +173,6 @@ public class CollectionScriptController {
 
     private boolean isValidCronExpression(String cron) {
         if (cron == null || cron.isEmpty()) return false;
-        // 简化验证：检查是否满足5个或6个字段
         String[] parts = cron.trim().split("\\s+");
         return parts.length >= 5 && parts.length <= 6;
     }

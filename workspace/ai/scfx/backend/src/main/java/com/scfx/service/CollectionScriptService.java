@@ -7,9 +7,11 @@ import com.scfx.entity.CollectionScript;
 import com.scfx.mapper.CollectionScriptMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -27,10 +29,22 @@ public class CollectionScriptService {
 
     private final CollectionScriptMapper scriptMapper;
 
-    /**
-     * 新增脚本
+    @Autowired
+    private ScriptFileService scriptFileService;
+
+/**
+     * 新增脚本（简化为只需要名称和描述）
      */
-    public Result<CollectionScript> createScript(CollectionScript script) {
+    public Result<CollectionScript> createScript(String scriptName, String description, String scriptContent) {
+        // 1. 保存脚本文件
+        String scriptPath = scriptFileService.saveScript(scriptName, scriptContent);
+
+        // 2. 创建数据库记录
+        CollectionScript script = new CollectionScript();
+        script.setScriptName(scriptName);
+        script.setDescription(description);
+        script.setScriptPath(scriptPath);
+        script.setScriptContent(scriptContent);
         script.setCreatedAt(LocalDateTime.now());
         script.setUpdatedAt(LocalDateTime.now());
         script.setStatus("enabled");
@@ -38,12 +52,85 @@ public class CollectionScriptService {
         script.setSuccessCount(0);
         script.setFailedCount(0);
         scriptMapper.insert(script);
-        log.info("创建采集脚本: {}", script.getScriptName());
+
+        log.info("创建采集脚本: {} -> {}", scriptName, scriptPath);
         return Result.success(script);
     }
 
     /**
-     * 更新脚本
+     * 更新脚本内容
+     */
+    public Result<CollectionScript> updateScriptContent(Long id, String scriptContent) {
+        CollectionScript script = scriptMapper.selectById(id);
+        if (script == null) {
+            return Result.error("脚本不存在");
+        }
+
+        // 更新文件
+        String scriptPath = scriptFileService.updateScript(script.getScriptPath(), scriptContent);
+
+        // 更新数据库
+        script.setScriptContent(scriptContent);
+        script.setUpdatedAt(LocalDateTime.now());
+        scriptMapper.updateById(script);
+
+        log.info("更新脚本内容: {}", script.getScriptName());
+        return Result.success(script);
+    }
+
+    /**
+     * 上传脚本文件
+     */
+    public Result<CollectionScript> uploadScript(String scriptName, String description, MultipartFile file) {
+        try {
+            // 保存上传的文件
+            String scriptPath = scriptFileService.uploadScript(file, scriptName);
+
+            // 读取文件内容
+            String scriptContent = scriptFileService.readScript(scriptPath);
+
+            // 创建数据库记录
+            CollectionScript script = new CollectionScript();
+            script.setScriptName(scriptName);
+            script.setDescription(description);
+            script.setScriptPath(scriptPath);
+            script.setScriptContent(scriptContent);
+            script.setCreatedAt(LocalDateTime.now());
+            script.setUpdatedAt(LocalDateTime.now());
+            script.setStatus("enabled");
+            script.setExecutionCount(0);
+            script.setSuccessCount(0);
+            script.setFailedCount(0);
+            scriptMapper.insert(script);
+
+            log.info("上传脚本: {} -> {}", scriptName, scriptPath);
+            return Result.success(script);
+        } catch (Exception e) {
+            log.error("上传脚本失败", e);
+            return Result.error("上传脚本失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 读取脚本文件内容
+     */
+    public Result<String> getScriptContent(Long id) {
+        CollectionScript script = scriptMapper.selectById(id);
+        if (script == null) {
+            return Result.error("脚本不存在");
+        }
+
+        try {
+            String content = scriptFileService.readScript(script.getScriptPath());
+            return Result.success(content);
+        } catch (Exception e) {
+            log.error("读取脚本内容失败", e);
+            return Result.error("读取脚本内容失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 更新脚本（元数据，不更新文件内容）
      */
     public Result<CollectionScript> updateScript(CollectionScript script) {
         script.setUpdatedAt(LocalDateTime.now());
@@ -52,13 +139,76 @@ public class CollectionScriptService {
         return Result.success(scriptMapper.selectById(script.getId()));
     }
 
-    /**
-     * 删除脚本
+/**
+     * 删除脚本（同时删除文件）
      */
+    @Transactional
     public Result<Void> deleteScript(Long id) {
+        CollectionScript script = scriptMapper.selectById(id);
+        if (script != null && script.getScriptPath() != null) {
+            scriptFileService.deleteScript(script.getScriptPath());
+        }
         scriptMapper.deleteById(id);
         log.info("删除采集脚本: id={}", id);
         return Result.success();
+    }
+
+    /**
+     * 根据名称删除脚本
+     */
+    @Transactional
+    public Result<Void> deleteScriptByName(String scriptName) {
+        LambdaQueryWrapper<CollectionScript> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(CollectionScript::getScriptName, scriptName);
+        List<CollectionScript> scripts = scriptMapper.selectList(wrapper);
+
+        for (CollectionScript script : scripts) {
+            if (script.getScriptPath() != null) {
+                scriptFileService.deleteScript(script.getScriptPath());
+            }
+            scriptMapper.deleteById(script.getId());
+        }
+        log.info("删除采集脚本: name={}", scriptName);
+        return Result.success();
+    }
+
+    /**
+     * 执行脚本（通过文件路径）
+     */
+    @Transactional
+    public Result<Map<String, Object>> executeScriptByPath(Long id) {
+        CollectionScript script = scriptMapper.selectById(id);
+        if (script == null) {
+            return Result.error("脚本不存在");
+        }
+        if ("disabled".equals(script.getStatus())) {
+            return Result.error("脚本已禁用，请先启用");
+        }
+
+        // 读取脚本内容
+        String scriptContent;
+        try {
+            scriptContent = scriptFileService.readScript(script.getScriptPath());
+        } catch (Exception e) {
+            return Result.error("读取脚本文件失败: " + e.getMessage());
+        }
+
+        // 更新执行状态
+        script.setLastExecutionTime(LocalDateTime.now());
+        script.setExecutionCount(script.getExecutionCount() == null ? 1 : script.getExecutionCount() + 1);
+        scriptMapper.updateById(script);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("scriptId", id);
+        result.put("scriptName", script.getScriptName());
+        result.put("scriptPath", script.getScriptPath());
+        result.put("scriptContent", scriptContent);
+        result.put("startTime", script.getLastExecutionTime());
+        result.put("source", script.getSource());
+        result.put("subject", script.getSubject());
+
+        log.info("执行采集脚本: {}", script.getScriptName());
+        return Result.success(result);
     }
 
     /**

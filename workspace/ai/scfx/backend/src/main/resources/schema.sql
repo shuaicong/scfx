@@ -128,6 +128,7 @@ CREATE TABLE IF NOT EXISTS t_collection_script (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     script_name VARCHAR(100) NOT NULL,
     description VARCHAR(500),
+    script_path VARCHAR(500) NOT NULL,
     script_content TEXT,
     source VARCHAR(50),
     subject VARCHAR(50),

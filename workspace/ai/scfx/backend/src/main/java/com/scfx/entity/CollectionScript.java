@@ -20,6 +20,9 @@ public class CollectionScript {
     /** 脚本描述 */
     private String description;
 
+    /** 脚本文件路径 */
+    private String scriptPath;
+
     /** 脚本内容（Python代码） */
     private String scriptContent;
 

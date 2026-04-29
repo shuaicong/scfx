@@ -4,9 +4,14 @@
       <template #header>
         <div class="card-header">
           <span>采集脚本管理</span>
-          <el-button type="primary" @click="handleCreate">
-            <el-icon><Plus /></el-icon> 新建脚本
-          </el-button>
+          <div class="header-actions">
+            <el-button type="info" @click="handleUpload">
+              <el-icon><Upload /></el-icon> 上传文件
+            </el-button>
+            <el-button type="primary" @click="handleCreate">
+              <el-icon><Plus /></el-icon> 新建脚本
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -58,6 +63,11 @@
       <el-table :data="list" border stripe v-loading="loading">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="scriptName" label="脚本名称" min-width="150" />
+        <el-table-column prop="scriptPath" label="文件路径" min-width="200" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span class="script-path">{{ row.scriptPath || '-' }}</span>
+          </template>
+        </el-table-column>
         <el-table-column prop="source" label="数据源" width="100">
           <template #default="{ row }">
             <el-tag v-if="row.source === 'liangxin'" type="success">粮信网</el-tag>
@@ -75,11 +85,6 @@
             <el-tag v-else>{{ row.triggerType }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="reportIntervalSeconds" label="上报频率" width="90">
-          <template #default="{ row }">
-            {{ row.reportIntervalSeconds }}秒
-          </template>
-        </el-table-column>
         <el-table-column prop="executionCount" label="执行次数" width="90" />
         <el-table-column prop="status" label="状态" width="80">
           <template #default="{ row }">
@@ -92,19 +97,13 @@
             {{ row.lastExecutionTime ? formatTime(row.lastExecutionTime) : '-' }}
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="320" fixed="right">
+        <el-table-column label="操作" width="280" fixed="right">
           <template #default="{ row }">
             <el-button type="info" size="small" @click="showDetail(row)">
               详情
             </el-button>
             <el-button type="success" size="small" @click="triggerExecute(row)">
               执行
-            </el-button>
-            <el-button v-if="row.status !== 'disabled'" type="warning" size="small" @click="handleDisable(row)">
-              禁用
-            </el-button>
-            <el-button v-else type="success" size="small" @click="handleEnable(row)">
-              启用
             </el-button>
             <el-button type="primary" size="small" @click="handleEdit(row)">
               编辑
@@ -130,150 +129,28 @@
       </div>
     </el-card>
 
-    <!-- 编辑对话框 -->
-    <el-dialog v-model="dialogVisible" title="编辑脚本" width="900px" :close-on-click-modal="false">
-      <el-tabs v-model="activeTab">
-        <el-tab-pane label="基本信息" name="basic">
-          <el-form :model="currentRow" label-width="100px" class="script-form" :rules="formRules">
-            <el-form-item label="脚本名称" prop="scriptName">
-              <el-input v-model="currentRow.scriptName" placeholder="请输入脚本名称" />
-            </el-form-item>
-            <el-form-item label="描述">
-              <el-input v-model="currentRow.description" type="textarea" :rows="2" placeholder="请输入描述" />
-            </el-form-item>
-            <el-form-item label="数据源" prop="source">
-              <el-select v-model="currentRow.source" style="width: 100%" placeholder="请选择数据源">
-                <el-option label="粮信网" value="liangxin" />
-                <el-option label="我的钢铁网" value="mysteel" />
-                <el-option label="中华粮网" value="chinagrain" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="采集主体" prop="subject">
-              <el-select v-model="currentRow.subject" style="width: 100%" placeholder="请选择采集主体">
-                <el-option label="玉米" value="corn" />
-                <el-option label="小麦" value="wheat" />
-                <el-option label="稻米" value="rice" />
-                <el-option label="大豆" value="soybean" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="采集类型">
-              <el-select v-model="currentRow.collType" style="width: 100%">
-                <el-option label="模拟登录爬取" value="login_crawl" />
-                <el-option label="公开页面爬取" value="public_crawl" />
-                <el-option label="接口采集" value="api_collect" />
-                <el-option label="文件下载" value="file_download" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="采集对象">
-              <el-select v-model="currentRow.collObject" style="width: 100%">
-                <el-option label="日报" value="daily_report" />
-                <el-option label="周报" value="weekly_report" />
-                <el-option label="月报" value="monthly_report" />
-                <el-option label="价格" value="price" />
-                <el-option label="资讯" value="news" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="上报频率">
-              <el-input-number v-model="currentRow.reportIntervalSeconds" :min="10" :max="3600" />
-              <span class="unit">秒</span>
-            </el-form-item>
-          </el-form>
-        </el-tab-pane>
-
-        <el-tab-pane label="触发配置" name="trigger">
-          <el-form :model="currentRow" label-width="100px" class="script-form">
-            <el-form-item label="触发方式">
-              <el-radio-group v-model="currentRow.triggerType">
-                <el-radio label="manual">手动触发</el-radio>
-                <el-radio label="single">单次触发</el-radio>
-                <el-radio label="repeat">周期触发</el-radio>
-                <el-radio label="cron">Cron表达式</el-radio>
-              </el-radio-group>
-            </el-form-item>
-
-            <!-- 单次触发 -->
-            <template v-if="currentRow.triggerType === 'single'">
-              <el-form-item label="触发时间">
-                <el-date-picker
-                  v-model="singleTime"
-                  type="datetime"
-                  placeholder="选择触发时间"
-                  style="width: 100%"
-                />
-              </el-form-item>
-              <el-form-item label="结束时间">
-                <el-date-picker
-                  v-model="currentRow.endTime"
-                  type="datetime"
-                  placeholder="选择结束时间（可选）"
-                  style="width: 100%"
-                />
-              </el-form-item>
-            </template>
-
-            <!-- 周期触发 -->
-            <template v-if="currentRow.triggerType === 'repeat'">
-              <el-form-item label="重复周期">
-                <el-radio-group v-model="currentRow.repeatType">
-                  <el-radio label="daily">每天</el-radio>
-                  <el-radio label="weekly">每周</el-radio>
-                  <el-radio label="monthly">每月</el-radio>
-                </el-radio-group>
-              </el-form-item>
-              <el-form-item label="执行时间">
-                <el-time-picker
-                  v-model="repeatTime"
-                  placeholder="选择时间"
-                  style="width: 100%"
-                  format="HH:mm:ss"
-                  value-format="HH:mm:ss"
-                />
-              </el-form-item>
-              <el-form-item label="结束时间">
-                <el-date-picker
-                  v-model="currentRow.endTime"
-                  type="datetime"
-                  placeholder="选择结束时间（可选）"
-                  style="width: 100%"
-                />
-              </el-form-item>
-            </template>
-
-            <!-- Cron表达式 -->
-            <template v-if="currentRow.triggerType === 'cron'">
-              <el-form-item label="Cron表达式">
-                <el-input v-model="currentRow.cronExpression" placeholder="0 0 8 * * ?" />
-                <div class="cron-hint">
-                  格式: 秒 分 时 日 月 周<br/>
-                  示例: "0 0 8 * * ?" 每天8点执行<br/>
-                  "0 30 14 * * ?" 每天14:30执行<br/>
-                  "0 0 9 * * MON" 每周一9点执行
-                </div>
-              </el-form-item>
-              <el-form-item label="结束时间">
-                <el-date-picker
-                  v-model="currentRow.endTime"
-                  type="datetime"
-                  placeholder="选择结束时间（可选）"
-                  style="width: 100%"
-                />
-              </el-form-item>
-            </template>
-          </el-form>
-        </el-tab-pane>
-
-        <el-tab-pane label="脚本内容" name="content">
-          <div class="editor-container">
-            <el-input
-              v-model="currentRow.scriptContent"
-              type="textarea"
-              :rows="20"
-              placeholder="请输入Python脚本内容..."
-              class="code-editor"
-            />
-          </div>
-        </el-tab-pane>
-      </el-tabs>
+    <!-- 新建/编辑对话框（简化版） -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="900px" :close-on-click-modal="false">
+      <el-form :model="currentRow" label-width="100px" class="script-form">
+        <el-form-item label="脚本名称" required>
+          <el-input v-model="currentRow.scriptName" placeholder="请输入脚本名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="currentRow.description" type="textarea" :rows="2" placeholder="请输入描述（可选）" />
+        </el-form-item>
+        <el-form-item label="脚本内容" v-if="currentRow.id">
+          <el-switch v-model="editContentMode" active-text="编辑内容" inactive-text="仅保存到文件" />
+        </el-form-item>
+        <el-form-item label="脚本内容" v-if="!currentRow.id || editContentMode">
+          <el-input
+            v-model="currentRow.scriptContent"
+            type="textarea"
+            :rows="15"
+            placeholder="请输入Python脚本内容..."
+            class="code-editor"
+          />
+        </el-form-item>
+      </el-form>
 
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
@@ -286,9 +163,10 @@
       <el-descriptions :column="2" border>
         <el-descriptions-item label="ID">{{ detailRow.id }}</el-descriptions-item>
         <el-descriptions-item label="名称">{{ detailRow.scriptName }}</el-descriptions-item>
-        <el-descriptions-item label="数据源">{{ detailRow.source }}</el-descriptions-item>
+        <el-descriptions-item label="文件路径" :span="2">
+          <span class="script-path">{{ detailRow.scriptPath || '-' }}</span>
+        </el-descriptions-item>
         <el-descriptions-item label="触发方式">{{ detailRow.triggerType }}</el-descriptions-item>
-        <el-descriptions-item label="上报频率">{{ detailRow.reportIntervalSeconds }}秒</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="detailRow.status === 'enabled' ? 'success' : 'danger'">
             {{ detailRow.status === 'enabled' ? '启用' : '禁用' }}
@@ -300,38 +178,70 @@
         <el-descriptions-item label="最后执行" :span="2">
           {{ detailRow.lastExecutionTime ? formatTime(detailRow.lastExecutionTime) : '-' }}
         </el-descriptions-item>
-        <el-descriptions-item label="Cron" :span="2">{{ detailRow.cronExpression || '-' }}</el-descriptions-item>
         <el-descriptions-item label="描述" :span="2">{{ detailRow.description || '-' }}</el-descriptions-item>
       </el-descriptions>
 
       <div class="script-content-preview">
         <h4>脚本内容</h4>
-        <pre>{{ detailRow.scriptContent }}</pre>
+        <pre>{{ detailRow.scriptContent || '点击"查看文件"按钮加载' }}</pre>
       </div>
 
       <template #footer>
         <el-button @click="detailVisible = false">关闭</el-button>
-        <el-button type="primary" @click="handleEditFromDetail">编辑脚本</el-button>
+        <el-button type="info" @click="handleViewFile">查看文件</el-button>
+        <el-button type="primary" @click="handleEditFromDetail">编辑</el-button>
         <el-button type="success" @click="handleExecute">立即执行</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 上传对话框 -->
+    <el-dialog v-model="uploadVisible" title="上传脚本文件" width="500px">
+      <el-form :model="uploadForm" label-width="100px">
+        <el-form-item label="脚本名称" required>
+          <el-input v-model="uploadForm.scriptName" placeholder="将作为文件名" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="uploadForm.description" type="textarea" :rows="2" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="选择文件" required>
+          <el-upload
+            ref="uploadRef"
+            :auto-upload="false"
+            :limit="1"
+            accept=".py"
+            :on-change="handleFileChange"
+          >
+            <el-button>选择Python文件</el-button>
+            <template #tip>
+              <div class="el-upload__tip">只能上传 .py 文件</div>
+            </template>
+          </el-upload>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <el-button @click="uploadVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleUploadSubmit" :loading="uploading">上传</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+import { Plus, Upload } from '@element-plus/icons-vue'
 import { scriptApi, CollectionScript, ScriptStats } from '../../api'
 
 const loading = ref(false)
+const uploading = ref(false)
 const list = ref<CollectionScript[]>([])
 const stats = ref<ScriptStats>({ total: 0, enabled: 0, disabled: 0 })
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
-const activeTab = ref('basic')
-const singleTime = ref<Date | null>(null)
-const repeatTime = ref<Date | null>(null)
+const uploadVisible = ref(false)
+const editContentMode = ref(true)
+const uploadRef = ref()
 
 const filters = reactive({
   status: '',
@@ -346,12 +256,13 @@ const pagination = reactive({
 
 const currentRow = ref<any>({})
 const detailRow = ref<any>({})
+const uploadForm = reactive({
+  scriptName: '',
+  description: '',
+  file: null as File | null
+})
 
-const formRules = {
-  scriptName: [{ required: true, message: '请输入脚本名称', trigger: 'blur' }],
-  source: [{ required: true, message: '请选择数据源', trigger: 'change' }],
-  subject: [{ required: true, message: '请选择采集主体', trigger: 'change' }]
-}
+const dialogTitle = computed(() => currentRow.value.id ? '编辑脚本' : '新建脚本')
 
 function formatTime(time: string) {
   if (!time) return '-'
@@ -396,149 +307,18 @@ function resetFilters() {
 
 function handleCreate() {
   currentRow.value = {
-    scriptName: '粮信网-玉米晨报采集',
-    description: '粮信网玉米市场晨报数据采集脚本',
-    scriptContent: `#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-粮信网玉米晨报采集脚本
-功能：模拟登录粮信网，采集玉米晨报数据
-"""
-
-import os
-import sys
-import time
-import requests
-from datetime import datetime
-
-# 添加SDK路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from collectorsdk import (
-    ReporterConfig, BaseCollector,
-    Source, Subject, CollectType, CollectObject
-)
-
-class LiangxinwangCornCollector(BaseCollector):
-    """粮信网玉米晨报采集器"""
-
-    LOGIN_URL = "https://my.chinagrain.cn/jinnong/a/login"
-    REPORT_URL = "https://www.chinagrain.cn/report/"
-
-    def __init__(self, config, task_id, username, password):
-        super().__init__(
-            config=config,
-            task_id=task_id,
-            source=Source.LIANGXIN.value,
-            subject=Subject.CORN.value,
-            coll_type=CollectType.LOGIN_CRAWL.value,
-            obj=CollectObject.DAILY_REPORT.value,
-            remark="粮信网玉米晨报采集"
-        )
-        self.username = username
-        self.password = password
-        self.session = requests.Session()
-
-    def collect(self):
-        """执行采集逻辑"""
-        count = 0
-        try:
-            # 1. 登录
-            self.log_info("开始登录粮信网...")
-            if not self._do_login():
-                self.log_error("登录失败")
-                return 0
-
-            # 2. 访问报告页面
-            self.log_info(f"访问报告页面: {self.REPORT_URL}")
-            # response = self.session.get(self.REPORT_URL)
-
-            # 3. 模拟采集数据
-            self.log_info("开始解析报告列表...")
-            reports = self._parse_reports()
-
-            # 4. 逐个提交报告
-            for report in reports:
-                self.submit_report(
-                    title=report["title"],
-                    source=Source.LIANGXIN.value,
-                    url=report["url"],
-                    variety="玉米",
-                    report_type="晨报",
-                    content=report.get("content", ""),
-                    publish_time=report.get("publish_time", "")
-                )
-                count += 1
-                self.report_progress(count)
-                self.log_info(f"已采集 {count}/{len(reports)}: {report['title']}")
-
-            self.log_info(f"采集完成，共 {count} 条数据")
-        except Exception as e:
-            self.log_error(f"采集异常: {str(e)}")
-            raise
-
-        return count
-
-    def _do_login(self):
-        """执行登录"""
-        try:
-            data = {
-                "username": self.username,
-                "password": self.password
-            }
-            # resp = self.session.post(self.LOGIN_URL, data=data, timeout=30)
-            self.log_info(f"登录凭据: {self.username[:2]}***")
-            return True
-        except Exception as e:
-            self.log_error(f"登录请求失败: {str(e)}")
-            return False
-
-    def _parse_reports(self):
-        """解析报告列表"""
-        # 模拟数据
-        today = datetime.now().strftime("%Y年%m月%d日")
-        reports = [
-            {
-                "title": f"（{today}）玉米晨报",
-                "url": "https://www.chinagrain.cn/report/1",
-                "content": "今日国内玉米价格震荡运行为主...",
-                "publish_time": datetime.now().isoformat()
-            }
-        ]
-        return reports
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--task-id", type=int, default=1)
-    parser.add_argument("--username", default=os.getenv("LXW_USERNAME", "33022"))
-    parser.add_argument("--password", default=os.getenv("LXW_PASSWORD", "qlp707"))
-    args = parser.parse_args()
-
-    config = ReporterConfig.from_env()
-    collector = LiangxinwangCornCollector(
-        config=config,
-        task_id=args.task_id,
-        username=args.username,
-        password=args.password
-    )
-    result = collector.run()
-    print(f"执行结果: {result}")
-`,
-    source: 'liangxin',
-    subject: 'corn',
-    collType: 'login_crawl',
-    collObject: 'daily_report',
-    triggerType: 'manual',
-    reportIntervalSeconds: 60,
+    scriptName: '',
+    description: '',
+    scriptContent: '#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\n\n# 在此编写采集脚本...\n',
     status: 'enabled'
   }
-  activeTab.value = 'basic'
+  editContentMode.value = true
   dialogVisible.value = true
 }
 
 function handleEdit(row: CollectionScript) {
   currentRow.value = { ...row }
-  activeTab.value = 'basic'
+  editContentMode.value = true
   dialogVisible.value = true
 }
 
@@ -548,75 +328,69 @@ function handleEditFromDetail() {
   dialogVisible.value = true
 }
 
+function handleUpload() {
+  uploadForm.scriptName = ''
+  uploadForm.description = ''
+  uploadForm.file = null
+  uploadVisible.value = true
+}
+
+function handleFileChange(file: any) {
+  uploadForm.file = file.raw
+  if (!uploadForm.scriptName && file.name) {
+    uploadForm.scriptName = file.name.replace('.py', '')
+  }
+}
+
+async function handleUploadSubmit() {
+  if (!uploadForm.scriptName) {
+    ElMessage.warning('请输入脚本名称')
+    return
+  }
+  if (!uploadForm.file) {
+    ElMessage.warning('请选择文件')
+    return
+  }
+
+  uploading.value = true
+  try {
+    await scriptApi.upload(uploadForm.scriptName, uploadForm.description, uploadForm.file)
+    ElMessage.success('上传成功')
+    uploadVisible.value = false
+    loadData()
+  } catch (e) {
+    console.error('上传失败', e)
+  } finally {
+    uploading.value = false
+  }
+}
+
 async function handleSave() {
-  // 校验必填项
   if (!currentRow.value.scriptName) {
     ElMessage.warning('请输入脚本名称')
     return
   }
-  if (!currentRow.value.source) {
-    ElMessage.warning('请选择数据源')
-    return
-  }
-  if (!currentRow.value.subject) {
-    ElMessage.warning('请选择采集主体')
-    return
-  }
-  if (currentRow.value.triggerType === 'single' && !singleTime.value) {
-    ElMessage.warning('请选择触发时间')
-    return
-  }
-  if (currentRow.value.triggerType === 'repeat' && !repeatTime.value) {
-    ElMessage.warning('请选择执行时间')
-    return
-  }
-  if (currentRow.value.triggerType === 'cron' && !currentRow.value.cronExpression) {
-    ElMessage.warning('请输入Cron表达式')
-    return
-  }
 
   try {
-    // 处理时间格式转换
-    if (singleTime.value) {
-      currentRow.value.startTime = singleTime.value
-    }
-    if (repeatTime.value) {
-      currentRow.value.repeatConfig = JSON.stringify({ time: repeatTime.value })
-    }
-
     if (currentRow.value.id) {
-      await scriptApi.update(currentRow.value.id, currentRow.value as any)
+      // 更新时，保存内容到文件
+      if (editContentMode.value && currentRow.value.scriptContent) {
+        await scriptApi.updateContent(currentRow.value.id, currentRow.value.scriptContent)
+      }
       ElMessage.success('保存成功')
     } else {
-      await scriptApi.create(currentRow.value as any)
+      // 新建时，创建脚本
+      await scriptApi.create(
+        currentRow.value.scriptName,
+        currentRow.value.description || '',
+        currentRow.value.scriptContent || ''
+      )
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
     loadData()
   } catch (e) {
     console.error('保存失败', e)
-  }
-}
-
-async function handleEnable(row: CollectionScript) {
-  if (!row.id) return
-  try {
-    await scriptApi.enable(row.id)
-    ElMessage.success('已启用')
-    loadData()
-  } catch (e) {
-    console.error('启用失败', e)
-  }
-}
-
-async function handleDisable(row: CollectionScript) {
-  if (!row.id) return
-  try {
-    await scriptApi.disable(row.id)
-    ElMessage.success('已禁用')
-    loadData()
-  } catch (e) {
-    console.error('禁用失败', e)
   }
 }
 
@@ -634,6 +408,31 @@ async function handleDelete(row: CollectionScript) {
   }
 }
 
+async function showDetail(row: CollectionScript) {
+  detailRow.value = { ...row }
+  // 加载脚本内容
+  if (row.id) {
+    try {
+      const res: any = await scriptApi.getContent(row.id)
+      detailRow.value.scriptContent = res.data
+    } catch (e) {
+      console.error('加载脚本内容失败', e)
+    }
+  }
+  detailVisible.value = true
+}
+
+async function handleViewFile() {
+  if (!detailRow.value.id) return
+  try {
+    const res: any = await scriptApi.getContent(detailRow.value.id)
+    detailRow.value.scriptContent = res.data
+    ElMessage.success('已重新加载文件内容')
+  } catch (e) {
+    console.error('加载失败', e)
+  }
+}
+
 async function handleExecute() {
   if (!detailRow.value.id) return
   try {
@@ -646,17 +445,10 @@ async function handleExecute() {
   }
 }
 
-async function showDetail(row: CollectionScript) {
-  detailRow.value = { ...row }
-  detailVisible.value = true
-}
-
 async function triggerExecute(row: CollectionScript) {
   if (!row.id) return
   try {
-    await ElMessageBox.confirm(`确定立即执行脚本"${row.scriptName}"吗？`, '执行确认', {
-      type: 'info'
-    })
+    await ElMessageBox.confirm(`确定立即执行脚本"${row.scriptName}"吗？`, '执行确认', { type: 'info' })
     await scriptApi.execute(row.id)
     ElMessage.success('脚本已触发执行，请查看日志')
     loadData()
@@ -683,29 +475,35 @@ onMounted(() => {
   align-items: center;
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
 .stats-row {
   margin-bottom: 20px;
 }
 
 .stat-card {
   padding: 20px;
-  border-radius: 8px;
+  border-radius: 12px;
   text-align: center;
   color: #fff;
 }
 
-.stat-card.total { background: #409EFF; }
-.stat-card.enabled { background: #67C23A; }
-.stat-card.disabled { background: #909399; }
+.stat-card.total { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+.stat-card.enabled { background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); }
+.stat-card.disabled { background: linear-gradient(135deg, #a0aec0 0%, #718096 100%); }
 
 .stat-value {
-  font-size: 28px;
+  font-size: 32px;
   font-weight: bold;
 }
 
 .stat-label {
   font-size: 14px;
   margin-top: 8px;
+  opacity: 0.9;
 }
 
 .filter-form {
@@ -719,29 +517,13 @@ onMounted(() => {
 }
 
 .script-form {
-  max-width: 600px;
-}
-
-.unit {
-  margin-left: 10px;
-  color: #999;
-}
-
-.cron-hint {
-  font-size: 12px;
-  color: #999;
-  margin-top: 5px;
-  line-height: 1.6;
-}
-
-.editor-container {
-  border: 1px solid #dcdfe6;
-  border-radius: 4px;
+  max-width: 700px;
 }
 
 .code-editor :deep(textarea) {
   font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
   font-size: 13px;
+  line-height: 1.6;
 }
 
 .script-content-preview {
@@ -750,15 +532,25 @@ onMounted(() => {
 
 .script-content-preview h4 {
   margin-bottom: 10px;
+  color: #1a202c;
 }
 
 .script-content-preview pre {
-  background: #f5f7fa;
+  background: #1e2433;
+  color: #c8d1dc;
   padding: 15px;
-  border-radius: 4px;
+  border-radius: 8px;
   max-height: 300px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 12px;
+}
+
+.script-path {
+  font-family: 'Monaco', 'Menlo', monospace;
+  font-size: 12px;
+  color: #718096;
 }
 </style>
