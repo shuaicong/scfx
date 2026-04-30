@@ -1947,6 +1947,29 @@ class Collector:
 
     // Initialize
     setFilter('all');
+
+    // Handle URL parameters for module switching
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const module = params.get('module');
+      const taskId = params.get('taskId');
+      if (module) {
+        switchModule(module);
+      }
+      if (taskId) {
+        // If taskId is provided, filter executions to show only this task
+        const execModule = document.getElementById('module-executions');
+        if (execModule) {
+          const taskFilter = execModule.querySelector('.filter-bar input');
+          if (taskFilter) {
+            taskFilter.value = taskId;
+            // Trigger filter
+            const event = new Event('input', { bubbles: true });
+            taskFilter.dispatchEvent(event);
+          }
+        }
+      }
+    })();
   </script>
 </body>
 </html>
