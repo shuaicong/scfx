@@ -1,0 +1,1242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务详情 - 原型预览</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/editor/editor.main.min.css">
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-card: #21262d;
+      --bg-hover: #30363d;
+      --bg-input: #0d1117;
+      --border-color: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent-blue: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-orange: #f0883e;
+      --accent-purple: #a371f7;
+      --accent-red: #f85149;
+      --accent-yellow: #d29922;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .back-btn {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      transition: all 0.2s ease;
+    }
+
+    .back-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--accent-blue);
+    }
+
+    .header-title {
+      font-size: 20px;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--accent-green), #2d9a5a);
+      color: #fff;
+    }
+
+    .btn-success:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(63, 185, 80, 0.3);
+    }
+
+    .btn-warning {
+      background: var(--bg-card);
+      color: var(--accent-orange);
+      border: 1px solid var(--accent-orange);
+    }
+
+    .btn-warning:hover {
+      background: rgba(240, 136, 62, 0.15);
+    }
+
+    .btn-danger {
+      background: var(--bg-card);
+      color: var(--accent-red);
+      border: 1px solid var(--accent-red);
+    }
+
+    .btn-danger:hover {
+      background: rgba(248, 81, 73, 0.15);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent-blue);
+    }
+
+    /* Page Container */
+    .page-container {
+      padding: 32px;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+
+    /* Main Layout */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      gap: 24px;
+    }
+
+    /* Stats Card */
+    .stats-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+      position: sticky;
+      top: 100px;
+    }
+
+    .stats-header {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 20px;
+    }
+
+    .stat-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .stat-item:last-child {
+      border-bottom: none;
+    }
+
+    .stat-label {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .stat-value {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .stat-value.success { color: var(--accent-green); }
+    .stat-value.danger { color: var(--accent-red); }
+    .stat-value.rate { color: var(--accent-blue); }
+
+    .stats-divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: 16px 0;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .status-badge.enabled {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+    }
+
+    .status-badge.disabled {
+      background: rgba(110, 118, 129, 0.15);
+      color: var(--text-muted);
+    }
+
+    .status-badge .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    /* Content Area */
+    .content-area {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Script Editor Section */
+    .section-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .section-title .icon {
+      font-size: 18px;
+    }
+
+    .section-actions {
+      display: flex;
+      gap: 12px;
+    }
+
+    .shortcut-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+      background: var(--bg-primary);
+      padding: 4px 8px;
+      border-radius: 4px;
+    }
+
+    .editor-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .toolbar-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .toolbar-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .toolbar-btn.active {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-blue);
+      border-color: var(--accent-blue);
+    }
+
+    .editor-container {
+      height: 400px;
+      background: #1e1e1e;
+    }
+
+    .editor-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .editor-status {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .editor-status .modified {
+      color: var(--accent-orange);
+    }
+
+    .save-btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: #fff;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .save-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
+    }
+
+    .save-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Info Grid */
+    .info-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      padding: 24px;
+    }
+
+    .info-group {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .info-group-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .info-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .info-value {
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .info-value.tag {
+      display: inline-flex;
+    }
+
+    .info-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-blue);
+    }
+
+    .info-tag.green {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+    }
+
+    .info-tag.gray {
+      background: rgba(110, 118, 129, 0.15);
+      color: var(--text-muted);
+    }
+
+    .info-tag.orange {
+      background: rgba(240, 136, 62, 0.15);
+      color: var(--accent-orange);
+    }
+
+    .info-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-top: 4px;
+    }
+
+    /* Version List */
+    .version-list {
+      padding: 0;
+    }
+
+    .version-item {
+      display: flex;
+      align-items: center;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border-color);
+      transition: background 0.15s ease;
+    }
+
+    .version-item:last-child {
+      border-bottom: none;
+    }
+
+    .version-item:hover {
+      background: rgba(88, 166, 255, 0.05);
+    }
+
+    .version-number {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      min-width: 40px;
+    }
+
+    .version-meta {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-left: 16px;
+    }
+
+    .version-time {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .version-desc {
+      font-size: 14px;
+      color: var(--text-primary);
+    }
+
+    .version-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .version-btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .version-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .version-btn.primary {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-blue);
+      border-color: var(--accent-blue);
+    }
+
+    .version-btn.primary:hover {
+      background: rgba(88, 166, 255, 0.25);
+    }
+
+    .view-all-link {
+      padding: 16px 24px;
+      text-align: center;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .view-all-link a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .view-all-link a:hover {
+      text-decoration: underline;
+    }
+
+    /* Dialog */
+    .dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .dialog-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .dialog {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      width: 500px;
+      max-width: 90vw;
+      transform: translateY(20px);
+      transition: transform 0.2s ease;
+    }
+
+    .dialog-overlay.show .dialog {
+      transform: translateY(0);
+    }
+
+    .dialog-header {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .dialog-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .dialog-close {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+
+    .dialog-close:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .dialog-body {
+      padding: 24px;
+    }
+
+    .dialog-footer {
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+    }
+
+    /* Form */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 14px;
+      transition: border-color 0.15s ease;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .form-textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--bg-card);
+      border: 1px solid var(--accent-green);
+      color: var(--accent-green);
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 10px 40px rgba(63, 185, 80, 0.3);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 2000;
+    }
+
+    .toast.error {
+      border-color: var(--accent-red);
+      color: var(--accent-red);
+      box-shadow: 0 10px 40px rgba(248, 81, 73, 0.3);
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .main-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .stats-card {
+        position: static;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+
+      .stats-header {
+        grid-column: 1 / -1;
+        margin-bottom: 0;
+      }
+
+      .stats-divider {
+        display: none;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .page-container {
+        padding: 16px;
+      }
+
+      .header {
+        padding: 12px 16px;
+      }
+
+      .header-title {
+        font-size: 16px;
+      }
+
+      .header-actions {
+        gap: 8px;
+      }
+
+      .btn {
+        padding: 8px 12px;
+        font-size: 12px;
+      }
+
+      .stats-card {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .info-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <button class="back-btn" onclick="goBack()">←</button>
+    <h1 class="header-title">粮信网玉米晨报采集</h1>
+    <div class="header-actions">
+      <button class="btn btn-warning" id="toggleStatusBtn" onclick="toggleStatus()">禁用</button>
+      <button class="btn btn-primary" onclick="executeTask()">⚡ 执行</button>
+      <button class="btn btn-secondary" onclick="showEditDialog()">✏️ 编辑</button>
+    </div>
+  </div>
+
+  <!-- Page Container -->
+  <div class="page-container">
+    <div class="main-layout">
+      <!-- Left: Stats Card -->
+      <div class="stats-card">
+        <div class="stats-header">执行统计</div>
+
+        <div class="stat-item">
+          <span class="stat-label">执行次数</span>
+          <span class="stat-value" id="execCount">156</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">成功</span>
+          <span class="stat-value success" id="successCount">153</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">失败</span>
+          <span class="stat-value danger" id="failedCount">3</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">成功率</span>
+          <span class="stat-value rate" id="successRate">98%</span>
+        </div>
+
+        <div class="stats-divider"></div>
+
+        <div class="stat-item">
+          <span class="stat-label">状态</span>
+          <span class="status-badge enabled" id="statusBadge">
+            <span class="dot"></span>
+            启用中
+          </span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">当前版本</span>
+          <span class="stat-value" style="color: var(--accent-purple);">v3</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-label">下次执行</span>
+          <span class="stat-value" style="font-size: 14px;" id="nextExec">明天 08:00:00</span>
+        </div>
+      </div>
+
+      <!-- Right: Content Area -->
+      <div class="content-area">
+        <!-- Script Editor Section -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="icon">📝</span>
+              脚本配置
+            </div>
+            <div class="section-actions">
+              <span class="shortcut-hint">Ctrl+S 保存</span>
+            </div>
+          </div>
+          <div class="editor-toolbar">
+            <button class="toolbar-btn" onclick="formatCode()">格式化</button>
+            <button class="toolbar-btn" onclick="toggleWordWrap()">自动换行</button>
+            <button class="toolbar-btn" onclick="goToLine()">跳转到行</button>
+          </div>
+          <div class="editor-container" id="monacoEditor"></div>
+          <div class="editor-footer">
+            <div class="editor-status">
+              <span>Python</span>
+              <span>行 45, 列 12</span>
+              <span class="modified" id="modifiedIndicator" style="display: none;">已修改</span>
+            </div>
+            <button class="save-btn" id="saveBtn" onclick="saveScript()" disabled>
+              💾 保存脚本
+            </button>
+          </div>
+        </div>
+
+        <!-- Info Grid Section -->
+        <div class="section-card">
+          <div class="info-grid">
+            <div class="info-group">
+              <div class="info-group-title">基本信息</div>
+              <div class="info-item">
+                <span class="info-label">数据源</span>
+                <span class="info-value tag">
+                  <span class="info-tag">粮信网</span>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">创建时间</span>
+                <span class="info-value">2026-04-01 08:00:00</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">更新时间</span>
+                <span class="info-value">2026-04-30 10:30:00</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">创建人</span>
+                <span class="info-value">admin</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">修改人</span>
+                <span class="info-value">admin</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">任务描述</span>
+                <p class="info-desc">每日定时采集粮信网玉米价格数据，包含日报、周报等多种报告类型。数据用于生成价格走势分析报告。</p>
+              </div>
+            </div>
+            <div class="info-group">
+              <div class="info-group-title">触发配置</div>
+              <div class="info-item">
+                <span class="info-label">触发方式</span>
+                <span class="info-value tag">
+                  <span class="info-tag orange">Cron 表达式</span>
+                </span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Cron 表达式</span>
+                <span class="info-value" style="font-family: 'JetBrains Mono', monospace;">0 0 8 * * *</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">下次执行</span>
+                <span class="info-value">2026-05-01 08:00:00</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">最后执行</span>
+                <span class="info-value">2026-04-30 08:00:12</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">下次触发倒计时</span>
+                <span class="info-value" style="color: var(--accent-blue);">约 9 小时 23 分</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Version History Section -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="icon">📜</span>
+              版本历史
+            </div>
+          </div>
+          <div class="version-list">
+            <div class="version-item">
+              <span class="version-number">v3</span>
+              <div class="version-meta">
+                <span class="version-time">2026-04-30 10:30:00</span>
+                <span class="version-desc">修复登录问题，增加验证码处理</span>
+              </div>
+              <div class="version-actions">
+                <button class="version-btn primary">查看</button>
+                <button class="version-btn">回滚</button>
+              </div>
+            </div>
+            <div class="version-item">
+              <span class="version-number">v2</span>
+              <div class="version-meta">
+                <span class="version-time">2026-04-28 09:00:00</span>
+                <span class="version-desc">优化爬取逻辑，提高解析速度</span>
+              </div>
+              <div class="version-actions">
+                <button class="version-btn primary">查看</button>
+                <button class="version-btn">回滚</button>
+              </div>
+            </div>
+            <div class="version-item">
+              <span class="version-number">v1</span>
+              <div class="version-meta">
+                <span class="version-time">2026-04-01 08:00:00</span>
+                <span class="version-desc">首次上线</span>
+              </div>
+              <div class="version-actions">
+                <button class="version-btn primary">查看</button>
+              </div>
+            </div>
+          </div>
+          <div class="view-all-link">
+            <a href="version-history-prototype.html?taskId=1&module=versions" onclick="viewAllVersions(event)">查看全部版本 →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Dialog -->
+  <div class="dialog-overlay" id="editDialog">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h3 class="dialog-title">编辑任务</h3>
+        <button class="dialog-close" onclick="closeEditDialog()">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-group">
+          <label class="form-label">任务名称</label>
+          <input type="text" class="form-input" id="editName" value="粮信网玉米晨报采集">
+        </div>
+        <div class="form-group">
+          <label class="form-label">数据源</label>
+          <select class="form-input" id="editSource">
+            <option value="liangxin" selected>粮信网</option>
+            <option value="mysteel">我的钢铁网</option>
+            <option value="chinagrain">中华粮网</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">任务描述</label>
+          <textarea class="form-input form-textarea" id="editDesc">每日定时采集粮信网玉米价格数据</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">变更说明</label>
+          <input type="text" class="form-input" id="editChangeDesc" placeholder="请填写本次修改说明">
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="closeEditDialog()">取消</button>
+        <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Script Dialog -->
+  <div class="dialog-overlay" id="saveDialog">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h3 class="dialog-title">保存脚本</h3>
+        <button class="dialog-close" onclick="closeSaveDialog()">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="form-group">
+          <label class="form-label">变更说明</label>
+          <input type="text" class="form-input" id="saveChangeDesc" placeholder="请填写本次修改说明（选填）">
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="closeSaveDialog()">取消</button>
+        <button class="btn btn-primary" onclick="confirmSave()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  <script>
+    let editor = null;
+    let originalContent = '';
+    let isModified = false;
+    let isEnabled = true;
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.toggle('error', isError);
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    function goBack() {
+      window.location.href = 'task-list-prototype.html';
+    }
+
+    // Monaco Editor initialization
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+
+    require(['vs/editor/editor.main'], function () {
+      const code = `# -*- coding: utf-8 -*-
+"""
+粮信网玉米晨报采集脚本
+采集粮信网玉米价格数据
+"""
+
+import requests
+from bs4 import BeautifulSoup
+import json
+from datetime import datetime
+import logging
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# 常量配置
+LIANGXIN_URL = "https://www.liangxin.net"
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+}
+
+class LiangxinCollector:
+    """粮信网数据采集器"""
+
+    def __init__(self, username: str, password: str):
+        self.username = username
+        self.password = password
+        self.session = requests.Session()
+
+    def login(self) -> bool:
+        """登录粮信网"""
+        login_url = f"{LIANGXIN_URL}/api/login"
+        data = {"username": self.username, "password": self.password}
+        try:
+            resp = self.session.post(login_url, json=data, timeout=30)
+            return resp.json().get("code") == 200
+        except Exception as e:
+            logger.error(f"登录失败: {e}")
+            return False
+
+    def crawl_daily_report(self) -> dict:
+        """采集晨报数据"""
+        url = f"{LIANGXIN_URL}/api/daily/corn"
+        try:
+            resp = self.session.get(url, headers=HEADERS, timeout=60)
+            data = resp.json()
+
+            return {
+                "status": "success",
+                "data": data,
+                "timestamp": datetime.now().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"采集失败: {e}")
+            return {"status": "error", "message": str(e)}
+
+    def run(self) -> dict:
+        """执行采集流程"""
+        if not self.login():
+            return {"status": "error", "message": "登录失败"}
+
+        result = self.crawl_daily_report()
+        logger.info(f"采集结果: {result}")
+
+        return result
+
+if __name__ == "__main__":
+    collector = LiangxinCollector("user", "pass")
+    result = collector.run()
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+`;
+
+      originalContent = code;
+
+      editor = monaco.editor.create(document.getElementById('monacoEditor'), {
+        value: code,
+        language: 'python',
+        theme: 'vs-dark',
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+        lineNumbers: 'on',
+        minimap: { enabled: true },
+        scrollBeyondLastLine: false,
+        automaticLayout: true,
+        tabSize: 4,
+        insertSpaces: true,
+        wordWrap: 'off',
+        padding: { top: 16, bottom: 16 },
+        renderLineHighlight: 'all',
+        cursorBlinking: 'smooth',
+        cursorSmoothCaretAnimation: 'on',
+        smoothScrolling: true,
+      });
+
+      // Track modifications
+      editor.onDidChangeModelContent(() => {
+        const currentContent = editor.getValue();
+        isModified = currentContent !== originalContent;
+        document.getElementById('modifiedIndicator').style.display = isModified ? 'inline' : 'none';
+        document.getElementById('saveBtn').disabled = !isModified;
+      });
+
+      // Add keyboard shortcuts
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+        if (isModified) showSaveDialog();
+      });
+    });
+
+    function saveScript() {
+      if (isModified) showSaveDialog();
+    }
+
+    function formatCode() {
+      showToast('代码格式化已应用');
+    }
+
+    function toggleWordWrap() {
+      const action = editor.getOption(monaco.editor.EditorOption.wordWrap);
+      editor.updateOptions({ wordWrap: action === 'off' ? 'on' : 'off' });
+      showToast(`自动换行: ${editor.getOption(monaco.editor.EditorOption.wordWrap) === 'on' ? '开启' : '关闭'}`);
+    }
+
+    function goToLine() {
+      const line = prompt('跳转到行号:', '1');
+      if (line && !isNaN(line)) {
+        editor.revealLineInCenter(parseInt(line));
+        editor.setPosition({ lineNumber: parseInt(line), column: 1 });
+        editor.focus();
+      }
+    }
+
+    function showSaveDialog() {
+      document.getElementById('saveDialog').classList.add('show');
+      document.getElementById('saveChangeDesc').focus();
+    }
+
+    function closeSaveDialog() {
+      document.getElementById('saveDialog').classList.remove('show');
+      document.getElementById('saveChangeDesc').value = '';
+    }
+
+    function confirmSave() {
+      const changeDesc = document.getElementById('saveChangeDesc').value;
+      originalContent = editor.getValue();
+      isModified = false;
+      document.getElementById('modifiedIndicator').style.display = 'none';
+      document.getElementById('saveBtn').disabled = true;
+      closeSaveDialog();
+      showToast('脚本已保存，将创建新版本');
+    }
+
+    function toggleStatus() {
+      isEnabled = !isEnabled;
+      const badge = document.getElementById('statusBadge');
+      const btn = document.getElementById('toggleStatusBtn');
+
+      if (isEnabled) {
+        badge.className = 'status-badge enabled';
+        badge.innerHTML = '<span class="dot"></span>启用中';
+        btn.textContent = '禁用';
+        btn.className = 'btn btn-warning';
+        document.getElementById('nextExec').textContent = '明天 08:00:00';
+        showToast('任务已启用');
+      } else {
+        badge.className = 'status-badge disabled';
+        badge.innerHTML = '<span class="dot"></span>已禁用';
+        btn.textContent = '启用';
+        btn.className = 'btn btn-success';
+        document.getElementById('nextExec').textContent = '--';
+        showToast('任务已禁用');
+      }
+    }
+
+    function executeTask() {
+      showToast('任务已开始执行...');
+      setTimeout(() => {
+        showToast('任务执行完成，成功采集 23 条数据');
+      }, 2000);
+    }
+
+    function showEditDialog() {
+      document.getElementById('editDialog').classList.add('show');
+    }
+
+    function closeEditDialog() {
+      document.getElementById('editDialog').classList.remove('show');
+    }
+
+    function saveEdit() {
+      const name = document.getElementById('editName').value;
+      document.querySelector('.header-title').textContent = name;
+      closeEditDialog();
+      showToast('任务信息已保存');
+    }
+
+    function viewAllVersions(e) {
+      // Let the link work normally
+    }
+
+    // Global keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Ctrl+Enter = Execute
+      if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        executeTask();
+      }
+      // Escape = Close dialogs
+      if (e.key === 'Escape') {
+        closeEditDialog();
+        closeSaveDialog();
+      }
+    });
+  </script>
+</body>
+</html>
