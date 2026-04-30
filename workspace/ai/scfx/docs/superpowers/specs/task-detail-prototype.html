@@ -42,7 +42,7 @@
     .header {
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border-color);
-      padding: 16px 32px;
+      padding: 14px 24px;
       display: flex;
       align-items: center;
       gap: 16px;
@@ -52,9 +52,9 @@
     }
 
     .back-btn {
-      width: 40px;
-      height: 40px;
-      border-radius: 10px;
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
       border: 1px solid var(--border-color);
       background: transparent;
       color: var(--text-secondary);
@@ -62,7 +62,7 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 20px;
+      font-size: 18px;
       transition: all 0.2s ease;
     }
 
@@ -72,21 +72,52 @@
       border-color: var(--accent-blue);
     }
 
-    .header-title {
-      font-size: 20px;
-      font-weight: 600;
+    .header-info {
       flex: 1;
+    }
+
+    .header-title {
+      font-size: 16px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .meta-tag {
+      background: var(--bg-card);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    .meta-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      max-width: 300px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .header-actions {
       display: flex;
-      gap: 12px;
+      gap: 8px;
     }
 
     .btn {
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-size: 14px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -117,23 +148,13 @@
     }
 
     .btn-warning {
-      background: var(--bg-card);
+      background: rgba(240, 136, 62, 0.15);
       color: var(--accent-orange);
       border: 1px solid var(--accent-orange);
     }
 
     .btn-warning:hover {
-      background: rgba(240, 136, 62, 0.15);
-    }
-
-    .btn-danger {
-      background: var(--bg-card);
-      color: var(--accent-red);
-      border: 1px solid var(--accent-red);
-    }
-
-    .btn-danger:hover {
-      background: rgba(248, 81, 73, 0.15);
+      background: rgba(240, 136, 62, 0.25);
     }
 
     .btn-secondary {
@@ -147,70 +168,124 @@
       border-color: var(--accent-blue);
     }
 
-    /* Page Container */
-    .page-container {
-      padding: 32px;
-      max-width: 1600px;
-      margin: 0 auto;
-    }
-
-    /* Main Layout */
-    .main-layout {
-      display: grid;
-      grid-template-columns: 280px 1fr;
-      gap: 24px;
-    }
-
-    /* Stats Card */
-    .stats-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 24px;
-      position: sticky;
-      top: 100px;
-    }
-
-    .stats-header {
+    /* Status Toggle Button */
+    .status-toggle {
+      position: relative;
+      padding: 8px 18px;
+      border-radius: 20px;
       font-size: 13px;
       font-weight: 600;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 20px;
-    }
-
-    .stat-item {
+      cursor: pointer;
+      transition: all 0.3s ease;
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      padding: 12px 0;
-      border-bottom: 1px solid var(--border-color);
+      gap: 8px;
+      border: 2px solid transparent;
     }
 
-    .stat-item:last-child {
-      border-bottom: none;
+    .status-toggle.enabled {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+      border-color: rgba(63, 185, 80, 0.3);
     }
 
-    .stat-label {
-      font-size: 14px;
-      color: var(--text-secondary);
+    .status-toggle.enabled:hover {
+      background: rgba(63, 185, 80, 0.25);
+      border-color: var(--accent-green);
+      box-shadow: 0 0 20px rgba(63, 185, 80, 0.3);
     }
 
-    .stat-value {
+    .status-toggle.disabled {
+      background: rgba(110, 118, 129, 0.15);
+      color: var(--text-muted);
+      border-color: rgba(110, 118, 129, 0.3);
+    }
+
+    .status-toggle.disabled:hover {
+      background: rgba(110, 118, 129, 0.25);
+      border-color: var(--text-muted);
+    }
+
+    .status-toggle .toggle-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    .status-toggle.disabled .toggle-dot {
+      animation: none;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    /* Page Container */
+    .page-container {
+      padding: 20px 24px;
+      max-width: 100%;
+    }
+
+    /* Top Stats Bar */
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .stat-chip {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      min-width: 140px;
+    }
+
+    .stat-chip-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       font-size: 18px;
+    }
+
+    .stat-chip-icon.total { background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); }
+    .stat-chip-icon.success { background: linear-gradient(135deg, var(--accent-green), #2d9a5a); }
+    .stat-chip-icon.failed { background: linear-gradient(135deg, var(--accent-red), #c53030); }
+    .stat-chip-icon.rate { background: linear-gradient(135deg, var(--accent-orange), #d97706); }
+
+    .stat-chip-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-chip-value {
+      font-size: 20px;
       font-weight: 700;
       color: var(--text-primary);
     }
 
-    .stat-value.success { color: var(--accent-green); }
-    .stat-value.danger { color: var(--accent-red); }
-    .stat-value.rate { color: var(--accent-blue); }
+    .stat-chip-value.success { color: var(--accent-green); }
+    .stat-chip-value.failed { color: var(--accent-red); }
+    .stat-chip-value.rate { color: var(--accent-orange); }
 
-    .stats-divider {
-      height: 1px;
-      background: var(--border-color);
-      margin: 16px 0;
+    .stat-chip-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .stat-chip-status {
+      margin-left: auto;
     }
 
     .status-badge {
@@ -219,7 +294,7 @@
       gap: 6px;
       padding: 6px 12px;
       border-radius: 20px;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
     }
 
@@ -234,77 +309,368 @@
     }
 
     .status-badge .dot {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: currentColor;
     }
 
-    /* Content Area */
-    .content-area {
-      display: flex;
-      flex-direction: column;
-      gap: 24px;
+    /* Main Content Grid */
+    .content-grid {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 20px;
+      height: calc(100vh - 180px);
     }
 
-    /* Script Editor Section */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+    }
+
+    .main-content {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-content .section-card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Section Card */
     .section-card {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
+      border-radius: 12px;
       overflow: hidden;
+    }
+
+    .section-card.trigger-section {
+      overflow: visible;
+      margin-bottom: 20px;
+    }
+
+    .trigger-config {
+      margin-top: 16px;
+    }
+
+    .trigger-panel {
+      display: none;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .trigger-panel.active {
+      display: block;
+    }
+
+    .hidden {
+      display: none !important;
     }
 
     .section-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 20px 24px;
+      padding: 14px 18px;
       border-bottom: 1px solid var(--border-color);
       background: var(--bg-secondary);
     }
 
     .section-title {
-      font-size: 15px;
+      font-size: 13px;
       font-weight: 600;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     .section-title .icon {
-      font-size: 18px;
+      font-size: 15px;
     }
 
     .section-actions {
       display: flex;
-      gap: 12px;
+      gap: 8px;
     }
 
-    .shortcut-hint {
-      font-size: 12px;
+    /* Info List */
+    .info-list {
+      padding: 16px 18px;
+    }
+
+    .info-row {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px 24px;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .info-row:last-child {
+      border-bottom: none;
+    }
+
+    .info-item {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .info-label {
+      font-size: 11px;
       color: var(--text-muted);
-      background: var(--bg-primary);
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+
+    .info-value {
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .info-value.mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .info-value.blue { color: var(--accent-blue); }
+    .info-value.orange { color: var(--accent-orange); }
+    .info-value.green { color: var(--accent-green); }
+    .info-value.muted { color: var(--text-muted); }
+
+    .info-tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-blue);
+    }
+
+    .info-tag.orange {
+      background: rgba(240, 136, 62, 0.15);
+      color: var(--accent-orange);
+    }
+
+    .info-tag.green {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+    }
+
+    /* Version List */
+    .version-list {
+      padding: 0;
+    }
+
+    .version-item {
+      display: flex;
+      align-items: center;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border-color);
+      transition: background 0.15s ease;
+    }
+
+    .version-item:last-child {
+      border-bottom: none;
+    }
+
+    .version-item:hover {
+      background: rgba(88, 166, 255, 0.05);
+    }
+
+    .version-number {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      background: rgba(88, 166, 255, 0.1);
       padding: 4px 8px;
+      border-radius: 4px;
+      margin-right: 12px;
+    }
+
+    .version-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .version-desc {
+      font-size: 13px;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .version-time {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .version-actions {
+      display: flex;
+      gap: 6px;
+      margin-left: 12px;
+    }
+
+    .version-btn {
+      padding: 5px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .version-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .version-btn.primary {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-blue);
+      border-color: var(--accent-blue);
+    }
+
+    /* Execution List */
+    .execution-list {
+      padding: 8px 12px;
+    }
+
+    .execution-item {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      gap: 12px;
+      transition: all 0.2s ease;
+    }
+
+    .execution-item:last-child {
+      margin-bottom: 0;
+    }
+
+    .execution-item:hover {
+      background: var(--bg-hover);
+      transform: translateX(4px);
+    }
+
+    .execution-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      min-width: 50px;
+    }
+
+    .execution-status.success {
+      color: var(--accent-green);
+    }
+
+    .execution-status.failed {
+      color: var(--accent-red);
+    }
+
+    .execution-status .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 6px currentColor;
+    }
+
+    .execution-meta {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .execution-time {
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-primary);
+    }
+
+    .execution-duration {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .execution-version {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--accent-purple);
+      background: rgba(163, 113, 247, 0.15);
+      padding: 3px 8px;
       border-radius: 4px;
     }
 
+    .execution-log-btn {
+      padding: 5px 10px;
+      border-radius: 6px;
+      border: none;
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .execution-log-btn:hover {
+      background: var(--accent-blue);
+      color: #fff;
+    }
+
+    .view-all-link {
+      padding: 12px 18px;
+      text-align: center;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .view-all-link a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .view-all-link a:hover {
+      text-decoration: underline;
+    }
+
+    /* Script Editor */
     .editor-toolbar {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 12px 16px;
+      gap: 6px;
+      padding: 10px 14px;
       background: var(--bg-secondary);
       border-bottom: 1px solid var(--border-color);
     }
 
     .toolbar-btn {
-      padding: 6px 12px;
-      border-radius: 6px;
+      padding: 5px 10px;
+      border-radius: 5px;
       border: 1px solid var(--border-color);
       background: transparent;
       color: var(--text-secondary);
-      font-size: 12px;
+      font-size: 11px;
       cursor: pointer;
       transition: all 0.15s ease;
       display: flex;
@@ -323,8 +689,21 @@
       border-color: var(--accent-blue);
     }
 
+    .toolbar-spacer {
+      flex: 1;
+    }
+
+    .shortcut-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-primary);
+      padding: 3px 6px;
+      border-radius: 3px;
+    }
+
     .editor-container {
-      height: 400px;
+      flex: 1;
+      min-height: 400px;
       background: #1e1e1e;
     }
 
@@ -332,13 +711,13 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
+      padding: 10px 14px;
       background: var(--bg-secondary);
       border-top: 1px solid var(--border-color);
     }
 
     .editor-status {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
       display: flex;
       align-items: center;
@@ -350,12 +729,12 @@
     }
 
     .save-btn {
-      padding: 8px 16px;
+      padding: 7px 14px;
       border-radius: 6px;
       border: none;
       background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
       color: #fff;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s ease;
@@ -364,186 +743,457 @@
       gap: 6px;
     }
 
-    .save-btn:hover {
+    .save-btn:hover:not(:disabled) {
       transform: translateY(-1px);
       box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
     }
 
     .save-btn:disabled {
-      opacity: 0.5;
+      opacity: 0.4;
       cursor: not-allowed;
-      transform: none;
     }
 
-    /* Info Grid */
-    .info-grid {
+    .info-form {
+      padding: 14px 16px;
+    }
+
+    .info-form .form-group {
+      margin-bottom: 12px;
+    }
+
+    .info-form .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .info-form .form-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .info-form .form-input {
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+
+    .info-form .form-input[readonly] {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+      cursor: not-allowed;
+    }
+
+    .info-form .form-input.mono {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .info-form .form-divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: 12px 0;
+    }
+
+    .info-form .form-row {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 24px;
-      padding: 24px;
+      gap: 12px;
     }
 
-    .info-group {
+    .quick-info {
+      padding: 14px 16px;
+    }
+
+    .quick-info-row {
       display: flex;
-      flex-direction: column;
-      gap: 16px;
-    }
-
-    .info-group-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      padding-bottom: 8px;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
       border-bottom: 1px solid var(--border-color);
     }
 
-    .info-item {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .info-label {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .info-value {
-      font-size: 14px;
-      color: var(--text-primary);
-    }
-
-    .info-value.tag {
-      display: inline-flex;
-    }
-
-    .info-tag {
-      display: inline-flex;
-      align-items: center;
-      padding: 4px 10px;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      background: rgba(88, 166, 255, 0.15);
-      color: var(--accent-blue);
-    }
-
-    .info-tag.green {
-      background: rgba(63, 185, 80, 0.15);
-      color: var(--accent-green);
-    }
-
-    .info-tag.gray {
-      background: rgba(110, 118, 129, 0.15);
-      color: var(--text-muted);
-    }
-
-    .info-tag.orange {
-      background: rgba(240, 136, 62, 0.15);
-      color: var(--accent-orange);
-    }
-
-    .info-desc {
-      font-size: 14px;
-      color: var(--text-secondary);
-      line-height: 1.6;
-      margin-top: 4px;
-    }
-
-    /* Version List */
-    .version-list {
-      padding: 0;
-    }
-
-    .version-item {
-      display: flex;
-      align-items: center;
-      padding: 16px 24px;
-      border-bottom: 1px solid var(--border-color);
-      transition: background 0.15s ease;
-    }
-
-    .version-item:last-child {
+    .quick-info-row:last-child {
       border-bottom: none;
     }
 
-    .version-item:hover {
-      background: rgba(88, 166, 255, 0.05);
+    .quick-info-label {
+      font-size: 12px;
+      color: var(--text-muted);
     }
 
-    .version-number {
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--accent-blue);
-      min-width: 40px;
+    .quick-info-value {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-primary);
     }
 
-    .version-meta {
-      flex: 1;
+    /* Trigger Config */
+    .trigger-type-selector {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .radio-group {
       display: flex;
-      flex-direction: column;
-      gap: 4px;
-      margin-left: 16px;
+      gap: 12px;
     }
 
-    .version-time {
+    .radio-option {
+      flex: 1;
+      position: relative;
+    }
+
+    .radio-option input {
+      position: absolute;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 20px;
+      background: var(--bg-primary);
+      border: 2px solid var(--border-color);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .radio-label:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .radio-option input:checked + .radio-label {
+      border-color: var(--accent-blue);
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent-blue);
+    }
+
+    .radio-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border-color);
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .radio-option input:checked + .radio-label .radio-dot {
+      border-color: var(--accent-blue);
+    }
+
+    .radio-option input:checked + .radio-label .radio-dot::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+    }
+
+    .trigger-config {
+      margin-top: 16px;
+    }
+
+    .trigger-panel {
+      display: none;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .trigger-panel.active {
+      display: block;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    /* Date/Time Picker */
+    .datetime-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .date-picker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .date-picker:hover {
+      border-color: var(--accent-blue);
+    }
+
+    .picker-icon {
+      font-size: 16px;
+    }
+
+    .picker-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .time-picker-inline {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .time-select {
+      padding: 10px 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .time-select.small {
+      width: 70px;
+    }
+
+    .time-sep {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    /* Cycle Options */
+    .cycle-options {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .cycle-option {
+      padding: 10px 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .cycle-option:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .cycle-option.active {
+      background: rgba(88, 166, 255, 0.1);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    .sub-options {
+      margin-top: 16px;
+      padding-left: 20px;
+    }
+
+    .time-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .time-label {
       font-size: 13px;
       color: var(--text-secondary);
     }
 
-    .version-desc {
-      font-size: 14px;
-      color: var(--text-primary);
+    /* Weekdays */
+    .weekdays {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
     }
 
-    .version-actions {
+    .weekday {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .weekday:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .weekday.active {
+      background: rgba(88, 166, 255, 0.1);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    /* End Condition */
+    .end-condition {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .end-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .end-options {
       display: flex;
       gap: 8px;
     }
 
-    .version-btn {
-      padding: 6px 12px;
-      border-radius: 6px;
+    .end-option {
+      padding: 8px 14px;
+      background: var(--bg-secondary);
       border: 1px solid var(--border-color);
-      background: transparent;
-      color: var(--text-secondary);
+      border-radius: 6px;
       font-size: 12px;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all 0.2s ease;
     }
 
-    .version-btn:hover {
-      background: var(--bg-hover);
-      color: var(--text-primary);
+    .end-option:hover {
+      border-color: var(--text-secondary);
     }
 
-    .version-btn.primary {
-      background: rgba(88, 166, 255, 0.15);
+    .end-option.active {
+      background: rgba(88, 166, 255, 0.1);
+      border-color: var(--accent-blue);
       color: var(--accent-blue);
+    }
+
+    .end-sub {
+      margin-left: 8px;
+    }
+
+    /* Cron Input */
+    .cron-input-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .cron-input {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      letter-spacing: 1px;
+    }
+
+    .cron-input:focus {
+      outline: none;
       border-color: var(--accent-blue);
     }
 
-    .version-btn.primary:hover {
-      background: rgba(88, 166, 255, 0.25);
-    }
-
-    .view-all-link {
-      padding: 16px 24px;
-      text-align: center;
-      border-top: 1px solid var(--border-color);
-    }
-
-    .view-all-link a {
-      color: var(--accent-blue);
-      text-decoration: none;
+    .cron-calc-btn {
+      padding: 12px 24px;
+      background: var(--accent-green);
+      border: none;
+      border-radius: 8px;
+      color: #fff;
       font-size: 13px;
-      font-weight: 500;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
     }
 
-    .view-all-link a:hover {
-      text-decoration: underline;
+    .cron-calc-btn:hover {
+      background: #4cc764;
+    }
+
+    .cron-result {
+      margin-bottom: 16px;
+    }
+
+    .cron-expr-display {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      letter-spacing: 2px;
+    }
+
+    /* Next 5 Times */
+    .cron-next5 {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .next5-title {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .next5-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .next5-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      font-size: 13px;
+    }
+
+    .next5-item .num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: var(--accent-blue);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .next5-item .time {
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
     }
 
     /* Dialog */
@@ -571,8 +1221,8 @@
     .dialog {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
-      border-radius: 16px;
-      width: 500px;
+      border-radius: 12px;
+      width: 440px;
       max-width: 90vw;
       transform: translateY(20px);
       transition: transform 0.2s ease;
@@ -583,7 +1233,7 @@
     }
 
     .dialog-header {
-      padding: 20px 24px;
+      padding: 16px 20px;
       border-bottom: 1px solid var(--border-color);
       display: flex;
       align-items: center;
@@ -591,19 +1241,19 @@
     }
 
     .dialog-title {
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 600;
     }
 
     .dialog-close {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
       border: none;
       background: transparent;
       color: var(--text-secondary);
       cursor: pointer;
-      font-size: 20px;
+      font-size: 18px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -616,37 +1266,37 @@
     }
 
     .dialog-body {
-      padding: 24px;
+      padding: 20px;
     }
 
     .dialog-footer {
-      padding: 16px 24px;
+      padding: 14px 20px;
       border-top: 1px solid var(--border-color);
       display: flex;
       justify-content: flex-end;
-      gap: 12px;
+      gap: 10px;
     }
 
     /* Form */
     .form-group {
-      margin-bottom: 20px;
+      margin-bottom: 16px;
     }
 
     .form-label {
       display: block;
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text-secondary);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .form-input {
       width: 100%;
-      padding: 10px 14px;
+      padding: 9px 12px;
       background: var(--bg-primary);
       border: 1px solid var(--border-color);
-      border-radius: 8px;
+      border-radius: 6px;
       color: var(--text-primary);
-      font-size: 14px;
+      font-size: 13px;
       transition: border-color 0.15s ease;
     }
 
@@ -656,24 +1306,46 @@
     }
 
     .form-textarea {
-      min-height: 100px;
+      min-height: 80px;
       resize: vertical;
+    }
+
+    /* Go To Line Dialog */
+    .goto-dialog {
+      width: 320px;
+    }
+
+    .goto-input {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      transition: border-color 0.15s ease;
+    }
+
+    .goto-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
     }
 
     /* Toast */
     .toast {
       position: fixed;
-      bottom: 30px;
+      bottom: 24px;
       left: 50%;
-      transform: translateX(-50%) translateY(100px);
+      transform: translateX(-50%) translateY(80px);
       background: var(--bg-card);
       border: 1px solid var(--accent-green);
       color: var(--accent-green);
-      padding: 14px 28px;
-      border-radius: 10px;
-      font-size: 14px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 13px;
       font-weight: 500;
-      box-shadow: 0 10px 40px rgba(63, 185, 80, 0.3);
+      box-shadow: 0 8px 30px rgba(63, 185, 80, 0.25);
       opacity: 0;
       transition: all 0.3s ease;
       z-index: 2000;
@@ -682,7 +1354,7 @@
     .toast.error {
       border-color: var(--accent-red);
       color: var(--accent-red);
-      box-shadow: 0 10px 40px rgba(248, 81, 73, 0.3);
+      box-shadow: 0 8px 30px rgba(248, 81, 73, 0.25);
     }
 
     .toast.show {
@@ -690,57 +1362,92 @@
       opacity: 1;
     }
 
+    /* Version History Dialog */
+    .version-history-dialog {
+      width: 95vw;
+      max-width: 1400px;
+      height: 85vh;
+    }
+
+    /* Fullscreen Dialog */
+    .fullscreen-dialog {
+      width: 100vw;
+      height: 100vh;
+      max-width: 100vw;
+      border-radius: 0;
+    }
+
+    .fullscreen-close {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .fullscreen-close:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
     /* Responsive */
-    @media (max-width: 1200px) {
-      .main-layout {
+    @media (max-width: 1100px) {
+      .content-grid {
         grid-template-columns: 1fr;
+        height: auto;
       }
 
-      .stats-card {
-        position: static;
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 16px;
+      .sidebar {
+        flex-direction: row;
+        flex-wrap: wrap;
       }
 
-      .stats-header {
-        grid-column: 1 / -1;
-        margin-bottom: 0;
+      .sidebar .section-card {
+        flex: 1;
+        min-width: 280px;
       }
 
-      .stats-divider {
-        display: none;
+      .main-content .section-card {
+        min-height: 400px;
       }
     }
 
     @media (max-width: 768px) {
       .page-container {
-        padding: 16px;
-      }
-
-      .header {
         padding: 12px 16px;
       }
 
-      .header-title {
-        font-size: 16px;
-      }
-
-      .header-actions {
+      .stats-bar {
         gap: 8px;
       }
 
-      .btn {
-        padding: 8px 12px;
-        font-size: 12px;
+      .stat-chip {
+        min-width: calc(50% - 4px);
+        padding: 10px 14px;
       }
 
-      .stats-card {
-        grid-template-columns: repeat(2, 1fr);
+      .stat-chip-value {
+        font-size: 16px;
       }
 
-      .info-grid {
+      .info-row {
         grid-template-columns: 1fr;
+      }
+
+      .header-actions .btn span {
+        display: none;
       }
     }
   </style>
@@ -749,60 +1456,312 @@
   <!-- Header -->
   <div class="header">
     <button class="back-btn" onclick="goBack()">←</button>
-    <h1 class="header-title">粮信网玉米晨报采集</h1>
+    <div class="header-info">
+      <div class="header-title">
+        <span>📰</span>
+        粮信网玉米晨报采集
+      </div>
+      <div class="header-meta">
+        <span class="meta-tag">数据源: 粮信网</span>
+        <span class="meta-tag">触发: Cron 表达式</span>
+        <span class="meta-tag">0 0 8 * * *</span>
+        <span class="meta-desc" title="每日定时采集粮信网玉米价格数据">每日定时采集粮信网玉米价格数据</span>
+      </div>
+    </div>
     <div class="header-actions">
-      <button class="btn btn-warning" id="toggleStatusBtn" onclick="toggleStatus()">禁用</button>
-      <button class="btn btn-primary" onclick="executeTask()">⚡ 执行</button>
-      <button class="btn btn-secondary" onclick="showEditDialog()">✏️ 编辑</button>
+      <button class="btn btn-secondary" onclick="openVersionHistory()">
+        <span>📜</span> 版本历史
+      </button>
+      <button class="status-toggle enabled" id="toggleStatusBtn" onclick="toggleStatus()">
+        <span class="toggle-dot"></span>
+        <span id="toggleStatusText">启用中</span>
+      </button>
+      <button class="btn btn-primary" onclick="executeTask()">
+        <span>⚡</span> 立即执行
+      </button>
+      <button class="btn btn-primary" id="saveBtn" onclick="confirmSave()" disabled>
+        <span>💾</span> 保存创建新版本
+      </button>
     </div>
   </div>
 
   <!-- Page Container -->
   <div class="page-container">
-    <div class="main-layout">
-      <!-- Left: Stats Card -->
-      <div class="stats-card">
-        <div class="stats-header">执行统计</div>
+    <!-- Stats Bar -->
+    <div class="stats-bar">
+      <div class="stat-chip">
+        <div class="stat-chip-icon total">📊</div>
+        <div class="stat-chip-info">
+          <div class="stat-chip-value" id="execCount">156</div>
+          <div class="stat-chip-label">执行次数</div>
+        </div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-chip-icon success">✓</div>
+        <div class="stat-chip-info">
+          <div class="stat-chip-value success" id="successCount">153</div>
+          <div class="stat-chip-label">成功</div>
+        </div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-chip-icon failed">✗</div>
+        <div class="stat-chip-info">
+          <div class="stat-chip-value failed" id="failedCount">3</div>
+          <div class="stat-chip-label">失败</div>
+        </div>
+      </div>
+      <div class="stat-chip">
+        <div class="stat-chip-icon rate">%</div>
+        <div class="stat-chip-info">
+          <div class="stat-chip-value rate" id="successRate">98%</div>
+          <div class="stat-chip-label">成功率</div>
+        </div>
+      </div>
+      <div class="stat-chip" style="max-width: 180px;">
+        <div class="stat-chip-info">
+          <div class="stat-chip-label">下次执行</div>
+          <div class="stat-chip-value" style="font-size: 14px;" id="nextExec">明天 08:00</div>
+        </div>
+      </div>
+    </div>
 
-        <div class="stat-item">
-          <span class="stat-label">执行次数</span>
-          <span class="stat-value" id="execCount">156</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">成功</span>
-          <span class="stat-value success" id="successCount">153</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">失败</span>
-          <span class="stat-value danger" id="failedCount">3</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">成功率</span>
-          <span class="stat-value rate" id="successRate">98%</span>
-        </div>
-
-        <div class="stats-divider"></div>
-
-        <div class="stat-item">
-          <span class="stat-label">状态</span>
-          <span class="status-badge enabled" id="statusBadge">
-            <span class="dot"></span>
-            启用中
-          </span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">当前版本</span>
-          <span class="stat-value" style="color: var(--accent-purple);">v3</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">下次执行</span>
-          <span class="stat-value" style="font-size: 14px;" id="nextExec">明天 08:00:00</span>
+    <!-- Trigger Config Card -->
+    <div class="section-card trigger-section">
+      <div class="section-header">
+        <div class="section-title">
+          <span class="icon">⏰</span>
+          触发配置
         </div>
       </div>
 
-      <!-- Right: Content Area -->
-      <div class="content-area">
-        <!-- Script Editor Section -->
+      <!-- Trigger Type -->
+      <div class="trigger-type-selector">
+        <div class="radio-group">
+          <div class="radio-option">
+            <input type="radio" name="triggerType" value="once" id="triggerOnce" checked onchange="onTriggerChange()">
+            <label class="radio-label" for="triggerOnce">
+              <span class="radio-dot"></span>
+              单次触发
+            </label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="triggerType" value="cycle" id="triggerCycle" onchange="onTriggerChange()">
+            <label class="radio-label" for="triggerCycle">
+              <span class="radio-dot"></span>
+              周期触发
+            </label>
+          </div>
+          <div class="radio-option">
+            <input type="radio" name="triggerType" value="cron" id="triggerCron" onchange="onTriggerChange()">
+            <label class="radio-label" for="triggerCron">
+              <span class="radio-dot"></span>
+              Cron 表达式
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trigger Panels -->
+      <div class="trigger-config">
+        <!-- Once Trigger -->
+        <div class="trigger-panel active" id="oncePanel">
+          <div class="datetime-row">
+            <div class="date-picker" onclick="toggleDatePicker(this)">
+              <span class="picker-icon">📅</span>
+              <span class="picker-text" id="onceDateText">2026-04-30</span>
+            </div>
+            <input type="date" id="onceDate" style="position:absolute;opacity:0;pointer-events:none;" onchange="updateDateText(this, 'onceDateText')">
+            <div class="time-picker-inline">
+              <select class="time-select" id="onceHour" onchange="updateTriggerPreview()"><option value="0">00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8" selected>08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+              <span class="time-sep">:</span>
+              <select class="time-select" id="onceMinute" onchange="updateTriggerPreview()"><option value="0">00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30" selected>30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+              <span class="time-sep">:</span>
+              <select class="time-select" id="onceSecond" onchange="updateTriggerPreview()"><option value="0" selected>00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cycle Trigger -->
+        <div class="trigger-panel" id="cyclePanel">
+          <div class="cycle-options">
+            <div class="cycle-option active" data-value="daily" onclick="onCycleTypeChange(this)">每天</div>
+            <div class="cycle-option" data-value="weekly" onclick="onCycleTypeChange(this)">每周</div>
+            <div class="cycle-option" data-value="monthly" onclick="onCycleTypeChange(this)">每月</div>
+          </div>
+
+          <div class="sub-options" id="dailyOptions">
+            <div class="time-row">
+              <span class="time-label">触发时间</span>
+              <div class="time-picker-inline">
+                <select class="time-select" id="dailyHour" onchange="updateTriggerPreview()"><option value="0">00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8" selected>08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+                <span class="time-sep">:</span>
+                <select class="time-select" id="dailyMinute" onchange="updateTriggerPreview()"><option value="0" selected>00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+                <span class="time-sep">:</span>
+                <select class="time-select" id="dailySecond" onchange="updateTriggerPreview()"><option value="0" selected>00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="sub-options hidden" id="weeklyOptions">
+            <div class="weekdays">
+              <div class="weekday active" data-day="1" onclick="selectWeekday(this)">一</div>
+              <div class="weekday" data-day="2" onclick="selectWeekday(this)">二</div>
+              <div class="weekday" data-day="3" onclick="selectWeekday(this)">三</div>
+              <div class="weekday" data-day="4" onclick="selectWeekday(this)">四</div>
+              <div class="weekday" data-day="5" onclick="selectWeekday(this)">五</div>
+              <div class="weekday" data-day="6" onclick="selectWeekday(this)">六</div>
+              <div class="weekday" data-day="0" onclick="selectWeekday(this)">日</div>
+            </div>
+            <div class="time-row">
+              <span class="time-label">触发时间</span>
+              <div class="time-picker-inline">
+                <select class="time-select" id="weeklyHour" onchange="updateTriggerPreview()"><option value="0">00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8" selected>08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+                <span class="time-sep">:</span>
+                <select class="time-select" id="weeklyMinute" onchange="updateTriggerPreview()"><option value="0" selected>00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+                <span class="time-sep">:</span>
+                <select class="time-select" id="weeklySecond" onchange="updateTriggerPreview()"><option value="0" selected>00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="sub-options hidden" id="monthlyOptions">
+            <div class="time-row">
+              <span class="time-label">每月</span>
+              <select class="time-select small" id="monthlyDay" onchange="updateTriggerPreview()"><option value="1" selected>01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option></select>
+              <span class="time-label">日</span>
+              <span class="time-label" style="margin-left: 16px;">触发时间</span>
+              <div class="time-picker-inline">
+                <select class="time-select" id="monthlyHour" onchange="updateTriggerPreview()"><option value="0">00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8" selected>08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option></select>
+                <span class="time-sep">:</span>
+                <select class="time-select" id="monthlyMinute" onchange="updateTriggerPreview()"><option value="0" selected>00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+                <span class="time-sep">:</span>
+                <select class="time-select" id="monthlySecond" onchange="updateTriggerPreview()"><option value="0" selected>00</option><option value="1">01</option><option value="2">02</option><option value="3">03</option><option value="4">04</option><option value="5">05</option><option value="6">06</option><option value="7">07</option><option value="8">08</option><option value="9">09</option><option value="10">10</option><option value="11">11</option><option value="12">12</option><option value="13">13</option><option value="14">14</option><option value="15">15</option><option value="16">16</option><option value="17">17</option><option value="18">18</option><option value="19">19</option><option value="20">20</option><option value="21">21</option><option value="22">22</option><option value="23">23</option><option value="24">24</option><option value="25">25</option><option value="26">26</option><option value="27">27</option><option value="28">28</option><option value="29">29</option><option value="30">30</option><option value="31">31</option><option value="32">32</option><option value="33">33</option><option value="34">34</option><option value="35">35</option><option value="36">36</option><option value="37">37</option><option value="38">38</option><option value="39">39</option><option value="40">40</option><option value="41">41</option><option value="42">42</option><option value="43">43</option><option value="44">44</option><option value="45">45</option><option value="46">46</option><option value="47">47</option><option value="48">48</option><option value="49">49</option><option value="50">50</option><option value="51">51</option><option value="52">52</option><option value="53">53</option><option value="54">54</option><option value="55">55</option><option value="56">56</option><option value="57">57</option><option value="58">58</option><option value="59">59</option></select>
+              </div>
+            </div>
+          </div>
+
+          <div class="end-condition">
+            <span class="end-label">结束条件</span>
+            <div class="end-options">
+              <div class="end-option active" data-value="never" onclick="onEndTypeChange(this)">永不结束</div>
+              <div class="end-option" data-value="date" onclick="onEndTypeChange(this)">于指定日结束</div>
+              <div class="end-option" data-value="count" onclick="onEndTypeChange(this)">重复一定次数后结束</div>
+            </div>
+            <div class="end-sub hidden" id="endDatePanel">
+              <input type="date" class="form-input" style="width: 160px;" id="endDate">
+            </div>
+            <div class="end-sub hidden" id="endCountPanel">
+              <input type="number" class="form-input" style="width: 80px;" id="endCount" value="10" min="1">
+              <span style="color: var(--text-secondary); margin-left: 8px;">次</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cron Trigger -->
+        <div class="trigger-panel" id="cronPanel">
+          <div class="cron-input-row">
+            <input type="text" class="cron-input" id="cronInput" placeholder="输入 Cron 表达式，如: 0 0 8 * * *" value="0 0 8 * * *" oninput="calculateCronNext5()">
+            <button class="cron-calc-btn" onclick="calculateCronNext5()">计算</button>
+          </div>
+          <div class="cron-result">
+            <code class="cron-expr-display" id="cronExprDisplay">0 0 8 * * *</code>
+          </div>
+          <div class="cron-next5">
+            <div class="next5-title">未来5次触发时间</div>
+            <div class="next5-list" id="cronNext5List">
+              <div class="next5-item"><span class="num">1</span><span class="time">2026-05-01 08:00:00</span></div>
+              <div class="next5-item"><span class="num">2</span><span class="time">2026-05-02 08:00:00</span></div>
+              <div class="next5-item"><span class="num">3</span><span class="time">2026-05-03 08:00:00</span></div>
+              <div class="next5-item"><span class="num">4</span><span class="time">2026-05-04 08:00:00</span></div>
+              <div class="next5-item"><span class="num">5</span><span class="time">2026-05-05 08:00:00</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content Grid -->
+    <div class="content-grid">
+      <!-- Left: Sidebar (Task Info + Version History) -->
+      <div class="sidebar">
+        <!-- Task Info Card -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="icon">📋</span>
+              任务信息
+            </div>
+          </div>
+          <div class="info-form">
+            <div class="form-group">
+              <label class="form-label">任务名称</label>
+              <input type="text" class="form-input" id="editName" value="粮信网玉米晨报采集">
+            </div>
+            <div class="form-group">
+              <label class="form-label">数据源</label>
+              <input type="text" class="form-input" id="editSource" value="粮信网" readonly>
+            </div>
+            <div class="form-group">
+              <label class="form-label">任务描述</label>
+              <textarea class="form-input" id="editDesc" rows="2">每日定时采集粮信网玉米价格数据</textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Execution Record Card -->
+        <div class="section-card">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="icon">📊</span>
+              执行记录
+            </div>
+          </div>
+          <div class="execution-list">
+            <div class="execution-item">
+              <div class="execution-status success">
+                <span class="status-dot"></span>
+                <span>成功</span>
+              </div>
+              <div class="execution-meta">
+                <div class="execution-time">2026-04-30 08:00</div>
+                <div class="execution-duration">耗时 12.5s</div>
+              </div>
+              <div class="execution-version">v3</div>
+              <button class="execution-log-btn" onclick="viewLog()">日志</button>
+            </div>
+            <div class="execution-item">
+              <div class="execution-status success">
+                <span class="status-dot"></span>
+                <span>成功</span>
+              </div>
+              <div class="execution-meta">
+                <div class="execution-time">2026-04-29 08:00</div>
+                <div class="execution-duration">耗时 11.2s</div>
+              </div>
+              <div class="execution-version">v3</div>
+              <button class="execution-log-btn" onclick="viewLog()">日志</button>
+            </div>
+            <div class="execution-item">
+              <div class="execution-status failed">
+                <span class="status-dot"></span>
+                <span>失败</span>
+              </div>
+              <div class="execution-meta">
+                <div class="execution-time">2026-04-28 08:00</div>
+                <div class="execution-duration">耗时 3.2s</div>
+              </div>
+              <div class="execution-version">v2</div>
+              <button class="execution-log-btn" onclick="viewLog()">日志</button>
+            </div>
+          </div>
+          <div class="view-all-link">
+            <a href="#" onclick="openExecutionHistory(event)">查看全部记录 →</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: Main Content (Script Editor) -->
+      <div class="main-content">
         <div class="section-card">
           <div class="section-header">
             <div class="section-title">
@@ -817,184 +1776,51 @@
             <button class="toolbar-btn" onclick="formatCode()">格式化</button>
             <button class="toolbar-btn" onclick="toggleWordWrap()">自动换行</button>
             <button class="toolbar-btn" onclick="goToLine()">跳转到行</button>
+            <div class="toolbar-spacer"></div>
+            <span class="editor-status">
+              <span>Python</span>
+              <span class="modified" id="modifiedIndicator" style="display: none;">已修改</span>
+            </span>
           </div>
           <div class="editor-container" id="monacoEditor"></div>
           <div class="editor-footer">
             <div class="editor-status">
-              <span>Python</span>
-              <span>行 45, 列 12</span>
-              <span class="modified" id="modifiedIndicator" style="display: none;">已修改</span>
+              <span id="cursorPosition">行 45, 列 12</span>
+              <span class="modified" id="modifiedIndicatorFooter" style="display: none;">已修改</span>
             </div>
-            <button class="save-btn" id="saveBtn" onclick="saveScript()" disabled>
-              💾 保存脚本
-            </button>
-          </div>
-        </div>
-
-        <!-- Info Grid Section -->
-        <div class="section-card">
-          <div class="info-grid">
-            <div class="info-group">
-              <div class="info-group-title">基本信息</div>
-              <div class="info-item">
-                <span class="info-label">数据源</span>
-                <span class="info-value tag">
-                  <span class="info-tag">粮信网</span>
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">创建时间</span>
-                <span class="info-value">2026-04-01 08:00:00</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">更新时间</span>
-                <span class="info-value">2026-04-30 10:30:00</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">创建人</span>
-                <span class="info-value">admin</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">修改人</span>
-                <span class="info-value">admin</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">任务描述</span>
-                <p class="info-desc">每日定时采集粮信网玉米价格数据，包含日报、周报等多种报告类型。数据用于生成价格走势分析报告。</p>
-              </div>
-            </div>
-            <div class="info-group">
-              <div class="info-group-title">触发配置</div>
-              <div class="info-item">
-                <span class="info-label">触发方式</span>
-                <span class="info-value tag">
-                  <span class="info-tag orange">Cron 表达式</span>
-                </span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">Cron 表达式</span>
-                <span class="info-value" style="font-family: 'JetBrains Mono', monospace;">0 0 8 * * *</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">下次执行</span>
-                <span class="info-value">2026-05-01 08:00:00</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">最后执行</span>
-                <span class="info-value">2026-04-30 08:00:12</span>
-              </div>
-              <div class="info-item">
-                <span class="info-label">下次触发倒计时</span>
-                <span class="info-value" style="color: var(--accent-blue);">约 9 小时 23 分</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Version History Section -->
-        <div class="section-card">
-          <div class="section-header">
-            <div class="section-title">
-              <span class="icon">📜</span>
-              版本历史
-            </div>
-          </div>
-          <div class="version-list">
-            <div class="version-item">
-              <span class="version-number">v3</span>
-              <div class="version-meta">
-                <span class="version-time">2026-04-30 10:30:00</span>
-                <span class="version-desc">修复登录问题，增加验证码处理</span>
-              </div>
-              <div class="version-actions">
-                <button class="version-btn primary">查看</button>
-                <button class="version-btn">回滚</button>
-              </div>
-            </div>
-            <div class="version-item">
-              <span class="version-number">v2</span>
-              <div class="version-meta">
-                <span class="version-time">2026-04-28 09:00:00</span>
-                <span class="version-desc">优化爬取逻辑，提高解析速度</span>
-              </div>
-              <div class="version-actions">
-                <button class="version-btn primary">查看</button>
-                <button class="version-btn">回滚</button>
-              </div>
-            </div>
-            <div class="version-item">
-              <span class="version-number">v1</span>
-              <div class="version-meta">
-                <span class="version-time">2026-04-01 08:00:00</span>
-                <span class="version-desc">首次上线</span>
-              </div>
-              <div class="version-actions">
-                <button class="version-btn primary">查看</button>
-              </div>
-            </div>
-          </div>
-          <div class="view-all-link">
-            <a href="version-history-prototype.html?taskId=1&module=versions" onclick="viewAllVersions(event)">查看全部版本 →</a>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Edit Dialog -->
-  <div class="dialog-overlay" id="editDialog">
-    <div class="dialog">
+  <!-- Go To Line Dialog -->
+  <div class="dialog-overlay" id="gotoDialog" onclick="handleGotoOverlayClick(event)">
+    <div class="dialog goto-dialog">
       <div class="dialog-header">
-        <h3 class="dialog-title">编辑任务</h3>
-        <button class="dialog-close" onclick="closeEditDialog()">×</button>
+        <h3 class="dialog-title">跳转到行</h3>
+        <button class="dialog-close" onclick="closeGotoDialog()">×</button>
       </div>
       <div class="dialog-body">
-        <div class="form-group">
-          <label class="form-label">任务名称</label>
-          <input type="text" class="form-input" id="editName" value="粮信网玉米晨报采集">
-        </div>
-        <div class="form-group">
-          <label class="form-label">数据源</label>
-          <select class="form-input" id="editSource">
-            <option value="liangxin" selected>粮信网</option>
-            <option value="mysteel">我的钢铁网</option>
-            <option value="chinagrain">中华粮网</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label">任务描述</label>
-          <textarea class="form-input form-textarea" id="editDesc">每日定时采集粮信网玉米价格数据</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">变更说明</label>
-          <input type="text" class="form-input" id="editChangeDesc" placeholder="请填写本次修改说明">
-        </div>
+        <input type="number" class="goto-input" id="gotoLineInput" min="1" placeholder="输入行号" onkeydown="handleGotoKeydown(event)">
       </div>
       <div class="dialog-footer">
-        <button class="btn btn-secondary" onclick="closeEditDialog()">取消</button>
-        <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+        <button class="btn btn-secondary" onclick="closeGotoDialog()">取消</button>
+        <button class="btn btn-primary" onclick="confirmGoto()">跳转</button>
       </div>
     </div>
   </div>
 
-  <!-- Save Script Dialog -->
-  <div class="dialog-overlay" id="saveDialog">
-    <div class="dialog">
-      <div class="dialog-header">
-        <h3 class="dialog-title">保存脚本</h3>
-        <button class="dialog-close" onclick="closeSaveDialog()">×</button>
-      </div>
-      <div class="dialog-body">
-        <div class="form-group">
-          <label class="form-label">变更说明</label>
-          <input type="text" class="form-input" id="saveChangeDesc" placeholder="请填写本次修改说明（选填）">
-        </div>
-      </div>
-      <div class="dialog-footer">
-        <button class="btn btn-secondary" onclick="closeSaveDialog()">取消</button>
-        <button class="btn btn-primary" onclick="confirmSave()">保存</button>
-      </div>
-    </div>
+  <!-- Version History Dialog -->
+  <div class="dialog-overlay fullscreen-dialog" id="versionHistoryDialog">
+    <button class="fullscreen-close" onclick="closeVersionHistory()">×</button>
+    <iframe id="versionHistoryFrame" src="version-history-prototype.html" style="width: 100%; height: 100%; border: none;"></iframe>
+  </div>
+
+  <!-- Execution History Dialog -->
+  <div class="dialog-overlay fullscreen-dialog" id="executionHistoryDialog">
+    <button class="fullscreen-close" onclick="closeExecutionHistory()">×</button>
+    <iframe id="executionHistoryFrame" src="version-history-prototype.html?module=executions" style="width: 100%; height: 100%; border: none;"></iframe>
   </div>
 
   <!-- Toast -->
@@ -1003,8 +1829,21 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
   <script>
     let editor = null;
-    let originalContent = '';
-    let isModified = false;
+    let originalScriptContent = '';
+
+    // Original values
+    const originalTaskInfo = {
+      name: '粮信网玉米晨报采集',
+      source: 'liangxin',
+      desc: '每日定时采集粮信网玉米价格数据'
+    };
+
+    // Current values
+    let currentTaskInfo = { ...originalTaskInfo };
+
+    // Modified flags
+    let scriptModified = false;
+    let taskInfoModified = false;
     let isEnabled = true;
 
     function showToast(message, isError = false) {
@@ -1012,7 +1851,7 @@
       toast.textContent = message;
       toast.classList.toggle('error', isError);
       toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 3000);
+      setTimeout(() => toast.classList.remove('show'), 2500);
     }
 
     function goBack() {
@@ -1035,27 +1874,21 @@ import json
 from datetime import datetime
 import logging
 
-# 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 常量配置
 LIANGXIN_URL = "https://www.liangxin.net"
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
 }
 
 class LiangxinCollector:
-    """粮信网数据采集器"""
-
     def __init__(self, username: str, password: str):
         self.username = username
         self.password = password
         self.session = requests.Session()
 
     def login(self) -> bool:
-        """登录粮信网"""
         login_url = f"{LIANGXIN_URL}/api/login"
         data = {"username": self.username, "password": self.password}
         try:
@@ -1066,29 +1899,20 @@ class LiangxinCollector:
             return False
 
     def crawl_daily_report(self) -> dict:
-        """采集晨报数据"""
         url = f"{LIANGXIN_URL}/api/daily/corn"
         try:
             resp = self.session.get(url, headers=HEADERS, timeout=60)
             data = resp.json()
-
-            return {
-                "status": "success",
-                "data": data,
-                "timestamp": datetime.now().isoformat()
-            }
+            return {"status": "success", "data": data, "timestamp": datetime.now().isoformat()}
         except Exception as e:
             logger.error(f"采集失败: {e}")
             return {"status": "error", "message": str(e)}
 
     def run(self) -> dict:
-        """执行采集流程"""
         if not self.login():
             return {"status": "error", "message": "登录失败"}
-
         result = self.crawl_daily_report()
         logger.info(f"采集结果: {result}")
-
         return result
 
 if __name__ == "__main__":
@@ -1097,44 +1921,177 @@ if __name__ == "__main__":
     print(json.dumps(result, ensure_ascii=False, indent=2))
 `;
 
-      originalContent = code;
+      originalScriptContent = code;
 
       editor = monaco.editor.create(document.getElementById('monacoEditor'), {
         value: code,
         language: 'python',
         theme: 'vs-dark',
-        fontSize: 14,
+        fontSize: 13,
         fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
         lineNumbers: 'on',
         minimap: { enabled: true },
         scrollBeyondLastLine: false,
         automaticLayout: true,
         tabSize: 4,
-        insertSpaces: true,
         wordWrap: 'off',
-        padding: { top: 16, bottom: 16 },
+        padding: { top: 12, bottom: 12 },
         renderLineHighlight: 'all',
         cursorBlinking: 'smooth',
-        cursorSmoothCaretAnimation: 'on',
         smoothScrolling: true,
       });
 
       // Track modifications
       editor.onDidChangeModelContent(() => {
         const currentContent = editor.getValue();
-        isModified = currentContent !== originalContent;
-        document.getElementById('modifiedIndicator').style.display = isModified ? 'inline' : 'none';
-        document.getElementById('saveBtn').disabled = !isModified;
+        scriptModified = currentContent !== originalScriptContent;
+        updateSaveButton();
       });
 
-      // Add keyboard shortcuts
-      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
-        if (isModified) showSaveDialog();
+      // Track task info changes
+      document.getElementById('editName').addEventListener('input', trackTaskInfoChanges);
+      document.getElementById('editDesc').addEventListener('input', trackTaskInfoChanges);
+
+      function trackTaskInfoChanges() {
+        currentTaskInfo.name = document.getElementById('editName').value;
+        currentTaskInfo.source = document.getElementById('editSource').value;
+        currentTaskInfo.desc = document.getElementById('editDesc').value;
+        taskInfoModified = currentTaskInfo.name !== originalTaskInfo.name ||
+                          currentTaskInfo.source !== originalTaskInfo.source ||
+                          currentTaskInfo.desc !== originalTaskInfo.desc;
+        updateSaveButton();
+      }
+
+      function updateSaveButton() {
+        const hasChanges = taskInfoModified || scriptModified;
+        document.getElementById('modifiedIndicator').style.display = hasChanges ? 'inline' : 'none';
+        document.getElementById('modifiedIndicatorFooter').style.display = hasChanges ? 'inline' : 'none';
+        document.getElementById('saveBtn').disabled = !hasChanges;
+      }
+
+      // Track cursor position
+      editor.onDidChangeCursorPosition((e) => {
+        document.getElementById('cursorPosition').textContent = `行 ${e.position.lineNumber}, 列 ${e.position.column}`;
       });
     });
 
-    function saveScript() {
-      if (isModified) showSaveDialog();
+    // Global keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+      // Ctrl+S or Cmd+S - Save
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (!document.getElementById('saveBtn').disabled) {
+          confirmSave();
+        }
+      }
+      // Ctrl+Enter - Execute task
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        executeTask();
+      }
+      // Escape - Close dialogs
+      if (e.key === 'Escape') {
+        closeGotoDialog();
+        closeVersionHistory();
+        closeExecutionHistory();
+      }
+    });
+
+    // Trigger Type Change
+    function onTriggerChange() {
+      const type = document.querySelector('input[name="triggerType"]:checked').value;
+      document.querySelectorAll('.trigger-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(type + 'Panel').classList.add('active');
+    }
+
+    // Cycle Type Change
+    function onCycleTypeChange(el) {
+      document.querySelectorAll('.cycle-option').forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+      const type = el.dataset.value;
+      document.getElementById('dailyOptions').classList.toggle('hidden', type !== 'daily');
+      document.getElementById('weeklyOptions').classList.toggle('hidden', type !== 'weekly');
+      document.getElementById('monthlyOptions').classList.toggle('hidden', type !== 'monthly');
+    }
+
+    // Select Weekday
+    function selectWeekday(el) {
+      document.querySelectorAll('.weekday').forEach(d => d.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    // End Type Change
+    function onEndTypeChange(el) {
+      document.querySelectorAll('.end-option').forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+      const type = el.dataset.value;
+      document.getElementById('endDatePanel').classList.toggle('hidden', type !== 'date');
+      document.getElementById('endCountPanel').classList.toggle('hidden', type !== 'count');
+    }
+
+    // Date Picker
+    function toggleDatePicker(el) {
+      el.parentElement.querySelector('input[type="date"]').showPicker?.() || el.parentElement.querySelector('input[type="date"]').click();
+    }
+
+    function updateDateText(input, textId) {
+      document.getElementById(textId).textContent = input.value;
+    }
+
+    // Calculate Cron Next 5 Times
+    function calculateCronNext5() {
+      const cronInput = document.getElementById('cronInput');
+      const cronExpr = cronInput.value.trim();
+      document.getElementById('cronExprDisplay').textContent = cronExpr;
+
+      // Simple demo calculation (in real app, use proper cron parser)
+      const now = new Date();
+      const times = [];
+      for (let i = 0; i < 5; i++) {
+        const next = new Date(now);
+        next.setDate(next.getDate() + i + 1);
+        next.setHours(8, 0, 0, 0);
+        times.push(next.toISOString().replace('T', ' ').substring(0, 19));
+      }
+      const list = document.getElementById('cronNext5List');
+      list.querySelectorAll('.next5-item').forEach((item, i) => {
+        item.querySelector('.time').textContent = times[i] || '--';
+      });
+    }
+
+    function confirmSave() {
+      // Save script if modified
+      if (scriptModified) {
+        originalScriptContent = editor.getValue();
+      }
+
+      // Save task info if modified
+      if (taskInfoModified) {
+        originalTaskInfo.name = currentTaskInfo.name;
+        originalTaskInfo.source = currentTaskInfo.source;
+        originalTaskInfo.desc = currentTaskInfo.desc;
+      }
+
+      // Reset flags
+      scriptModified = false;
+      taskInfoModified = false;
+
+      // Update UI
+      updateSaveButton();
+      updateTaskInfoDisplay();
+
+      showToast('修改已保存，将创建新版本');
+    }
+
+    function updateTaskInfoDisplay() {
+      // Update header title
+      document.querySelector('.header-title').childNodes[2].textContent = ' ' + currentTaskInfo.name;
+      document.querySelector('.header-meta').textContent = `数据源: ${getSourceName(currentTaskInfo.source)} · Cron: 0 0 8 * * * · v3`;
+    }
+
+    function getSourceName(source) {
+      const names = { liangxin: '粮信网', mysteel: '我的钢铁网', chinagrain: '中华粮网' };
+      return names[source] || source;
     }
 
     function formatCode() {
@@ -1148,51 +2105,78 @@ if __name__ == "__main__":
     }
 
     function goToLine() {
-      const line = prompt('跳转到行号:', '1');
-      if (line && !isNaN(line)) {
+      const dialog = document.getElementById('gotoDialog');
+      const input = document.getElementById('gotoLineInput');
+      input.value = '';
+      dialog.classList.add('show');
+      input.focus();
+    }
+
+    function closeGotoDialog() {
+      document.getElementById('gotoDialog').classList.remove('show');
+    }
+
+    function confirmGoto() {
+      const line = document.getElementById('gotoLineInput').value;
+      if (line && !isNaN(line) && parseInt(line) > 0) {
         editor.revealLineInCenter(parseInt(line));
         editor.setPosition({ lineNumber: parseInt(line), column: 1 });
         editor.focus();
+        closeGotoDialog();
+      } else {
+        showToast('请输入有效的行号', true);
       }
     }
 
-    function showSaveDialog() {
-      document.getElementById('saveDialog').classList.add('show');
-      document.getElementById('saveChangeDesc').focus();
+    function handleGotoKeydown(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        confirmGoto();
+      } else if (e.key === 'Escape') {
+        closeGotoDialog();
+      }
     }
 
-    function closeSaveDialog() {
-      document.getElementById('saveDialog').classList.remove('show');
-      document.getElementById('saveChangeDesc').value = '';
+    function handleGotoOverlayClick(e) {
+      if (e.target.id === 'gotoDialog') {
+        closeGotoDialog();
+      }
     }
 
-    function confirmSave() {
-      const changeDesc = document.getElementById('saveChangeDesc').value;
-      originalContent = editor.getValue();
-      isModified = false;
-      document.getElementById('modifiedIndicator').style.display = 'none';
-      document.getElementById('saveBtn').disabled = true;
-      closeSaveDialog();
-      showToast('脚本已保存，将创建新版本');
+    function openVersionHistory() {
+      document.getElementById('versionHistoryDialog').classList.add('show');
+    }
+
+    function closeVersionHistory() {
+      document.getElementById('versionHistoryDialog').classList.remove('show');
+    }
+
+    function openExecutionHistory(e) {
+      if (e) e.preventDefault();
+      document.getElementById('executionHistoryDialog').classList.add('show');
+    }
+
+    function closeExecutionHistory() {
+      document.getElementById('executionHistoryDialog').classList.remove('show');
+    }
+
+    function viewLog() {
+      showToast('查看执行日志');
     }
 
     function toggleStatus() {
       isEnabled = !isEnabled;
-      const badge = document.getElementById('statusBadge');
       const btn = document.getElementById('toggleStatusBtn');
+      const text = document.getElementById('toggleStatusText');
 
       if (isEnabled) {
-        badge.className = 'status-badge enabled';
-        badge.innerHTML = '<span class="dot"></span>启用中';
-        btn.textContent = '禁用';
-        btn.className = 'btn btn-warning';
-        document.getElementById('nextExec').textContent = '明天 08:00:00';
+        btn.className = 'status-toggle enabled';
+        text.textContent = '启用中';
+        document.getElementById('nextExec').textContent = '明天 08:00';
         showToast('任务已启用');
       } else {
-        badge.className = 'status-badge disabled';
-        badge.innerHTML = '<span class="dot"></span>已禁用';
-        btn.textContent = '启用';
-        btn.className = 'btn btn-success';
+        btn.className = 'status-toggle disabled';
+        text.textContent = '已禁用';
         document.getElementById('nextExec').textContent = '--';
         showToast('任务已禁用');
       }
@@ -1201,42 +2185,9 @@ if __name__ == "__main__":
     function executeTask() {
       showToast('任务已开始执行...');
       setTimeout(() => {
-        showToast('任务执行完成，成功采集 23 条数据');
+        showToast('执行完成，成功采集 23 条数据');
       }, 2000);
     }
-
-    function showEditDialog() {
-      document.getElementById('editDialog').classList.add('show');
-    }
-
-    function closeEditDialog() {
-      document.getElementById('editDialog').classList.remove('show');
-    }
-
-    function saveEdit() {
-      const name = document.getElementById('editName').value;
-      document.querySelector('.header-title').textContent = name;
-      closeEditDialog();
-      showToast('任务信息已保存');
-    }
-
-    function viewAllVersions(e) {
-      // Let the link work normally
-    }
-
-    // Global keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-      // Ctrl+Enter = Execute
-      if (e.ctrlKey && e.key === 'Enter') {
-        e.preventDefault();
-        executeTask();
-      }
-      // Escape = Close dialogs
-      if (e.key === 'Escape') {
-        closeEditDialog();
-        closeSaveDialog();
-      }
-    });
   </script>
 </body>
 </html>
