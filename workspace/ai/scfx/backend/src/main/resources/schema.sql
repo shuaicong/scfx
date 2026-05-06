@@ -27,17 +27,26 @@ CREATE TABLE IF NOT EXISTS t_collection_task (
 CREATE TABLE IF NOT EXISTS t_task_execution (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     task_id BIGINT,
+    script_id BIGINT,
+    version_id BIGINT,
     execution_id VARCHAR(50) NOT NULL,
+    trigger_type VARCHAR(20),
     status VARCHAR(20) NOT NULL,
     start_time TIMESTAMP NOT NULL,
     end_time TIMESTAMP,
-    duration_seconds INT,
+    duration_ms BIGINT,
     error_message VARCHAR(4000),
-    collected_count INT DEFAULT 0,
-    data_size_mb DECIMAL(10,2) DEFAULT 0,
-    cpu_usage DECIMAL(5,2),
-    memory_usage DECIMAL(5,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 任务执行日志表
+CREATE TABLE IF NOT EXISTS t_task_execution_log (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    execution_id VARCHAR(50),
+    script_id BIGINT,
+    level VARCHAR(20) NOT NULL,
+    message VARCHAR(4000) NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- 报告表
@@ -105,24 +114,6 @@ CREATE TABLE IF NOT EXISTS t_alert_record (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 采集器信息表
-CREATE TABLE IF NOT EXISTS t_collector_info (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    collector_name VARCHAR(100) NOT NULL,
-    sdk_version VARCHAR(20),
-    source VARCHAR(50),
-    subject VARCHAR(50),
-    coll_type VARCHAR(50),
-    coll_object VARCHAR(50),
-    description VARCHAR(500),
-    status VARCHAR(20) DEFAULT 'offline',
-    last_heartbeat TIMESTAMP,
-    registered_at TIMESTAMP,
-    instance_count INT DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
 -- 采集脚本表
 CREATE TABLE IF NOT EXISTS t_collection_script (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
@@ -148,10 +139,68 @@ CREATE TABLE IF NOT EXISTS t_collection_script (
     execution_count INT DEFAULT 0,
     success_count INT DEFAULT 0,
     failed_count INT DEFAULT 0,
+    weekly_days VARCHAR(100),
+    monthly_day INT,
+    monthly_last_day BOOLEAN,
+    end_type VARCHAR(20),
+    repeat_count INT,
+    repeat_time VARCHAR(20),
+    current_version INT,
     created_by VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 采集脚本版本表
+CREATE TABLE IF NOT EXISTS t_script_version (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    script_id BIGINT NOT NULL,
+    version_num INT NOT NULL,
+    script_name VARCHAR(100),
+    script_content TEXT,
+    trigger_type VARCHAR(20),
+    repeat_type VARCHAR(20),
+    repeat_time VARCHAR(20),
+    weekly_days VARCHAR(100),
+    monthly_day INT,
+    monthly_last_day BOOLEAN,
+    cron_expression VARCHAR(100),
+    end_type VARCHAR(20),
+    end_time TIMESTAMP,
+    repeat_count INT,
+    change_description VARCHAR(500),
+    created_by VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    is_current BOOLEAN DEFAULT FALSE
+);
+
+-- 知识库表
+CREATE TABLE IF NOT EXISTS t_knowledge_base (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(500) NOT NULL,
+    source_type VARCHAR(20) NOT NULL COMMENT 'collection/upload/manual',
+    source_name VARCHAR(100),
+    original_url VARCHAR(1000),
+    author VARCHAR(100),
+    publish_time DATETIME,
+    content TEXT NOT NULL,
+    content_hash VARCHAR(64),
+    file_path VARCHAR(500),
+    file_type VARCHAR(20),
+    chunk_count INT DEFAULT 0,
+    vector_status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/processing/completed/failed',
+    vector_ids VARCHAR(500),
+    execution_id VARCHAR(50),
+    created_by VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted INT DEFAULT 0,
+    INDEX idx_source_type (source_type),
+    INDEX idx_source_name (source_name),
+    INDEX idx_vector_status (vector_status),
+    INDEX idx_content_hash (content_hash),
+    INDEX idx_publish_time (publish_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库表';
 
 -- 初始化粮信网采集任务
 INSERT INTO t_collection_task (task_name, task_type, source_name, source_url, status)
