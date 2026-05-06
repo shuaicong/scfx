@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS t_report (
     content_text_path VARCHAR(500),
     content TEXT,
     vector_id VARCHAR(100),
+    execution_id VARCHAR(50),
     deleted INT DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

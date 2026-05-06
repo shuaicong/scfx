@@ -38,6 +38,8 @@ public class Report {
 
     private String vectorId;
 
+    private String executionId;
+
     @TableLogic
     private Integer deleted;
 
