@@ -19,22 +19,22 @@ const routes = [
         meta: { title: '采集管理' }
       },
       {
-        path: 'sdk',
-        name: 'SDK',
-        component: () => import('../views/sdk/SDK.vue'),
-        meta: { title: 'SDK管理' }
-      },
-      {
         path: 'scripts',
         name: 'Scripts',
         component: () => import('../views/scripts/Scripts.vue'),
         meta: { title: '脚本管理' }
       },
       {
+        path: 'scripts/create',
+        name: 'TaskCreate',
+        component: () => import('../views/scripts/TaskDetail.vue'),
+        meta: { title: '创建任务' }
+      },
+      {
         path: 'scripts/:id',
         name: 'TaskDetail',
         component: () => import('../views/scripts/TaskDetail.vue'),
-        meta: { title: '任务详情' }
+        meta: { title: '任务详情', hideSidebar: true }
       },
       {
         path: 'logs',
@@ -47,6 +47,18 @@ const routes = [
         name: 'Settings',
         component: () => import('../views/settings/Settings.vue'),
         meta: { title: '系统设置' }
+      },
+      {
+        path: 'ai-chat',
+        name: 'AIChat',
+        component: () => import('../views/ai-chat/AiChat.vue'),
+        meta: { title: 'AI 知识问答' }
+      },
+      {
+        path: 'knowledge',
+        name: 'Knowledge',
+        component: () => import('../views/knowledge/Knowledge.vue'),
+        meta: { title: '知识库管理' }
       }
     ]
   }

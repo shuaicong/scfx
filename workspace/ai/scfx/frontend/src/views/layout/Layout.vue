@@ -1,7 +1,7 @@
 <template>
   <el-container class="layout-container">
     <!-- 侧边栏 -->
-    <el-aside width="220px" class="sidebar">
+    <el-aside v-if="!route.meta.hideSidebar" width="220px" class="sidebar">
       <div class="logo">
         <div class="logo-icon">
           <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -40,14 +40,19 @@
           <span class="menu-text">采集管理</span>
           <div class="menu-indicator"></div>
         </el-menu-item>
-        <el-menu-item index="/sdk" class="menu-item">
-          <el-icon class="menu-icon"><Aim /></el-icon>
-          <span class="menu-text">SDK管理</span>
-          <div class="menu-indicator"></div>
-        </el-menu-item>
         <el-menu-item index="/scripts" class="menu-item">
           <el-icon class="menu-icon"><Document /></el-icon>
           <span class="menu-text">脚本管理</span>
+          <div class="menu-indicator"></div>
+        </el-menu-item>
+        <el-menu-item index="/ai-chat" class="menu-item">
+          <el-icon class="menu-icon"><ChatDotRound /></el-icon>
+          <span class="menu-text">AI 问答</span>
+          <div class="menu-indicator"></div>
+        </el-menu-item>
+        <el-menu-item index="/knowledge" class="menu-item">
+          <el-icon class="menu-icon"><Books /></el-icon>
+          <span class="menu-text">知识库管理</span>
           <div class="menu-indicator"></div>
         </el-menu-item>
         <el-menu-item index="/logs" class="menu-item">
@@ -90,7 +95,7 @@
           </el-button>
         </div>
       </el-header>
-      <el-main class="main-content">
+      <el-main class="main-content" :class="{ 'no-sidebar': route.meta.hideSidebar }">
         <router-view v-slot="{ Component }">
           <transition name="page-fade" mode="out-in">
             <component :is="Component" />
@@ -106,7 +111,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { collectLiangxinwang } from '@/api/dashboard'
-import { DataAnalysis, Collection, Document, Setting, Refresh, Aim, Tickets } from '@element-plus/icons-vue'
+import { DataAnalysis, Collection, Document, Setting, Refresh, Tickets, ChatDotRound, Books } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const collecting = ref(false)
@@ -121,6 +126,8 @@ const pageTitle = computed(() => {
     '/collection': '采集管理',
     '/sdk': 'SDK管理',
     '/scripts': '脚本管理',
+    '/ai-chat': 'AI 知识问答',
+    '/knowledge': '知识库管理',
     '/logs': '日志查看',
     '/settings': '系统设置'
   }
@@ -410,6 +417,10 @@ onUnmounted(() => {
   padding: 24px;
   overflow-y: auto;
   background: linear-gradient(180deg, #f0f2f5 0%, #e8eaef 100%);
+}
+
+.main-content.no-sidebar {
+  padding: 0;
 }
 
 /* Page transition */
