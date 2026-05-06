@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.annotation.*;
 import lombok.Data;
 import java.time.LocalDateTime;
 
+/** 知识库实体 */
 @Data
 @TableName("t_knowledge_base")
 public class KnowledgeBase {
@@ -24,7 +25,10 @@ public class KnowledgeBase {
     private String vectorIds;
     private String executionId;
     private String createdBy;
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+    @TableLogic
     private Integer deleted;
 }
