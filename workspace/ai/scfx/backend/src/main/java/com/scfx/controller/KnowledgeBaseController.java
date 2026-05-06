@@ -1,36 +1,40 @@
 package com.scfx.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import com.scfx.common.Result;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @RestController
 @RequestMapping("/api/knowledge")
+@RequiredArgsConstructor
 public class KnowledgeBaseController {
 
-    @Autowired
-    private RestTemplate restTemplate;
+    private final RestTemplate restTemplate;
 
-    private static final String AI_QA_SERVICE_URL = "http://localhost:5002";
+    @Value("${app.ai-qa-service.url}")
+    private String aiQaServiceUrl;
 
     @GetMapping("/list")
-    public Map<String, Object> list(
+    public Result<Map<?, ?>> list(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String sourceType,
             @RequestParam(required = false) String vectorStatus) {
-        String url = AI_QA_SERVICE_URL + "/api/knowledge?page=" + page + "&size=" + size;
+        String url = aiQaServiceUrl + "/api/knowledge?page=" + page + "&size=" + size;
         if (sourceType != null) url += "&sourceType=" + sourceType;
         if (vectorStatus != null) url += "&vectorStatus=" + vectorStatus;
-        return restTemplate.getForObject(url, Map.class);
+        Map<?, ?> data = restTemplate.getForObject(url, Map.class);
+        return Result.success(data);
     }
 
     @PostMapping("/ingest")
-    public Map<String, Object> ingest(@RequestBody Map<String, Object> payload) {
-        String url = AI_QA_SERVICE_URL + "/api/knowledge/ingest";
-        return restTemplate.postForObject(url, payload, Map.class);
+    public Result<Map<?, ?>> ingest(@RequestBody Map<String, Object> payload) {
+        String url = aiQaServiceUrl + "/api/knowledge/ingest";
+        Map<?, ?> data = restTemplate.postForObject(url, payload, Map.class);
+        return Result.success(data);
     }
 }

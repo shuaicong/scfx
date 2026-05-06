@@ -71,6 +71,8 @@ logging:
 
 # 自定义配置
 app:
+  ai-qa-service:
+    url: http://localhost:5002
   jwt:
     secret: grain-platform-secret-key-2024-hainan-reserve-group
     expiration: 86400000

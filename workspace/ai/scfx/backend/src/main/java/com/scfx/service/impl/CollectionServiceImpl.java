@@ -8,7 +8,7 @@ import com.scfx.mapper.TaskExecutionMapper;
 import com.scfx.service.TaskExecutionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -27,9 +27,10 @@ public class CollectionServiceImpl {
 
     private final ReportMapper reportMapper;
     private final TaskExecutionMapper executionMapper;
+    private final RestTemplate restTemplate;
 
-    @Autowired
-    private RestTemplate restTemplate;
+    @Value("${app.ai-qa-service.url}")
+    private String aiQaServiceUrl;
 
     /**
      * 完成执行并触发知识库接入
@@ -63,7 +64,7 @@ public class CollectionServiceImpl {
             return;
         }
 
-        String url = "http://localhost:5002/api/knowledge/ingest";
+        String url = aiQaServiceUrl + "/api/knowledge/ingest";
         Map<String, Object> payload = new HashMap<>();
         payload.put("executionId", executionId);
         payload.put("source", "liangxinwang");
