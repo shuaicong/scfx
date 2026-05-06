@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 from typing import Optional
 import tempfile
 import os
@@ -150,7 +150,7 @@ async def search(query: str, top_k: int = 5):
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("")
-async def list_knowledge(page: int = 1, page_size: int = 20):
+async def list_knowledge(page: int = 1, page_size: int = Query(default=20, ge=1, le=100)):
     """知识列表"""
     try:
         offset = (page - 1) * page_size
