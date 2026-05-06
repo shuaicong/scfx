@@ -300,6 +300,7 @@ async function loadStats() {
     stats.value = res.data || { total: 0 }
   } catch (e) {
     console.error('加载统计失败', e)
+    ElMessage.error('加载统计失败')
   }
 }
 
@@ -310,7 +311,8 @@ async function loadData() {
       page: pagination.page,
       size: pagination.size,
       sourceType: filters.sourceType || undefined,
-      vectorStatus: filters.vectorStatus || undefined
+      vectorStatus: filters.vectorStatus || undefined,
+      search: filters.search || undefined
     })
     const pageData = res.data
     list.value = pageData.records || []
@@ -318,6 +320,7 @@ async function loadData() {
     await loadStats()
   } catch (e) {
     console.error('加载列表失败', e)
+    ElMessage.error('加载列表失败')
   } finally {
     loading.value = false
   }
@@ -375,6 +378,7 @@ async function handleUpload() {
     loadData()
   } catch (e) {
     console.error('上传失败', e)
+    ElMessage.error('上传失败')
   } finally {
     uploading.value = false
   }
@@ -404,6 +408,7 @@ async function handleManualAdd() {
     loadData()
   } catch (e) {
     console.error('添加失败', e)
+    ElMessage.error('添加失败')
   } finally {
     submitting.value = false
   }
@@ -432,6 +437,7 @@ async function handleRevectorize(row: KnowledgeItem) {
   } catch (e: any) {
     if (e !== 'cancel') {
       console.error('重向量化失败', e)
+      ElMessage.error('重向量化失败')
     }
   } finally {
     row.revectorizing = false
@@ -448,6 +454,7 @@ async function handleDelete(row: KnowledgeItem) {
   } catch (e: any) {
     if (e !== 'cancel') {
       console.error('删除失败', e)
+      ElMessage.error('删除失败')
     }
   }
 }
