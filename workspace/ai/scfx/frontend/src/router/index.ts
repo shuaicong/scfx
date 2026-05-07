@@ -37,6 +37,12 @@ const routes = [
         meta: { title: '任务详情', hideSidebar: true }
       },
       {
+        path: 'scripts/:id/versions',
+        name: 'VersionHistory',
+        component: () => import('../views/scripts/VersionHistory.vue'),
+        meta: { title: '版本历史', hideSidebar: true }
+      },
+      {
         path: 'logs',
         name: 'Logs',
         component: () => import('../views/logs/Logs.vue'),
