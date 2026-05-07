@@ -1,6 +1,9 @@
 <template>
-  <div class="task-detail">
-    <el-page-header @back="goBack" :content="script?.scriptName || '任务详情'" />
+  <div class="task-detail" :class="{ 'fullscreen-mode': route.meta.hideSidebar }">
+    <el-page-header v-if="!isCreateMode" @back="goBack" :content="script?.scriptName || '任务详情'" />
+    <div v-else class="create-header">
+      <h2>创建采集任务</h2>
+    </div>
 
     <el-row :gutter="20" class="stats-row">
       <el-col :span="6">
@@ -51,6 +54,32 @@
           <el-descriptions-item label="最后执行">{{ script?.lastExecutionTime || '-' }}</el-descriptions-item>
         </el-descriptions>
 
+        <el-card class="script-card" shadow="never">
+          <template #header>
+            <div class="script-header">
+              <span>脚本配置</span>
+              <div class="script-actions">
+                <el-button size="small" @click="formatScript">格式化</el-button>
+                <el-button type="primary" size="small" :disabled="!hasChanges" @click="saveScript">
+                  保存脚本 Ctrl+S
+                </el-button>
+              </div>
+            </div>
+          </template>
+          <ScriptEditor
+            v-model="scriptContent"
+            :read-only="false"
+            height="400px"
+            @update:modelValue="onScriptChange"
+          />
+          <div class="script-status">
+            <span v-if="hasChanges" class="modified-indicator">已修改</span>
+            <span class="cursor-position">
+              行 {{ cursorLine }}, 列 {{ cursorColumn }}
+            </span>
+          </div>
+        </el-card>
+
         <div class="action-buttons">
           <el-button type="primary" @click="handleExecute" :loading="executing">
             {{ executing ? '执行中...' : '立即执行' }}
@@ -88,6 +117,13 @@
         <el-form-item label="任务名称">
           <el-input v-model="editForm.scriptName" />
         </el-form-item>
+        <el-form-item label="数据源">
+          <el-select v-model="editForm.source" placeholder="请选择数据源" style="width: 100%">
+            <el-option label="粮信网" value="liangxin" />
+            <el-option label="我的钢铁网" value="mysteel" />
+            <el-option label="中华粮网" value="chinagrain" />
+          </el-select>
+        </el-form-item>
         <el-form-item label="触发配置">
           <TriggerConfig v-model="editForm.triggerConfig" />
         </el-form-item>
@@ -112,6 +148,7 @@ import ExecutionList from './ExecutionList.vue'
 import VersionHistory from './VersionHistory.vue'
 import TriggerConfig from './components/TriggerConfig.vue'
 import ExecutionLogViewer from '@/components/ExecutionLogViewer.vue'
+import ScriptEditor from '@/components/ScriptEditor.vue'
 import type { CollectionScript, ExecutionLog } from '@/api'
 
 interface TriggerConfig {
@@ -131,6 +168,7 @@ const route = useRoute()
 const router = useRouter()
 
 const scriptId = computed(() => Number(route.params.id))
+const isCreateMode = computed(() => route.path.endsWith('/create'))
 const script = ref<CollectionScript>()
 const activeTab = ref('info')
 const showExecutionDialog = ref(false)
@@ -139,6 +177,12 @@ const executing = ref(false)
 const currentExecutionId = ref('')
 const executionLogs = ref<ExecutionLog[]>([])
 const executionDuration = ref('00:00:00')
+const scriptContent = ref('')
+const originalContent = ref('')
+const hasChanges = computed(() => scriptContent.value !== originalContent.value)
+const cursorLine = ref(1)
+const cursorColumn = ref(1)
+const editorInstance = ref<any>(null)
 
 const stats = computed(() => ({
   executionCount: script.value?.executionCount || 0,
@@ -169,6 +213,7 @@ const triggerDescription = computed(() => {
 
 const editForm = ref({
   scriptName: '',
+  source: '',
   triggerConfig: {
     triggerType: 'repeat'
   },
@@ -179,15 +224,21 @@ let durationTimer: number | null = null
 let pollingTimer: number | null = null
 
 onMounted(async () => {
-  await loadScript()
+  if (!isCreateMode.value) {
+    await loadScript()
+    await loadScriptContent()
+  }
+  document.addEventListener('keydown', handleKeyDown)
 })
 
 onUnmounted(() => {
   if (durationTimer) clearInterval(durationTimer)
   if (pollingTimer) clearInterval(pollingTimer)
+  document.removeEventListener('keydown', handleKeyDown)
 })
 
 async function loadScript() {
+  if (isCreateMode.value) return
   try {
     const res = await scriptApi.getById(scriptId.value)
     script.value = (res as unknown as { data: CollectionScript }).data
@@ -282,9 +333,80 @@ async function handleSaveEdit() {
     ElMessage.error('保存失败')
   }
 }
+
+async function loadScriptContent() {
+  try {
+    const res = await scriptApi.getContent(scriptId.value)
+    scriptContent.value = res.data
+    originalContent.value = res.data
+  } catch (e) {
+    ElMessage.error('加载脚本内容失败')
+  }
+}
+
+function onScriptChange(value: string) {
+  scriptContent.value = value
+  updateCursorPosition()
+}
+
+function updateCursorPosition() {
+  const editor = editorInstance.value
+  if (editor) {
+    const position = editor.getPosition()
+    if (position) {
+      cursorLine.value = position.lineNumber
+      cursorColumn.value = position.column
+    }
+  }
+}
+
+async function saveScript() {
+  try {
+    await scriptApi.updateContent(scriptId.value, scriptContent.value)
+    originalContent.value = scriptContent.value
+    ElMessage.success('脚本保存成功')
+  } catch (e) {
+    ElMessage.error('保存失败')
+  }
+}
+
+function formatScript() {
+  const editor = editorInstance.value
+  if (editor) {
+    editor.getAction('editor.action.formatDocument')?.run()
+  }
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (e.ctrlKey && e.key === 's') {
+    e.preventDefault()
+    saveScript()
+  }
+}
 </script>
 
 <style scoped>
+.task-detail {
+  padding: 24px;
+  background: #fff;
+  min-height: 100%;
+}
+.task-detail.fullscreen-mode {
+  padding: 0;
+  background: #fff;
+  min-height: 100vh;
+}
+.create-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #e8e8e8;
+  background: linear-gradient(135deg, #1a1f2e 0%, #252b3d 100%);
+}
+.create-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 600;
+}
 .stats-row {
   margin: 20px 0;
 }
@@ -304,6 +426,30 @@ async function handleSaveEdit() {
 .stat-value.danger { color: #f56c6c; }
 .action-buttons {
   margin-top: 20px;
+}
+.script-card {
+  margin-top: 20px;
+  background: #1e1e1e;
+  border: 1px solid #30363d;
+}
+.script-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.script-actions {
+  display: flex;
+  gap: 8px;
+}
+.script-status {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #8b949e;
+  display: flex;
+  justify-content: space-between;
+}
+.modified-indicator {
+  color: #f0883e;
 }
 .execution-progress {
   text-align: center;
