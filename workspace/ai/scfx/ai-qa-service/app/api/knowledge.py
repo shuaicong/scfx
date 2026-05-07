@@ -26,12 +26,12 @@ async def ingest(request: IngestRequest):
                 continue
 
             sql = """
-                INSERT INTO knowledge_base (title, content, source, source_type, author, publish_time, execution_id)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                INSERT INTO t_knowledge_base (title, source_type, source_name, content, author, publish_time, execution_id)
+                VALUES (%s, 'collection', %s, %s, %s, %s, %s)
             """
             kb_id = execute_update(
                 sql,
-                (report.title, content, request.source, "采集", report.author, report.publishTime, request.executionId)
+                (report.title, request.source, content, report.author, report.publishTime, request.executionId)
             )
 
             vector_ids = store_vectors(
@@ -44,7 +44,7 @@ async def ingest(request: IngestRequest):
             )
 
             execute_update(
-                "UPDATE knowledge_base SET vector_ids = %s WHERE id = %s",
+                "UPDATE t_knowledge_base SET vector_ids = %s WHERE id = %s",
                 (vector_ids, kb_id)
             )
 
@@ -77,10 +77,10 @@ async def upload(title: str, source: str = "文档上传", file: UploadFile = Fi
                 raise HTTPException(status_code=400, detail="No content extracted")
 
             sql = """
-                INSERT INTO knowledge_base (title, content, source, source_type)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO t_knowledge_base (title, source_type, source_name, content)
+                VALUES (%s, 'upload', %s, %s)
             """
-            kb_id = execute_update(sql, (title, text, source, "文档上传"))
+            kb_id = execute_update(sql, (title, source, text))
 
             vector_ids = store_vectors(
                 kb_id=kb_id,
@@ -91,7 +91,7 @@ async def upload(title: str, source: str = "文档上传", file: UploadFile = Fi
             )
 
             execute_update(
-                "UPDATE knowledge_base SET vector_ids = %s WHERE id = %s",
+                "UPDATE t_knowledge_base SET vector_ids = %s WHERE id = %s",
                 (vector_ids, kb_id)
             )
 
@@ -114,12 +114,12 @@ async def manual_add(request: ManualAddRequest):
             raise HTTPException(status_code=400, detail="No chunks generated")
 
         sql = """
-            INSERT INTO knowledge_base (title, content, source, source_type, author, publish_time)
-            VALUES (%s, %s, %s, %s, %s, %s)
+            INSERT INTO t_knowledge_base (title, source_type, source_name, content, author, publish_time)
+            VALUES (%s, 'manual', %s, %s, %s, %s)
         """
         kb_id = execute_update(
             sql,
-            (request.title, content, request.source, "人工录入", request.author, request.publishTime)
+            (request.title, request.source, content, request.author, request.publishTime)
         )
 
         vector_ids = store_vectors(
@@ -132,7 +132,7 @@ async def manual_add(request: ManualAddRequest):
         )
 
         execute_update(
-            "UPDATE knowledge_base SET vector_ids = %s WHERE id = %s",
+            "UPDATE t_knowledge_base SET vector_ids = %s WHERE id = %s",
             (vector_ids, kb_id)
         )
 
@@ -154,10 +154,10 @@ async def list_knowledge(page: int = 1, page_size: int = Query(default=20, ge=1,
     """知识列表"""
     try:
         offset = (page - 1) * page_size
-        sql = "SELECT * FROM knowledge_base ORDER BY id DESC LIMIT %s OFFSET %s"
+        sql = "SELECT * FROM t_knowledge_base ORDER BY id DESC LIMIT %s OFFSET %s"
         items = execute_query(sql, (page_size, offset))
 
-        count_sql = "SELECT COUNT(*) as total FROM knowledge_base"
+        count_sql = "SELECT COUNT(*) as total FROM t_knowledge_base"
         total = execute_query(count_sql)[0]['total']
 
         return {"code": 200, "data": {"items": items, "total": total, "page": page, "page_size": page_size}}
@@ -168,13 +168,13 @@ async def list_knowledge(page: int = 1, page_size: int = Query(default=20, ge=1,
 async def stats():
     """知识库统计"""
     try:
-        total_sql = "SELECT COUNT(*) as total FROM knowledge_base"
+        total_sql = "SELECT COUNT(*) as total FROM t_knowledge_base"
         total = execute_query(total_sql)[0]['total']
 
         by_source_sql = """
-            SELECT source, source_type, COUNT(*) as count
-            FROM knowledge_base
-            GROUP BY source, source_type
+            SELECT source_name, source_type, COUNT(*) as count
+            FROM t_knowledge_base
+            GROUP BY source_name, source_type
         """
         by_source = execute_query(by_source_sql)
 
@@ -186,7 +186,7 @@ async def stats():
 async def get_knowledge(kb_id: int):
     """知识详情"""
     try:
-        sql = "SELECT * FROM knowledge_base WHERE id = %s"
+        sql = "SELECT * FROM t_knowledge_base WHERE id = %s"
         items = execute_query(sql, (kb_id,))
         if not items:
             raise HTTPException(status_code=404, detail="Knowledge not found")
@@ -198,7 +198,7 @@ async def get_knowledge(kb_id: int):
 async def delete_knowledge(kb_id: int):
     """删除知识"""
     try:
-        sql = "SELECT vector_ids FROM knowledge_base WHERE id = %s"
+        sql = "SELECT vector_ids FROM t_knowledge_base WHERE id = %s"
         items = execute_query(sql, (kb_id,))
         if not items:
             raise HTTPException(status_code=404, detail="Knowledge not found")
@@ -207,7 +207,7 @@ async def delete_knowledge(kb_id: int):
         if vector_ids:
             delete_vectors(vector_ids)
 
-        delete_sql = "DELETE FROM knowledge_base WHERE id = %s"
+        delete_sql = "DELETE FROM t_knowledge_base WHERE id = %s"
         execute_update(delete_sql, (kb_id,))
 
         return {"code": 200, "data": {"deleted": kb_id}}
@@ -218,7 +218,7 @@ async def delete_knowledge(kb_id: int):
 async def revectorize(kb_id: int):
     """重新向量化"""
     try:
-        sql = "SELECT * FROM knowledge_base WHERE id = %s"
+        sql = "SELECT * FROM t_knowledge_base WHERE id = %s"
         items = execute_query(sql, (kb_id,))
         if not items:
             raise HTTPException(status_code=404, detail="Knowledge not found")
@@ -243,7 +243,7 @@ async def revectorize(kb_id: int):
         )
 
         execute_update(
-            "UPDATE knowledge_base SET vector_ids = %s WHERE id = %s",
+            "UPDATE t_knowledge_base SET vector_ids = %s WHERE id = %s",
             (vector_ids, kb_id)
         )
 
