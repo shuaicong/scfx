@@ -1019,6 +1019,33 @@ async function batchDelete() {
   }
 }
 
+// Mock data for testing
+function loadMockData() {
+  const mockList: KnowledgeItem[] = [
+    { id: 1, title: '2024年玉米市场价格周报（1月15日）', sourceType: 'liangxin', sourceIcon: '🌐', sourceName: '粮信网', publishTime: '2024-01-15', vectorStatus: 'vectorized', chunkCount: 12, tags: ['价格', '玉米'], content: '本周玉米市场价格整体呈现稳中偏强态势，东北地区深加工企业收购价格上调10-20元/吨，港口平舱价格保持稳定。' },
+    { id: 2, title: '东北地区玉米供需形势分析', sourceType: 'liangxin', sourceIcon: '🌐', sourceName: '粮信网', publishTime: '2024-01-12', vectorStatus: 'vectorized', chunkCount: 8, tags: ['供需', '玉米'], content: '黑龙江地区玉米毒素水平较好，贸易商收购积极性较高。' },
+    { id: 3, title: '2024年第一周粮食政策汇总', sourceType: 'chinagrain', sourceIcon: '🌾', sourceName: '中华粮网', publishTime: '2024-01-08', vectorStatus: 'pending', chunkCount: 5, tags: ['政策'] },
+    { id: 4, title: '大豆进口数据月报', sourceType: 'usda', sourceIcon: '🦃', sourceName: 'USDA', publishTime: '2024-01-13', vectorStatus: 'vectorized', chunkCount: 15, tags: ['供需', '大豆'] },
+    { id: 5, title: '港口玉米价格行情', sourceType: 'mysteel', sourceIcon: '📺', sourceName: '我的钢铁', publishTime: '2024-01-14', vectorStatus: 'processing', chunkCount: 6, tags: ['价格', '玉米'] },
+    { id: 6, title: '国际粮食市场周报', sourceType: 'usda', sourceIcon: '🦃', sourceName: 'USDA', publishTime: '2024-01-10', vectorStatus: 'failed', chunkCount: 10, tags: ['国际'] },
+    { id: 7, title: '小麦期货周评', sourceType: 'chinagrain', sourceIcon: '🌾', sourceName: '中华粮网', publishTime: '2024-01-09', vectorStatus: 'vectorized', chunkCount: 7, tags: ['价格', '小麦'] },
+    { id: 8, title: '巴西大豆出口数据', sourceType: 'usda', sourceIcon: '🦃', sourceName: 'USDA', publishTime: '2024-01-11', vectorStatus: 'pending', chunkCount: 4, tags: ['供需', '大豆', '国际'] },
+  ]
+  list.value = mockList
+  pagination.total = 50
+  pagination.start = 1
+  pagination.end = 8
+
+  // Update source counts
+  sources.value.forEach(s => {
+    if (s.key === 'all') {
+      s.count = mockList.length
+    } else {
+      s.count = mockList.filter(i => i.sourceType === s.key).length
+    }
+  })
+}
+
 // Close dropdowns on click outside
 document.addEventListener('click', (e) => {
   if (!(e.target as HTMLElement).closest('.filter-dropdown')) {
@@ -1028,7 +1055,9 @@ document.addEventListener('click', (e) => {
 })
 
 onMounted(() => {
-  loadData()
+  // For testing without backend, use mock data
+  // loadData()
+  loadMockData()
 })
 </script>
 
