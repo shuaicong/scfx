@@ -174,7 +174,7 @@
       </div>
 
       <!-- Card Grid -->
-      <div class="card-grid" id="cardGrid" v-show="viewMode === 'card'">
+      <div class="card-grid" id="cardGrid" v-show="viewMode === 'card' && !previewVisible">
         <div
           v-for="item in list"
           :key="item.id"
@@ -198,6 +198,26 @@
         <div v-if="list.length === 0 && !loading" class="empty-state">
           <span class="empty-icon">📭</span>
           <span class="empty-text">暂无数据</span>
+        </div>
+      </div>
+
+      <!-- Sidebar Mode Compact List -->
+      <div class="sidebar-mode-list" v-show="previewVisible">
+        <div
+          v-for="item in list"
+          :key="item.id"
+          class="sidebar-mode-item"
+          :class="{ active: currentPreview?.id === item.id }"
+          @click="viewDetail(item)"
+        >
+          <div class="item-icon">{{ item.sourceIcon || '📄' }}</div>
+          <div class="item-info">
+            <div class="item-title">{{ item.title }}</div>
+            <div class="item-meta">
+              <span class="item-status" :class="item.vectorStatus"></span>
+              <span>{{ item.sourceName || item.sourceType }}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1632,6 +1652,82 @@ onMounted(() => {
 
 .empty-text {
   font-size: 14px;
+}
+
+/* Sidebar Mode List */
+.sidebar-mode-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.sidebar-mode-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-mode-item:last-child {
+  border-bottom: none;
+}
+
+.sidebar-mode-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.sidebar-mode-item.active {
+  background: var(--accent-bg);
+}
+
+.sidebar-mode-item .item-icon {
+  font-size: 16px;
+}
+
+.sidebar-mode-item .item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-mode-item .item-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-mode-item .item-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.sidebar-mode-item .item-status {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.sidebar-mode-item .item-status.pending {
+  background: var(--yellow);
+}
+
+.sidebar-mode-item .item-status.processing {
+  background: var(--blue);
+}
+
+.sidebar-mode-item .item-status.failed {
+  background: var(--red);
 }
 
 /* Table View */
