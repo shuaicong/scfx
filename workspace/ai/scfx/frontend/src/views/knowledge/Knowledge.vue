@@ -15,18 +15,63 @@
         <div class="sidebar-section">
           <div class="sidebar-header">
             来源分类
-            <button class="sidebar-header-btn" title="新建分类">+</button>
+            <button class="sidebar-header-btn" title="新建文件夹" @click="createRootFolder">+</button>
           </div>
-          <div
-            v-for="source in sources"
-            :key="source.key"
-            class="sidebar-item"
-            :class="{ active: selectedSource === source.key }"
-            @click="selectSource(source.key)"
-          >
-            <span class="icon">{{ source.icon }}</span>
-            <span class="name">{{ source.name }}</span>
-            <span class="count">{{ source.count }}</span>
+
+          <div v-for="folder in folders" :key="folder.id" class="folder-wrapper" :data-folder-id="folder.id">
+            <div
+              class="sidebar-item folder"
+              :class="{ open: folder.open, active: selectedFolder === folder.id }"
+              @click="toggleFolder(folder)"
+              @dblclick="startRename(folder)"
+            >
+              <span class="icon arrow" v-if="folder.children?.length">▶</span>
+              <span class="icon">{{ folder.icon }}</span>
+              <span class="name" v-if="!folder.editing">{{ folder.name }}</span>
+              <input
+                v-else
+                class="rename-input"
+                v-model="folder.renameValue"
+                @blur="finishRename(folder)"
+                @keyup.enter="finishRename(folder)"
+                @click.stop
+                autofocus
+              />
+              <span class="count">{{ folder.count }}</span>
+              <div class="sidebar-item-actions">
+                <button @click.stop="addSubfolder(folder)" title="添加子分类">+</button>
+                <button @click.stop="startRename(folder)" title="重命名">✏️</button>
+                <button @click.stop="importToFolder(folder)" title="导入文件">📥</button>
+              </div>
+            </div>
+
+            <!-- Sub-items -->
+            <div class="sub-items" :class="{ open: folder.open && folder.children?.length }" v-if="folder.children?.length">
+              <div
+                v-for="child in folder.children"
+                :key="child.id"
+                class="sidebar-item"
+                :data-folder-id="child.id"
+                :class="{ active: selectedSource === child.key }"
+                @click="selectSource(child.key)"
+                @dblclick="startRename(child)"
+              >
+                <span class="icon">{{ child.icon }}</span>
+                <span class="name" v-if="!child.editing">{{ child.name }}</span>
+                <input
+                  v-else
+                  class="rename-input"
+                  v-model="child.renameValue"
+                  @blur="finishRename(child)"
+                  @keyup.enter="finishRename(child)"
+                  @click.stop
+                />
+                <span class="count">{{ child.count }}</span>
+                <div class="sidebar-item-actions">
+                  <button @click.stop="startRename(child)" title="重命名">✏️</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -566,6 +611,127 @@ const tags = ref([
   { key: 'policy', name: '政策', color: '#a371f7', count: 0 },
   { key: 'international', name: '国际', color: '#3fb950', count: 0 }
 ])
+
+// Folders (with nested structure)
+interface Folder {
+  id: number
+  name: string
+  icon: string
+  count: number
+  open: boolean
+  editing?: boolean
+  renameValue?: string
+  children?: Folder[]
+  parentId?: number
+  key?: string
+}
+
+const folders = ref<Folder[]>([
+  {
+    id: 1,
+    name: '粮信网',
+    icon: '🌐',
+    count: 24,
+    open: true,
+    children: [
+      { id: 11, name: '玉米', icon: '🌐', count: 12, open: false, key: 'liangxin-corn', parentId: 1 },
+      { id: 12, name: '小麦', icon: '🌐', count: 8, open: false, key: 'liangxin-wheat', parentId: 1 },
+      { id: 13, name: '稻米', icon: '🌐', count: 4, open: false, key: 'liangxin-rice', parentId: 1 }
+    ]
+  },
+  {
+    id: 2,
+    name: '我的钢铁',
+    icon: '📺',
+    count: 18,
+    open: false,
+    children: [
+      { id: 21, name: '钢材', icon: '📺', count: 10, open: false, key: 'mysteel-steel', parentId: 2 },
+      { id: 22, name: '铁矿石', icon: '📺', count: 8, open: false, key: 'mysteel-iron', parentId: 2 }
+    ]
+  },
+  {
+    id: 3,
+    name: '中华粮网',
+    icon: '🌾',
+    count: 12,
+    open: false,
+    children: []
+  },
+  {
+    id: 4,
+    name: 'USDA',
+    icon: '🦃',
+    count: 8,
+    open: false,
+    children: []
+  }
+])
+
+const selectedFolder = ref<number | null>(null)
+
+// Folder operations
+function toggleFolder(folder: Folder) {
+  folder.open = !folder.open
+  if (folder.children?.length) {
+    const wrapper = document.querySelector(`[data-folder-id="${folder.id}"]`)
+    const arrow = wrapper?.querySelector('.arrow')
+    if (arrow) {
+      arrow.style.transform = folder.open ? 'rotate(90deg)' : 'rotate(0deg)'
+    }
+  }
+}
+
+function createRootFolder() {
+  const newFolder: Folder = {
+    id: Date.now(),
+    name: '新建文件夹',
+    icon: '📁',
+    count: 0,
+    open: false,
+    editing: true,
+    renameValue: '新建文件夹',
+    children: []
+  }
+  folders.value.push(newFolder)
+  // Focus on input after render
+  setTimeout(() => {
+    const input = document.querySelector(`[data-folder-id="${newFolder.id}"] .rename-input`)
+    if (input) (input as HTMLInputElement).focus()
+  }, 50)
+}
+
+function addSubfolder(parent: Folder) {
+  const newChild: Folder = {
+    id: Date.now(),
+    name: '新建子分类',
+    icon: '📁',
+    count: 0,
+    open: false,
+    editing: true,
+    renameValue: '新建子分类',
+    parentId: parent.id
+  }
+  if (!parent.children) parent.children = []
+  parent.children.push(newChild)
+  parent.open = true
+}
+
+function startRename(folder: Folder) {
+  folder.editing = true
+  folder.renameValue = folder.name
+}
+
+function finishRename(folder: Folder) {
+  if (folder.renameValue && folder.renameValue.trim()) {
+    folder.name = folder.renameValue.trim()
+  }
+  folder.editing = false
+}
+
+function importToFolder(folder: Folder) {
+  ElMessage.info(`导入文件到 "${folder.name}" 功能开发中`)
+}
 
 // UI State
 const sidebarCollapsed = ref(false)
@@ -2473,5 +2639,193 @@ onMounted(() => {
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Folder Hierarchy Styles */
+.folder-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-item.folder {
+  flex-direction: row;
+  align-items: center;
+  padding-right: 6px;
+}
+
+.sidebar-item.folder .folder-arrow {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.sidebar-item.folder .folder-arrow.open {
+  transform: rotate(90deg);
+}
+
+.sidebar-item.folder .icon {
+  transition: none;
+}
+
+.sidebar-item-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.sidebar-item:hover .sidebar-item-actions {
+  display: flex;
+}
+
+.action-btn {
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.action-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.action-btn.add:hover {
+  color: var(--green);
+}
+
+.action-btn.rename:hover {
+  color: var(--accent);
+}
+
+.action-btn.import:hover {
+  color: var(--blue);
+}
+
+.sub-items {
+  display: none;
+  padding-left: 20px;
+}
+
+.sub-items.open {
+  display: flex;
+  flex-direction: column;
+}
+
+.rename-input {
+  flex: 1;
+  padding: 4px 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+/* Sidebar Mode List */
+.sidebar-mode-list {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+}
+
+.sidebar-mode-list.visible {
+  display: flex;
+}
+
+.sidebar-mode-list .sidebar-item {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+.sidebar-mode-list .sidebar-item.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+/* Sidebar Mode Item Styles */
+.sidebar-mode-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.sidebar-mode-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.sidebar-mode-item.active {
+  background: var(--accent-bg);
+}
+
+.sidebar-mode-item .item-icon {
+  font-size: 16px;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-mode-item .item-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-mode-item .item-title {
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.sidebar-mode-item .item-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sidebar-mode-item .item-status {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.sidebar-mode-item .item-status.vectorized {
+  background: var(--green);
+}
+
+.sidebar-mode-item .item-status.pending {
+  background: var(--yellow);
+}
+
+.sidebar-mode-item .item-status.processing {
+  background: var(--blue);
+}
+
+.sidebar-mode-item .item-status.failed {
+  background: var(--red);
 }
 </style>
