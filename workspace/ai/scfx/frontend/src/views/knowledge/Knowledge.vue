@@ -1,8 +1,8 @@
 <template>
   <div class="knowledge-container">
     <!-- Left Sidebar -->
-    <aside class="sidebar" :class="{ collapsed: sidebarCollapsed }">
-      <button class="sidebar-toggle-btn" @click="toggleSidebar" :title="sidebarCollapsed ? '展开' : '折叠'">
+    <aside class="sidebar" id="sidebar" :class="{ collapsed: sidebarCollapsed }">
+      <button class="sidebar-toggle-btn" id="sidebarToggle" @click="toggleSidebar" title="折叠">
         {{ sidebarCollapsed ? '▶' : '◀' }}
       </button>
 
@@ -11,7 +11,7 @@
         <button class="sidebar-tab" :class="{ active: sidebarTab === 'tag' }" @click="sidebarTab = 'tag'">标签</button>
       </div>
 
-      <div class="sidebar-content" v-show="sidebarTab === 'tree'">
+      <div class="sidebar-content" id="sidebarTree">
         <div class="sidebar-section">
           <div class="sidebar-header">
             来源分类
@@ -31,7 +31,7 @@
         </div>
       </div>
 
-      <div class="sidebar-content" v-show="sidebarTab === 'tag'">
+      <div class="sidebar-content" id="sidebarTags" style="display: none;">
         <div class="sidebar-section">
           <div class="sidebar-header">
             标签
@@ -63,18 +63,26 @@
 
       <div class="sidebar-footer">
         <button class="btn btn-secondary">
-          <el-icon><Upload /></el-icon>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17,8 12,3 7,8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
           导入
         </button>
         <button class="btn btn-secondary">
-          <el-icon><Download /></el-icon>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7,10 12,15 17,10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
           导出
         </button>
       </div>
     </aside>
 
     <!-- List Area -->
-    <section class="list-area" :class="{ 'list-collapsed': listCollapsed }">
+    <section class="list-area" id="listArea" :class="{ 'list-sidebar-mode': previewVisible }">
       <button class="list-collapse-btn" @click="toggleList" title="折叠列表">◀</button>
 
       <div class="list-header">
@@ -100,40 +108,45 @@
               表格
             </button>
           </div>
-          <el-button circle @click="loadData" :loading="loading" title="刷新">
-            <el-icon><Refresh /></el-icon>
-          </el-button>
-          <el-button type="primary" @click="showAddDialog = true">
-            <el-icon><Plus /></el-icon>
-            新建
-          </el-button>
+          <button class="btn btn-icon btn-secondary" @click="loadData" title="刷新">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="23,4 23,10 17,10"/>
+              <polyline points="1,20 1,14 7,14"/>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+            </svg>
+          </button>
+          <button class="btn btn-primary" @click="showAddDialog = true">+ 新建</button>
         </div>
       </div>
 
-      <!-- Filters -->
+      <!-- Filters Bar -->
       <div class="filters-bar">
-        <div class="filter-dropdown" v-click-outside="() => sourceDropdownOpen = false">
+        <div class="filter-dropdown" :class="{ open: sourceDropdownOpen }">
           <button class="filter-dropdown-btn" @click="sourceDropdownOpen = !sourceDropdownOpen">
             来源 <span>{{ filters.sourceName || '全部' }}</span>
-            <el-icon><ArrowDown /></el-icon>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m6 9 6 6 6-6"/>
+            </svg>
           </button>
-          <div class="filter-dropdown-menu" v-show="sourceDropdownOpen">
+          <div class="filter-dropdown-menu">
             <div
               v-for="source in sources"
               :key="source.key"
               class="filter-dropdown-item"
-              :class="{ selected: filters.sourceType === source.key }"
+              :class="{ selected: filters.sourceType === (source.key === 'all' ? '' : source.key) }"
               @click="selectSourceFilter(source.key, source.name)"
             >{{ source.icon }} {{ source.name }}</div>
           </div>
         </div>
 
-        <div class="filter-dropdown" v-click-outside="() => statusDropdownOpen = false">
+        <div class="filter-dropdown" :class="{ open: statusDropdownOpen }">
           <button class="filter-dropdown-btn" @click="statusDropdownOpen = !statusDropdownOpen">
             状态 <span>{{ filters.vectorStatus || '全部' }}</span>
-            <el-icon><ArrowDown /></el-icon>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="m6 9 6 6 6-6"/>
+            </svg>
           </button>
-          <div class="filter-dropdown-menu" v-show="statusDropdownOpen">
+          <div class="filter-dropdown-menu">
             <div class="filter-dropdown-item" :class="{ selected: !filters.vectorStatus }" @click="selectStatusFilter('')">全部</div>
             <div class="filter-dropdown-item" :class="{ selected: filters.vectorStatus === 'vectorized' }" @click="selectStatusFilter('vectorized')">✅ 已向量化</div>
             <div class="filter-dropdown-item" :class="{ selected: filters.vectorStatus === 'pending' }" @click="selectStatusFilter('pending')">⏳ 未向量化</div>
@@ -142,20 +155,10 @@
           </div>
         </div>
 
-        <el-input
-          v-model="filters.search"
-          placeholder="搜索标题..."
-          style="width: 200px;"
-          clearable
-          @keyup.enter="loadData"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
-
         <div class="filter-spacer"></div>
-        <el-button text v-if="hasFilters" @click="clearFilters" type="info">
-          <el-icon><Close /></el-icon> 清除筛选
-        </el-button>
+        <button class="filter-clear" :class="{ show: hasFilters }" @click="clearFilters">
+          ✕ 清除筛选
+        </button>
       </div>
 
       <!-- Batch Bar -->
@@ -164,14 +167,14 @@
           <span>已选择 <strong>{{ selectedItems.length }}</strong> 项</span>
         </div>
         <div style="display: flex; gap: 8px;">
-          <el-button size="small" @click="batchVectorize">🔄 重向量化</el-button>
-          <el-button size="small" @click="batchDelete" type="danger">🗑️ 删除</el-button>
-          <el-button size="small" @click="clearSelection">✕</el-button>
+          <button class="btn" @click="batchVectorize">🔄 重向量化</button>
+          <button class="btn" @click="batchDelete">🗑️ 删除</button>
+          <button class="btn" style="background: transparent; border: none;" @click="clearSelection">✕</button>
         </div>
       </div>
 
       <!-- Card Grid -->
-      <div class="card-grid" v-show="viewMode === 'card' && !listCollapsed">
+      <div class="card-grid" id="cardGrid" v-show="viewMode === 'card'">
         <div
           v-for="item in list"
           :key="item.id"
@@ -191,103 +194,122 @@
           <div class="card-tags" v-if="item.tags?.length">
             <span v-for="tag in item.tags" :key="tag" class="card-tag" :class="tag">{{ tag }}</span>
           </div>
-          <div class="card-actions">
-            <el-button size="small" text @click.stop="viewDetail(item)">预览</el-button>
-            <el-button size="small" text type="primary" @click.stop="handleRevectorize(item)">重向量化</el-button>
-            <el-button size="small" text type="danger" @click.stop="handleDelete(item)">删除</el-button>
-          </div>
         </div>
-
-        <el-empty v-if="list.length === 0 && !loading" description="暂无数据" />
+        <div v-if="list.length === 0 && !loading" class="empty-state">
+          <span class="empty-icon">📭</span>
+          <span class="empty-text">暂无数据</span>
+        </div>
       </div>
 
       <!-- Table View -->
-      <div class="table-view" v-show="viewMode === 'table' && !listCollapsed">
-        <el-table
-          :data="list"
-          stripe
-          v-loading="loading"
-          @selection-change="handleSelectionChange"
-          @row-click="handleRowClick"
-        >
-          <el-table-column type="selection" width="40" />
-          <el-table-column prop="title" label="标题" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="sourceName" label="来源" width="120">
-            <template #default="{ row }">
-              <span>{{ row.sourceIcon || '📄' }} {{ row.sourceName || row.sourceType || '-' }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column prop="vectorStatus" label="状态" width="100">
-            <template #default="{ row }">
-              <el-tag v-if="row.vectorStatus === 'vectorized'" type="success" size="small">已向量化</el-tag>
-              <el-tag v-else-if="row.vectorStatus === 'pending'" type="warning" size="small">未向量化</el-tag>
-              <el-tag v-else-if="row.vectorStatus === 'processing'" type="info" size="small">处理中</el-tag>
-              <el-tag v-else-if="row.vectorStatus === 'failed'" type="danger" size="small">失败</el-tag>
-              <el-tag v-else size="small">{{ row.vectorStatus || '-' }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="chunkCount" label="块数" width="80" />
-          <el-table-column prop="publishTime" label="日期" width="120" />
-          <el-table-column label="操作" width="160" fixed="right">
-            <template #default="{ row }">
-              <el-button type="info" size="small" text @click.stop="viewDetail(row)">查看</el-button>
-              <el-button type="primary" size="small" text @click.stop="handleRevectorize(row)">重向量化</el-button>
-              <el-button type="danger" size="small" text @click.stop="handleDelete(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
+      <div class="table-view" id="tableView" v-show="viewMode === 'table'">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th style="width: 40px;">
+                <div class="checkbox" :class="{ checked: isAllSelected }" @click="toggleSelectAll"></div>
+              </th>
+              <th>标题</th>
+              <th>来源</th>
+              <th>状态</th>
+              <th>标签</th>
+              <th>日期</th>
+              <th style="width: 120px;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr v-for="item in list" :key="item.id" @click="handleRowClick(item)">
+              <td>
+                <div class="checkbox" :class="{ checked: selectedItems.includes(item.id!) }" @click.stop="toggleSelect(item.id!)"></div>
+              </td>
+              <td>
+                <div class="title-cell">
+                  <span class="icon">{{ item.sourceIcon || '📄' }}</span>
+                  {{ item.title }}
+                </div>
+              </td>
+              <td>{{ item.sourceName || item.sourceType }}</td>
+              <td>
+                <span class="status-badge" :class="item.vectorStatus">
+                  {{ getStatusText(item.vectorStatus) }}
+                </span>
+              </td>
+              <td>
+                <div class="table-tags" v-if="item.tags?.length">
+                  <span v-for="tag in item.tags" :key="tag" class="card-tag" :class="tag">{{ tag }}</span>
+                </div>
+              </td>
+              <td>{{ item.publishTime || item.createdAt }}</td>
+              <td>
+                <div class="actions">
+                  <button @click.stop="viewDetail(item)">查看</button>
+                  <button @click.stop="handleRevectorize(item)">重向量化</button>
+                  <button @click.stop="handleDelete(item)">删除</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
 
       <!-- Pagination -->
-      <div class="pagination-wrapper" v-if="!listCollapsed">
+      <div class="pagination-wrapper">
         <div class="pagination-info">
           显示 {{ pagination.start }}-{{ pagination.end }} 条，共 {{ pagination.total }} 条
         </div>
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.size"
-          :total="pagination.total"
-          :page-sizes="[10, 20, 50, 100]"
-          layout="prev, pager, next"
-          @size-change="loadData"
-          @current-change="loadData"
-        />
-        <el-select v-model="pagination.size" style="width: 120px;" @change="loadData">
-          <el-option :label="`${pagination.size} 条/页`" :value="pagination.size" />
-        </el-select>
+        <div class="pagination">
+          <button :disabled="pagination.page <= 1" @click="pagination.page--; loadData()">◀</button>
+          <button
+            v-for="p in visiblePages"
+            :key="p"
+            :class="{ active: p === pagination.page }"
+            @click="pagination.page = p; loadData()"
+          >{{ p }}</button>
+          <button :disabled="pagination.page >= totalPages" @click="pagination.page++; loadData()">▶</button>
+        </div>
+        <select class="page-size-select" v-model="pagination.size" @change="loadData">
+          <option value="20">20 条/页</option>
+          <option value="50">50 条/页</option>
+          <option value="100">100 条/页</option>
+        </select>
       </div>
     </section>
 
     <!-- Preview Panel -->
-    <aside class="preview-panel" :class="{ hidden: !previewVisible, fullscreen: previewFullscreen }">
+    <aside class="preview-panel" id="previewPanel" :class="{ hidden: !previewVisible, fullscreen: previewFullscreen }">
       <div class="preview-header">
         <div class="preview-title">
           <span class="preview-title-icon">{{ currentPreview?.sourceIcon || '📄' }}</span>
-          <span>{{ currentPreview?.title || '知识详情' }}</span>
+          <span id="previewTitleText">{{ currentPreview?.title || '知识详情' }}</span>
         </div>
         <div class="preview-header-actions">
-          <el-button circle text @click="togglePreviewList" title="隐藏列表">
+          <button title="隐藏列表" @click="togglePreviewList">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/>
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="9" y1="3" x2="9" y2="21"/>
             </svg>
-          </el-button>
-          <el-button circle text @click="openInNewWindow" title="新窗口打开">
+          </button>
+          <button title="新窗口打开" @click="openInNewWindow">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
-              <polyline points="15,3 21,3 21,9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              <polyline points="15,3 21,3 21,9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
             </svg>
-          </el-button>
-          <el-button circle text @click="toggleFullscreen" :title="previewFullscreen ? '退出全屏' : '全屏'">
+          </button>
+          <button title="全屏" @click="toggleFullscreen">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline v-if="previewFullscreen" points="9,21 3,21 3,15"/><polyline v-if="previewFullscreen" points="15,3 21,3 21,9"/>
-              <line v-if="previewFullscreen" x1="3" y1="21" x2="10" y2="14"/><line v-if="previewFullscreen" x1="21" y1="3" x2="14" y2="10"/>
-              <polyline v-if="!previewFullscreen" points="15,3 21,3 21,9"/><polyline v-if="!previewFullscreen" points="9,21 3,21 3,15"/>
-              <line v-if="!previewFullscreen" x1="21" y1="3" x2="14" y2="10"/><line v-if="!previewFullscreen" x1="3" y1="21" x2="10" y2="14"/>
+              <polyline points="15,3 21,3 21,9"/>
+              <polyline points="9,21 3,21 3,15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/>
+              <line x1="3" y1="21" x2="10" y2="14"/>
             </svg>
-          </el-button>
-          <el-button circle text @click="closePreview" title="关闭">
-            <el-icon><Close /></el-icon>
-          </el-button>
+          </button>
+          <button title="关闭" @click="closePreview">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -361,105 +383,134 @@
       </div>
 
       <div class="preview-footer" v-if="currentPreview">
-        <el-button @click="showDetailDialog = true">编辑</el-button>
-        <el-button type="primary" @click="handleRevectorize(currentPreview)" :loading="currentPreview.revectorizing">
-          向量化
-        </el-button>
+        <button class="btn btn-secondary" @click="showDetailDialog = true">编辑</button>
+        <button class="btn btn-primary" @click="handleRevectorize(currentPreview)" :disabled="currentPreview.revectorizing">
+          {{ currentPreview.revectorizing ? '处理中...' : '向量化' }}
+        </button>
       </div>
     </aside>
   </div>
 
   <!-- Add Dialog -->
-  <el-dialog v-model="showAddDialog" title="添加知识" width="700px" :close-on-click-modal="false">
-    <el-tabs v-model="addTab">
-      <el-tab-pane label="上传文档" name="upload">
-        <el-form :model="uploadForm" label-width="100px">
-          <el-form-item label="标题" required>
-            <el-input v-model="uploadForm.title" placeholder="请输入文档标题" />
-          </el-form-item>
-          <el-form-item label="来源">
-            <el-input v-model="uploadForm.source" placeholder="如：粮信网" />
-          </el-form-item>
-          <el-form-item label="作者">
-            <el-input v-model="uploadForm.author" placeholder="可选" />
-          </el-form-item>
-          <el-form-item label="选择文件" required>
-            <el-upload
-              ref="uploadRef"
-              :auto-upload="false"
-              :limit="1"
-              accept=".pdf,.doc,.docx,.txt,.md"
-              :on-change="handleFileChange"
-              drag
-            >
-              <el-icon class="upload-icon"><UploadFilled /></el-icon>
-              <div class="upload-text">将文件拖到此处，或<em>点击上传</em></div>
-              <template #tip>
-                <div class="el-upload__tip">支持 PDF、Word、TXT、Markdown 格式</div>
-              </template>
-            </el-upload>
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="showAddDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleUpload" :loading="uploading">上传</el-button>
-        </template>
-      </el-tab-pane>
-
-      <el-tab-pane label="人工录入" name="manual">
-        <el-form :model="manualForm" label-width="100px">
-          <el-form-item label="标题" required>
-            <el-input v-model="manualForm.title" placeholder="请输入知识标题" />
-          </el-form-item>
-          <el-form-item label="内容" required>
-            <el-input v-model="manualForm.content" type="textarea" :rows="8" placeholder="请输入知识内容" />
-          </el-form-item>
-          <el-form-item label="来源">
-            <el-input v-model="manualForm.source" placeholder="可选，如：内部文档" />
-          </el-form-item>
-          <el-form-item label="作者">
-            <el-input v-model="manualForm.author" placeholder="可选" />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <el-button @click="showAddDialog = false">取消</el-button>
-          <el-button type="primary" @click="handleManualAdd" :loading="submitting">提交</el-button>
-        </template>
-      </el-tab-pane>
-    </el-tabs>
-  </el-dialog>
+  <div class="modal-overlay" v-if="showAddDialog" @click.self="showAddDialog = false">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>添加知识</h3>
+        <button class="modal-close" @click="showAddDialog = false">✕</button>
+      </div>
+      <div class="modal-tabs">
+        <button class="modal-tab" :class="{ active: addTab === 'upload' }" @click="addTab = 'upload'">上传文档</button>
+        <button class="modal-tab" :class="{ active: addTab === 'manual' }" @click="addTab = 'manual'">人工录入</button>
+      </div>
+      <div class="modal-body">
+        <div v-if="addTab === 'upload'">
+          <div class="form-item">
+            <label>标题</label>
+            <input type="text" v-model="uploadForm.title" placeholder="请输入文档标题" />
+          </div>
+          <div class="form-item">
+            <label>来源</label>
+            <input type="text" v-model="uploadForm.source" placeholder="如：粮信网" />
+          </div>
+          <div class="form-item">
+            <label>作者</label>
+            <input type="text" v-model="uploadForm.author" placeholder="可选" />
+          </div>
+          <div class="form-item">
+            <label>选择文件</label>
+            <div class="file-upload" @click="$refs.fileInput.click()">
+              <input type="file" ref="fileInput" @change="handleFileChange" accept=".pdf,.doc,.docx,.txt,.md" style="display: none;" />
+              <div class="file-upload-icon">📁</div>
+              <div class="file-upload-text">将文件拖到此处，或<em>点击上传</em></div>
+              <div class="file-upload-hint">支持 PDF、Word、TXT、Markdown 格式</div>
+            </div>
+          </div>
+        </div>
+        <div v-if="addTab === 'manual'">
+          <div class="form-item">
+            <label>标题</label>
+            <input type="text" v-model="manualForm.title" placeholder="请输入知识标题" />
+          </div>
+          <div class="form-item">
+            <label>内容</label>
+            <textarea v-model="manualForm.content" placeholder="请输入知识内容" rows="8"></textarea>
+          </div>
+          <div class="form-item">
+            <label>来源</label>
+            <input type="text" v-model="manualForm.source" placeholder="可选，如：内部文档" />
+          </div>
+          <div class="form-item">
+            <label>作者</label>
+            <input type="text" v-model="manualForm.author" placeholder="可选" />
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showAddDialog = false">取消</button>
+        <button class="btn btn-primary" @click="addTab === 'upload' ? handleUpload() : handleManualAdd()" :disabled="uploading || submitting">
+          {{ uploading || submitting ? '处理中...' : '提交' }}
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Detail Dialog -->
-  <el-dialog v-model="showDetailDialog" title="知识详情" width="700px">
-    <el-descriptions :column="2" border v-if="currentPreview?.id">
-      <el-descriptions-item label="ID">{{ currentPreview.id }}</el-descriptions-item>
-      <el-descriptions-item label="标题">{{ currentPreview.title }}</el-descriptions-item>
-      <el-descriptions-item label="来源名称">{{ currentPreview.sourceName || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="来源类型">{{ getSourceTypeText(currentPreview.sourceType) }}</el-descriptions-item>
-      <el-descriptions-item label="作者">{{ currentPreview.author || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="发布时间">{{ currentPreview.publishTime || '-' }}</el-descriptions-item>
-      <el-descriptions-item label="文本块数">{{ currentPreview.chunkCount || 0 }}</el-descriptions-item>
-      <el-descriptions-item label="向量化状态">
-        <el-tag v-if="currentPreview.vectorStatus === 'vectorized'" type="success">已向量化</el-tag>
-        <el-tag v-else-if="currentPreview.vectorStatus === 'pending'" type="warning">未向量化</el-tag>
-        <el-tag v-else-if="currentPreview.vectorStatus === 'processing'" type="info">处理中</el-tag>
-        <el-tag v-else-if="currentPreview.vectorStatus === 'failed'" type="danger">失败</el-tag>
-        <el-tag v-else>{{ currentPreview.vectorStatus || '-' }}</el-tag>
-      </el-descriptions-item>
-    </el-descriptions>
-    <template #footer>
-      <el-button @click="showDetailDialog = false">关闭</el-button>
-    </template>
-  </el-dialog>
+  <div class="modal-overlay" v-if="showDetailDialog" @click.self="showDetailDialog = false">
+    <div class="modal modal-lg">
+      <div class="modal-header">
+        <h3>知识详情</h3>
+        <button class="modal-close" @click="showDetailDialog = false">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="detail-grid" v-if="currentPreview?.id">
+          <div class="detail-item">
+            <div class="detail-label">ID</div>
+            <div class="detail-value">{{ currentPreview.id }}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">标题</div>
+            <div class="detail-value">{{ currentPreview.title }}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">来源名称</div>
+            <div class="detail-value">{{ currentPreview.sourceName || '-' }}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">来源类型</div>
+            <div class="detail-value">{{ getSourceTypeText(currentPreview.sourceType) }}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">作者</div>
+            <div class="detail-value">{{ currentPreview.author || '-' }}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">发布时间</div>
+            <div class="detail-value">{{ currentPreview.publishTime || '-' }}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">文本块数</div>
+            <div class="detail-value">{{ currentPreview.chunkCount || 0 }}</div>
+          </div>
+          <div class="detail-item">
+            <div class="detail-label">向量化状态</div>
+            <div class="detail-value">
+              <span class="status-badge" :class="currentPreview.vectorStatus">
+                {{ getStatusText(currentPreview.vectorStatus) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" @click="showDetailDialog = false">关闭</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  Refresh, Plus, Close, Search, Upload, Download,
-  UploadFilled, ArrowDown
-} from '@element-plus/icons-vue'
 import { knowledgeApi } from '@/api/knowledge'
 
 interface KnowledgeItem {
@@ -533,6 +584,30 @@ const pagination = reactive({
   end: 0
 })
 
+const totalPages = computed(() => Math.ceil(pagination.total / pagination.size) || 1)
+
+const visiblePages = computed(() => {
+  const pages: number[] = []
+  const total = totalPages.value
+  const current = pagination.page
+  if (total <= 5) {
+    for (let i = 1; i <= total; i++) pages.push(i)
+  } else {
+    if (current <= 3) {
+      pages.push(1, 2, 3, 4, 5)
+    } else if (current >= total - 2) {
+      pages.push(total - 4, total - 3, total - 2, total - 1, total)
+    } else {
+      pages.push(current - 2, current - 1, current, current + 1, current + 2)
+    }
+  }
+  return pages
+})
+
+const isAllSelected = computed(() =>
+  list.value.length > 0 && list.value.every(item => selectedItems.value.includes(item.id!))
+)
+
 // Current preview
 const currentPreview = ref<KnowledgeItem | null>(null)
 const relatedItems = ref<KnowledgeItem[]>([])
@@ -541,7 +616,7 @@ const relatedItems = ref<KnowledgeItem[]>([])
 const showAddDialog = ref(false)
 const showDetailDialog = ref(false)
 const addTab = ref('upload')
-const uploadRef = ref()
+const fileInput = ref()
 
 const uploadForm = reactive({
   title: '',
@@ -579,13 +654,33 @@ const currentListTitle = computed(() => {
   return '知识列表'
 })
 
+// Watch sidebar tab
+watch(sidebarTab, (val) => {
+  const tree = document.getElementById('sidebarTree')
+  const tagsEl = document.getElementById('sidebarTags')
+  if (tree && tagsEl) {
+    tree.style.display = val === 'tree' ? 'block' : 'none'
+    tagsEl.style.display = val === 'tag' ? 'block' : 'none'
+  }
+})
+
 // Methods
 function toggleSidebar() {
-  sidebarCollapsed.value = !sidebarCollapsed.value
+  const sidebar = document.getElementById('sidebar')
+  const btn = document.getElementById('sidebarToggle')
+  if (sidebar && btn) {
+    sidebarCollapsed.value = !sidebarCollapsed.value
+    sidebar.classList.toggle('collapsed', sidebarCollapsed.value)
+    btn.textContent = sidebarCollapsed.value ? '▶' : '◀'
+  }
 }
 
 function toggleList() {
-  listCollapsed.value = !listCollapsed.value
+  const listArea = document.getElementById('listArea')
+  if (listArea) {
+    listCollapsed.value = !listCollapsed.value
+    listArea.classList.toggle('list-collapsed', listCollapsed.value)
+  }
 }
 
 function selectSource(key: string) {
@@ -630,10 +725,6 @@ function clearFilters() {
   loadData()
 }
 
-function setView(mode: string) {
-  viewMode.value = mode
-}
-
 async function loadData() {
   loading.value = true
   try {
@@ -670,7 +761,7 @@ async function loadData() {
 
 function handleCardClick(event: Event, item: KnowledgeItem) {
   if ((event.target as HTMLElement).closest('.card-checkbox') ||
-      (event.target as HTMLElement).closest('.card-actions')) {
+      (event.target as HTMLElement).closest('.actions')) {
     return
   }
   viewDetail(item)
@@ -680,16 +771,20 @@ function handleRowClick(row: KnowledgeItem) {
   viewDetail(row)
 }
 
-function handleSelectionChange(selection: KnowledgeItem[]) {
-  selectedItems.value = selection.map(item => item.id!).filter(Boolean)
-}
-
 function toggleSelect(id: number) {
   const idx = selectedItems.value.indexOf(id)
   if (idx >= 0) {
     selectedItems.value.splice(idx, 1)
   } else {
     selectedItems.value.push(id)
+  }
+}
+
+function toggleSelectAll() {
+  if (isAllSelected.value) {
+    selectedItems.value = []
+  } else {
+    selectedItems.value = list.value.map(item => item.id!).filter(Boolean)
   }
 }
 
@@ -702,6 +797,16 @@ async function viewDetail(item: KnowledgeItem) {
     const res: any = await knowledgeApi.getById(item.id!)
     currentPreview.value = res.data || item
     previewVisible.value = true
+
+    // Switch list to sidebar mode
+    const listArea = document.getElementById('listArea')
+    const sidebar = document.getElementById('sidebar')
+    if (listArea) {
+      listArea.classList.add('list-sidebar-mode')
+    }
+    if (sidebar) {
+      sidebar.classList.add('collapsed')
+    }
 
     // Load related items
     relatedItems.value = list.value
@@ -717,10 +822,27 @@ async function viewDetail(item: KnowledgeItem) {
 function closePreview() {
   previewVisible.value = false
   currentPreview.value = null
+
+  // Restore list
+  const listArea = document.getElementById('listArea')
+  const sidebar = document.getElementById('sidebar')
+  if (listArea) {
+    listArea.classList.remove('list-sidebar-mode')
+  }
+  if (sidebar) {
+    sidebar.classList.remove('collapsed')
+  }
 }
 
 function togglePreviewList() {
-  listCollapsed.value = !listCollapsed.value
+  const listArea = document.getElementById('listArea')
+  if (listArea) {
+    if (listArea.classList.contains('list-collapsed')) {
+      listArea.classList.remove('list-collapsed')
+    } else {
+      listArea.classList.add('list-collapsed')
+    }
+  }
 }
 
 function toggleFullscreen() {
@@ -737,6 +859,16 @@ function changeStatus(status: string) {
   ElMessage.success(`状态已更新为: ${status}`)
 }
 
+function getStatusText(status?: string) {
+  const map: Record<string, string> = {
+    vectorized: '已向量化',
+    pending: '未向量化',
+    processing: '处理中',
+    failed: '失败'
+  }
+  return map[status || ''] || status || '-'
+}
+
 function getSourceTypeText(type?: string) {
   const map: Record<string, string> = {
     liangxin: '粮信网',
@@ -748,22 +880,14 @@ function getSourceTypeText(type?: string) {
   return map[type || ''] || type || '-'
 }
 
-function showAddDialogFn() {
-  addTab.value = 'upload'
-  Object.keys(uploadForm).forEach(k => {
-    (uploadForm as any)[k] = ''
-  })
-  Object.keys(manualForm).forEach(k => {
-    (manualForm as any)[k] = ''
-  })
-  uploadForm.file = null
-  showAddDialog.value = true
-}
-
-function handleFileChange(file: any) {
-  uploadForm.file = file.raw
-  if (!uploadForm.title && file.name) {
-    uploadForm.title = file.name.replace(/\.(pdf|doc|docx|txt|md)$/i, '')
+function handleFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  if (input.files && input.files[0]) {
+    const file = input.files[0]
+    uploadForm.file = file
+    if (!uploadForm.title && file.name) {
+      uploadForm.title = file.name.replace(/\.(pdf|doc|docx|txt|md)$/i, '')
+    }
   }
 }
 
@@ -895,20 +1019,13 @@ async function batchDelete() {
   }
 }
 
-// Click outside directive
-const vClickOutside = {
-  mounted(el: HTMLElement, binding: any) {
-    el.__clickOutsideHandler__ = (event: Event) => {
-      if (!el.contains(event.target as Node)) {
-        binding.value()
-      }
-    }
-    document.addEventListener('click', el.__clickOutsideHandler__)
-  },
-  unmounted(el: HTMLElement) {
-    document.removeEventListener('click', el.__clickOutsideHandler__)
+// Close dropdowns on click outside
+document.addEventListener('click', (e) => {
+  if (!(e.target as HTMLElement).closest('.filter-dropdown')) {
+    sourceDropdownOpen.value = false
+    statusDropdownOpen.value = false
   }
-}
+})
 
 onMounted(() => {
   loadData()
@@ -939,6 +1056,11 @@ onMounted(() => {
   width: 0;
   min-width: 0;
   border-right: none;
+  overflow: visible;
+}
+
+.sidebar.collapsed > * {
+  display: none !important;
 }
 
 .sidebar-toggle-btn {
@@ -958,8 +1080,9 @@ onMounted(() => {
   font-size: 12px;
   color: var(--text-muted);
   z-index: 100;
-  opacity: 0;
   transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  opacity: 0;
 }
 
 .sidebar:hover .sidebar-toggle-btn {
@@ -1112,6 +1235,27 @@ onMounted(() => {
   min-width: 0;
 }
 
+.list-area.list-sidebar-mode {
+  width: 240px;
+  flex: none;
+  border-right: 1px solid var(--border-color);
+}
+
+.list-area.list-sidebar-mode .list-header,
+.list-area.list-sidebar-mode .filters-bar,
+.list-area.list-sidebar-mode .batch-bar,
+.list-area.list-sidebar-mode .card-grid,
+.list-area.list-sidebar-mode .table-view,
+.list-area.list-sidebar-mode .pagination-wrapper {
+  display: none !important;
+}
+
+.list-area.list-sidebar-mode .list-items {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
 .list-area.list-collapsed {
   width: 0;
   min-width: 0;
@@ -1124,6 +1268,7 @@ onMounted(() => {
 
 .list-area.list-collapsed .list-collapse-btn {
   display: flex !important;
+  left: -28px;
 }
 
 .list-collapse-btn {
@@ -1202,6 +1347,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
+  transition: all 0.15s;
 }
 
 .view-toggle button.active {
@@ -1262,6 +1408,11 @@ onMounted(() => {
   padding: 4px;
   z-index: 100;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  display: none;
+}
+
+.filter-dropdown.open .filter-dropdown-menu {
+  display: block;
 }
 
 .filter-dropdown-item {
@@ -1285,6 +1436,25 @@ onMounted(() => {
 
 .filter-spacer {
   flex: 1;
+}
+
+.filter-clear {
+  display: none;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-clear.show {
+  display: block;
+}
+
+.filter-clear:hover {
+  color: var(--accent);
 }
 
 /* Batch Bar */
@@ -1330,7 +1500,7 @@ onMounted(() => {
 .card:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 
 .card.selected {
@@ -1396,7 +1566,6 @@ onMounted(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  margin-bottom: 12px;
 }
 
 .card-tag {
@@ -1417,11 +1586,23 @@ onMounted(() => {
   color: var(--blue);
 }
 
-.card-actions {
+.empty-state {
+  grid-column: 1 / -1;
   display: flex;
-  gap: 4px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border-color);
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: var(--text-muted);
+}
+
+.empty-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.empty-text {
+  font-size: 14px;
 }
 
 /* Table View */
@@ -1429,6 +1610,132 @@ onMounted(() => {
   flex: 1;
   overflow: auto;
   padding: 0 20px 20px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  padding: 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.data-table th {
+  background: var(--bg-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.data-table td {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.data-table tbody tr {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.data-table tbody tr:hover {
+  background: var(--bg-secondary);
+}
+
+.title-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title-cell .icon {
+  font-size: 16px;
+}
+
+.checkbox {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: transparent;
+  transition: all 0.15s;
+}
+
+.checkbox:hover {
+  border-color: var(--accent);
+}
+
+.checkbox.checked {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1f2e;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+.status-badge.vectorized {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--green);
+}
+
+.status-badge.pending {
+  background: rgba(210, 153, 34, 0.15);
+  color: var(--yellow);
+}
+
+.status-badge.processing {
+  background: rgba(88, 166, 255, 0.15);
+  color: var(--blue);
+}
+
+.status-badge.failed {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--red);
+}
+
+.table-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+}
+
+.data-table tbody tr:hover .actions {
+  opacity: 1;
+}
+
+.actions button {
+  padding: 4px 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.actions button:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 /* Pagination */
@@ -1445,6 +1752,53 @@ onMounted(() => {
 .pagination-info {
   font-size: 13px;
   color: var(--text-muted);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pagination button {
+  min-width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s;
+}
+
+.pagination button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pagination button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1f2e;
+}
+
+.pagination button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.page-size-select {
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
 }
 
 /* Preview Panel */
@@ -1590,6 +1944,7 @@ onMounted(() => {
 }
 
 .status-option.active .dot {
+  background: var(--green);
   box-shadow: 0 0 6px var(--green);
 }
 
@@ -1752,19 +2107,246 @@ onMounted(() => {
   justify-content: center;
 }
 
-/* Upload dialog styles */
-.upload-icon {
-  font-size: 40px;
-  color: #8c939d;
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal {
+  width: 500px;
+  max-width: 90%;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.modal.modal-lg {
+  width: 700px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.modal-close {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.modal-close:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.modal-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.modal-tab {
+  flex: 1;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.modal-tab:hover {
+  color: var(--text-secondary);
+}
+
+.modal-tab.active {
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+}
+
+.modal-body {
+  padding: 20px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--border-color);
+}
+
+.modal-footer .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* Form Items */
+.form-item {
+  margin-bottom: 16px;
+}
+
+.form-item label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.form-item input,
+.form-item textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  transition: border-color 0.15s;
+}
+
+.form-item input:focus,
+.form-item textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.form-item textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.file-upload {
+  border: 2px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.file-upload:hover {
+  border-color: var(--accent);
+  background: var(--bg-tertiary);
+}
+
+.file-upload-icon {
+  font-size: 36px;
   margin-bottom: 10px;
 }
 
-.upload-text {
-  color: #8c939d;
+.file-upload-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
 }
 
-.upload-text em {
-  color: #409eff;
+.file-upload-text em {
+  color: var(--accent);
   font-style: normal;
+}
+
+.file-upload-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Detail Grid */
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--border-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.detail-item {
+  background: var(--bg-primary);
+  padding: 12px 16px;
+}
+
+.detail-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.detail-value {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* Btn styles matching prototype */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  color: #1a1f2e;
+}
+
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 200, 122, 0.35);
+}
+
+.btn-secondary {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+}
+
+.btn-icon {
+  padding: 8px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
