@@ -1,0 +1,503 @@
+<script setup lang="ts">
+import { ref, watch, onMounted } from 'vue'
+import { categoryApi, type Category } from '@/api/category'
+
+const props = defineProps<{
+  selectedId?: number
+}>()
+
+const emit = defineEmits<{
+  (e: 'select', category: Category): void
+  (e: 'update', categories: Category[]): void
+}>()
+
+const folders = ref<Category[]>([])
+const expandedIds = ref<Set<number>>(new Set())
+const loading = ref(false)
+const selectedCategory = ref<Category | null>(null)
+
+// Context menu state
+const contextMenuVisible = ref(false)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+const contextMenuCategory = ref<Category | null>(null)
+
+// Dialog state
+const dialogVisible = ref(false)
+const dialogMode = ref<'create' | 'edit'>('create')
+const editingCategory = ref<Partial<Category>>({})
+
+// Load category tree
+const loadTree = async () => {
+  loading.value = true
+  try {
+    const res = await categoryApi.tree()
+    folders.value = res.data.data || []
+    emit('update', folders.value)
+  } finally {
+    loading.value = false
+  }
+}
+
+// Toggle expand state
+const toggleExpand = (id: number, event: Event) => {
+  event.stopPropagation()
+  if (expandedIds.value.has(id)) {
+    expandedIds.value.delete(id)
+  } else {
+    expandedIds.value.add(id)
+  }
+  expandedIds.value = new Set(expandedIds.value) // trigger reactivity
+  saveExpandedState()
+}
+
+// Select category
+const selectCategory = (category: Category) => {
+  selectedCategory.value = category
+  emit('select', category)
+}
+
+// Save expand state to localStorage
+const saveExpandedState = () => {
+  localStorage.setItem('category-expanded-ids', JSON.stringify([...expandedIds.value]))
+}
+
+// Load expand state from localStorage
+const loadExpandedState = () => {
+  const saved = localStorage.getItem('category-expanded-ids')
+  if (saved) {
+    try {
+      expandedIds.value = new Set(JSON.parse(saved))
+    } catch (e) {
+      expandedIds.value = new Set()
+    }
+  }
+}
+
+// Open create dialog
+const openCreateDialog = (parentId: number | null = null) => {
+  dialogMode.value = 'create'
+  editingCategory.value = { parentId, sortOrder: 99 }
+  dialogVisible.value = true
+  contextMenuVisible.value = false
+}
+
+// Open edit dialog
+const openEditDialog = (category: Category) => {
+  dialogMode.value = 'edit'
+  editingCategory.value = { ...category }
+  dialogVisible.value = true
+  contextMenuVisible.value = false
+}
+
+// Save category
+const saveCategory = async () => {
+  if (dialogMode.value === 'create') {
+    await categoryApi.create(editingCategory.value)
+  } else if (editingCategory.value.id) {
+    await categoryApi.update(editingCategory.value.id, editingCategory.value)
+  }
+  dialogVisible.value = false
+  await loadTree()
+}
+
+// Delete category
+const deleteCategory = async (id: number) => {
+  if (confirm('确定要删除该分类吗？子分类也会被删除。')) {
+    await categoryApi.delete(id)
+    await loadTree()
+  }
+  contextMenuVisible.value = false
+}
+
+// Context menu handlers
+const showContextMenu = (event: MouseEvent, category: Category) => {
+  event.preventDefault()
+  contextMenuCategory.value = category
+  contextMenuPosition.value = { x: event.clientX, y: event.clientY }
+  contextMenuVisible.value = true
+}
+
+const hideContextMenu = () => {
+  contextMenuVisible.value = false
+}
+
+// Calculate indent
+const getIndent = (depth: number) => depth * 16
+
+// Render category row recursively
+const renderCategoryRow = (category: Category, depth: number) => {
+  const hasChildren = category.children && category.children.length > 0
+  const isExpanded = expandedIds.value.has(category.id)
+  const isSelected = selectedCategory.value?.id === category.id
+
+  return { hasChildren, isExpanded, isSelected }
+}
+
+// Watch selectedId prop
+watch(() => props.selectedId, (newId) => {
+  if (newId && selectedCategory.value?.id !== newId) {
+    // Find and select the category with matching id
+    const findAndSelect = (cats: Category[]): boolean => {
+      for (const cat of cats) {
+        if (cat.id === newId) {
+          selectedCategory.value = cat
+          emit('select', cat)
+          return true
+        }
+        if (cat.children) {
+          if (findAndSelect(cat.children)) return true
+        }
+      }
+      return false
+    }
+    findAndSelect(folders.value)
+  }
+})
+
+onMounted(() => {
+  loadTree()
+  loadExpandedState()
+  document.addEventListener('click', hideContextMenu)
+})
+
+defineExpose({ loadTree })
+</script>
+
+<template>
+  <div class="category-tree" @click="hideContextMenu">
+    <!-- Toolbar -->
+    <div class="tree-toolbar">
+      <button class="btn-new" @click="openCreateDialog(null)">+ 新建分类</button>
+    </div>
+
+    <!-- Category list -->
+    <div class="tree-content">
+      <div v-if="loading" class="loading">加载中...</div>
+      <template v-else>
+        <div
+          v-for="category in folders"
+          :key="category.id"
+          class="folder-wrapper"
+        >
+          <div
+            class="folder-row"
+            :class="{ selected: selectedCategory?.id === category.id }"
+            :style="{ paddingLeft: getIndent(0) + 'px' }"
+            @click="selectCategory(category)"
+            @contextmenu="showContextMenu($event, category)"
+          >
+            <span
+              v-if="category.children?.length"
+              class="folder-toggle"
+              :class="{ expanded: expandedIds.has(category.id) }"
+              @click="toggleExpand(category.id, $event)"
+            >
+              ▶
+            </span>
+            <span v-else class="folder-toggle-placeholder"></span>
+            <span class="folder-icon">{{ category.icon }}</span>
+            <span
+              v-if="category.color"
+              class="folder-color"
+              :style="{ backgroundColor: category.color }"
+            ></span>
+            <span class="folder-name">{{ category.name }}</span>
+            <span class="folder-count">({{ category.knowledgeCount || 0 }})</span>
+          </div>
+
+          <!-- Render children recursively -->
+          <template v-if="category.children?.length && expandedIds.has(category.id)">
+            <div
+              v-for="child in category.children"
+              :key="child.id"
+              class="folder-wrapper sub"
+            >
+              <div
+                class="folder-row"
+                :class="{ selected: selectedCategory?.id === child.id }"
+                :style="{ paddingLeft: getIndent(1) + 'px' }"
+                @click="selectCategory(child)"
+                @contextmenu="showContextMenu($event, child)"
+              >
+                <span class="folder-toggle-placeholder"></span>
+                <span class="folder-icon">{{ child.icon }}</span>
+                <span
+                  v-if="child.color"
+                  class="folder-color"
+                  :style="{ backgroundColor: child.color }"
+                ></span>
+                <span class="folder-name">{{ child.name }}</span>
+                <span class="folder-count">({{ child.knowledgeCount || 0 }})</span>
+              </div>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <!-- Context menu -->
+    <div
+      v-if="contextMenuVisible"
+      class="context-menu"
+      :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
+      @click.stop
+    >
+      <div class="context-menu-item" @click="openCreateDialog(contextMenuCategory?.id || null)">
+        新建子分类
+      </div>
+      <div class="context-menu-item" @click="openEditDialog(contextMenuCategory!)">
+        编辑
+      </div>
+      <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
+        删除
+      </div>
+    </div>
+
+    <!-- Create/Edit dialog -->
+    <div v-if="dialogVisible" class="dialog-overlay" @click.self="dialogVisible = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>{{ dialogMode === 'create' ? '新建分类' : '编辑分类' }}</h3>
+          <button class="close-btn" @click="dialogVisible = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-item">
+            <label>名称</label>
+            <input v-model="editingCategory.name" placeholder="分类名称" />
+          </div>
+          <div class="form-item">
+            <label>图标</label>
+            <input v-model="editingCategory.icon" placeholder="emoji 图标" maxlength="2" />
+          </div>
+          <div class="form-item">
+            <label>颜色</label>
+            <input type="color" v-model="editingCategory.color" />
+          </div>
+          <div class="form-item">
+            <label>排序</label>
+            <input type="number" v-model="editingCategory.sortOrder" />
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="dialogVisible = false">取消</button>
+          <button class="btn-confirm" @click="saveCategory">确定</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.category-tree {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.tree-toolbar {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.btn-new {
+  width: 100%;
+  padding: 8px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.btn-new:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
+.tree-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.folder-row {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  gap: 6px;
+}
+
+.folder-row:hover {
+  background: var(--bg-hover);
+}
+
+.folder-row.selected {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.folder-toggle {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.folder-toggle.expanded {
+  transform: rotate(90deg);
+}
+
+.folder-toggle-placeholder {
+  width: 16px;
+}
+
+.folder-icon {
+  font-size: 14px;
+}
+
+.folder-color {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-count {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.context-menu {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  padding: 4px 0;
+  z-index: 1000;
+  min-width: 120px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.context-menu-item {
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-hover);
+}
+
+.context-menu-item.danger {
+  color: var(--danger);
+}
+
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1001;
+}
+
+.dialog {
+  background: var(--bg-card);
+  border-radius: 8px;
+  width: 400px;
+  max-width: 90vw;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.dialog-header h3 {
+  margin: 0;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.dialog-body {
+  padding: 16px;
+}
+
+.form-item {
+  margin-bottom: 12px;
+}
+
+.form-item label {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.form-item input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  border-top: 1px solid var(--border-color);
+}
+
+.btn-cancel, .btn-confirm {
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-cancel {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-confirm {
+  background: var(--accent);
+  border: none;
+  color: var(--bg-primary);
+}
+
+.loading {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+</style>
