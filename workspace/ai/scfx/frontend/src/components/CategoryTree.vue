@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { debounce } from 'lodash-es'
+import { ElMessage } from 'element-plus'
 import { categoryApi, type Category } from '@/api/category'
+import { knowledgeApi } from '@/api/knowledge'
+import { knowledgeCategoryApi } from '@/api/knowledge-category'
 
 // Undo action types
 interface UndoAction {
@@ -195,11 +198,11 @@ const showPreview = ref(false)
 // ============================================
 const CAPACITY_WARNING_THRESHOLD = 100
 
-const getCapacityWarning = (category: Category): string | null => {
+const getCapacityWarning = (category: Category): string | undefined => {
   if ((category.knowledgeCount || 0) >= CAPACITY_WARNING_THRESHOLD) {
     return `该分类知识过多（${category.knowledgeCount}条），建议拆分为多个子分类`
   }
-  return null
+  return undefined
 }
 
 // ============================================
@@ -290,6 +293,16 @@ const closePreview = () => {
   previewKnowledge.value = []
 }
 
+const savePermission = async () => {
+  if (!permissionCategory.value) return
+  try {
+    await changePermission(permissionCategory.value.id, editingCategory.value.permissionLevel || 'public')
+    permissionDialogVisible.value = false
+  } catch (e) {
+    console.error('Failed to save permission:', e)
+  }
+}
+
 // Batch create state
 const showBatchCreate = ref(false)
 const batchCreateNames = ref('')
@@ -370,6 +383,173 @@ const clearSelection = () => {
 // Trash state
 const trashCategories = ref<Category[]>([])
 const showTrash = ref(false)
+
+// ============================================
+// 5. 分类内知识搜索
+// ============================================
+const categorySearchQuery = ref('')
+const categorySearchResults = ref<any[]>([])
+const categorySearchCategoryId = ref<number | null>(null)
+const showCategorySearch = ref(false)
+
+const searchInCategory = async (categoryId: number, query: string) => {
+  if (!query) {
+    categorySearchResults.value = []
+    return
+  }
+  try {
+    // 调用后端 API 按分类筛选知识
+    // GET /api/knowledge/category/{categoryId}/search?query=xxx
+    const res = await knowledgeApi.searchInCategory(categoryId, query)
+    categorySearchResults.value = res.data || []
+  } catch (e) {
+    console.error('Failed to search knowledge in category:', e)
+    categorySearchResults.value = []
+  }
+}
+
+const openCategorySearch = (category: Category) => {
+  categorySearchCategoryId.value = category.id
+  categorySearchQuery.value = ''
+  categorySearchResults.value = []
+  showCategorySearch.value = true
+  contextMenuVisible.value = false
+}
+
+const debouncedCategorySearch = debounce((categoryId: number, query: string) => {
+  searchInCategory(categoryId, query)
+}, 300)
+
+// ============================================
+// 6. 分类权限管理
+// ============================================
+const PERMISSION_LEVELS = ['public', 'team', 'private'] as const
+
+const changePermission = async (categoryId: number, level: string) => {
+  try {
+    await categoryApi.update(categoryId, { permissionLevel: level })
+    await loadTree()
+    ElMessage.success('权限已更新')
+  } catch (e) {
+    console.error('Failed to change permission:', e)
+    ElMessage.error('权限更新失败')
+  }
+}
+
+const showPermissionDialog = (category: Category) => {
+  permissionCategory.value = category
+  editingCategory.value = { ...category }
+  permissionDialogVisible.value = true
+  contextMenuVisible.value = false
+}
+
+const permissionCategory = ref<Category | null>(null)
+const permissionDialogVisible = ref(false)
+
+// ============================================
+// 7. 知识批量移动
+// ============================================
+const batchMoveTargetId = ref<number | null>(null)
+const batchMoveDialogVisible = ref(false)
+
+const openBatchMoveDialog = () => {
+  batchMoveTargetId.value = null
+  batchMoveDialogVisible.value = true
+}
+
+const confirmBatchMove = async () => {
+  if (!batchMoveTargetId.value || selectedIds.value.size === 0) return
+  try {
+    const knowledgeIds = [...selectedIds.value]
+    await knowledgeCategoryApi.batchMove(knowledgeIds, batchMoveTargetId.value)
+    ElMessage.success(`已移动 ${knowledgeIds.length} 条知识`)
+    clearSelection()
+    await loadTree()
+    batchMoveDialogVisible.value = false
+  } catch (e) {
+    console.error('Failed to batch move knowledge:', e)
+    ElMessage.error('批量移动失败')
+  }
+}
+
+// ============================================
+// 8. 分类数据对比
+// ============================================
+const compareMode = ref(false)
+const compareCategories = ref<Category[]>([])
+const compareDialogVisible = ref(false)
+
+const toggleCompareMode = () => {
+  compareMode.value = !compareMode.value
+  if (!compareMode.value) {
+    compareCategories.value = []
+  }
+}
+
+const addToCompare = (category: Category) => {
+  if (compareCategories.value.length >= 5) {
+    ElMessage.warning('最多对比 5 个分类')
+    return
+  }
+  if (!compareCategories.value.find(c => c.id === category.id)) {
+    compareCategories.value.push(category)
+  }
+}
+
+const removeFromCompare = (categoryId: number) => {
+  compareCategories.value = compareCategories.value.filter(c => c.id !== categoryId)
+}
+
+const generateCompareTable = () => {
+  // 生成对比表格数据
+  return compareCategories.value.map(cat => ({
+    name: cat.name,
+    icon: cat.icon,
+    knowledgeCount: cat.knowledgeCount || 0,
+    description: cat.description || '-',
+    permissionLevel: cat.permissionLevel || 'public',
+    createdAt: cat.createdAt || '-',
+    updatedAt: cat.updatedAt || '-'
+  }))
+}
+
+const openCompareDialog = () => {
+  if (compareCategories.value.length < 2) {
+    ElMessage.warning('请至少选择 2 个分类进行对比')
+    return
+  }
+  compareDialogVisible.value = true
+}
+
+// ============================================
+// 9. 分类命名规范校验
+// ============================================
+const NAME_PATTERN = /^【.*】.*|^\[.*\].*$/
+
+const validateCategoryName = (name: string): { valid: boolean; message: string } => {
+  if (!name.trim()) {
+    return { valid: false, message: '名称不能为空' }
+  }
+  if (NAME_PATTERN.test(name)) {
+    return { valid: true, message: '符合规范' }
+  }
+  return {
+    valid: false,
+    message: '建议格式：【类型】名称，如【价格】玉米日报'
+  }
+}
+
+const formatName = (name: string): string => {
+  // 自动格式化名称 - 如果没有类型前缀，添加【未分类】
+  if (!name.trim()) return name
+  if (name.startsWith('【') || name.startsWith('[')) return name
+  return `【未分类】${name}`
+}
+
+// Add validation feedback when editing
+const nameValidationResult = computed(() => {
+  return validateCategoryName(editingCategory.value.name || '')
+})
 
 const loadTrash = async () => {
   const res = await categoryApi.trash()
@@ -525,6 +705,16 @@ const openEditDialog = (category: Category) => {
 
 // Save category
 const saveCategory = async () => {
+  // Validate name before saving
+  const validation = validateCategoryName(editingCategory.value.name || '')
+  if (!validation.valid) {
+    ElMessage.warning(validation.message)
+    return
+  }
+
+  // Auto-format name if valid
+  editingCategory.value.name = formatName(editingCategory.value.name || '')
+
   if (dialogMode.value === 'create') {
     const res = await categoryApi.create(editingCategory.value)
     pushUndo({
@@ -715,9 +905,17 @@ defineExpose({ loadTree })
       <template v-else>
         <span class="batch-info">已选择 {{ selectedIds.size }} 项</span>
         <button class="btn-batch" @click="selectAll">全选</button>
+        <button class="btn-batch" @click="openBatchMoveDialog">批量移动</button>
         <button class="btn-batch" @click="clearSelection">取消选择</button>
       </template>
       <button class="btn-trash" @click="loadTrash">回收站</button>
+      <button
+        class="btn-compare"
+        :class="{ active: compareMode }"
+        @click="toggleCompareMode"
+      >
+        {{ compareMode ? '退出对比' : '对比模式' }}
+      </button>
       <button class="btn-export" @click="exportCategories">导出</button>
       <button class="btn-import" @click="triggerImport">导入</button>
       <input
@@ -946,6 +1144,15 @@ defineExpose({ loadTree })
       <div class="context-menu-item" @click="toggleSubscription(contextMenuCategory!.id)">
         {{ subscribedCategoryIds.has(contextMenuCategory!.id) ? '取消订阅' : '订阅通知' }}
       </div>
+      <div class="context-menu-item" @click="showPermissionDialog(contextMenuCategory!)">
+        权限设置
+      </div>
+      <div class="context-menu-item" @click="openCategorySearch(contextMenuCategory!)">
+        搜索知识
+      </div>
+      <div class="context-menu-item" @click="addToCompare(contextMenuCategory!)">
+        加入对比
+      </div>
       <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
         删除
       </div>
@@ -962,6 +1169,9 @@ defineExpose({ loadTree })
           <div class="form-item">
             <label>名称</label>
             <input v-model="editingCategory.name" placeholder="分类名称" />
+            <div v-if="nameValidationResult.message && dialogMode === 'create'" class="validation-hint">
+              {{ nameValidationResult.message }}
+            </div>
           </div>
           <div class="form-item">
             <label>图标</label>
@@ -1076,6 +1286,160 @@ defineExpose({ loadTree })
         <div class="dialog-footer">
           <button class="btn-cancel" @click="showBatchCreate = false">取消</button>
           <button class="btn-confirm" @click="confirmBatchCreate">确定创建</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Permission dialog -->
+    <div v-if="permissionDialogVisible" class="dialog-overlay" @click.self="permissionDialogVisible = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>权限设置：{{ permissionCategory?.name }}</h3>
+          <button class="close-btn" @click="permissionDialogVisible = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="form-item">
+            <label>权限级别</label>
+            <div class="permission-options">
+              <label v-for="level in PERMISSION_LEVELS" :key="level" class="permission-option">
+                <input
+                  type="radio"
+                  :value="level"
+                  v-model="editingCategory.permissionLevel"
+                />
+                <span class="permission-label">
+                  {{ level === 'public' ? '公开' : level === 'team' ? '团队' : '私有' }}
+                </span>
+              </label>
+            </div>
+          </div>
+          <div class="permission-desc">
+            <p v-if="editingCategory.permissionLevel === 'public'">公开：所有用户都可以查看此分类及其知识</p>
+            <p v-if="editingCategory.permissionLevel === 'team'">团队：仅团队成员可以查看此分类及其知识</p>
+            <p v-if="editingCategory.permissionLevel === 'private'">私有：仅创建者可以查看此分类及其知识</p>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="permissionDialogVisible = false">取消</button>
+          <button class="btn-confirm" @click="savePermission">保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Category search dialog -->
+    <div v-if="showCategorySearch" class="dialog-overlay" @click.self="showCategorySearch = false">
+      <div class="dialog dialog-wide">
+        <div class="dialog-header">
+          <h3>搜索分类知识</h3>
+          <button class="close-btn" @click="showCategorySearch = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="search-input-wrapper">
+            <input
+              v-model="categorySearchQuery"
+              @input="debouncedCategorySearch(categorySearchCategoryId!, categorySearchQuery)"
+              placeholder="输入关键词搜索..."
+              class="search-input"
+            />
+          </div>
+          <div v-if="categorySearchResults.length > 0" class="search-results-list">
+            <div
+              v-for="item in categorySearchResults"
+              :key="item.id"
+              class="search-result-item"
+            >
+              <span class="result-title">{{ item.title }}</span>
+              <span class="result-snippet">{{ item.snippet || item.content?.substring(0, 100) }}...</span>
+            </div>
+          </div>
+          <div v-else-if="categorySearchQuery && !categorySearchResults.length" class="empty-results">
+            未找到匹配的知识
+          </div>
+          <div v-else class="empty-results">
+            输入关键词开始搜索
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showCategorySearch = false">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Batch move dialog -->
+    <div v-if="batchMoveDialogVisible" class="dialog-overlay" @click.self="batchMoveDialogVisible = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>批量移动知识</h3>
+          <button class="close-btn" @click="batchMoveDialogVisible = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <p class="batch-hint">将 {{ selectedIds.size }} 条知识移动到：</p>
+          <div class="form-item">
+            <select v-model="batchMoveTargetId" class="merge-select">
+              <option :value="null">选择目标分类</option>
+              <option
+                v-for="cat in flattenCategories(folders)"
+                :key="cat.id"
+                :value="cat.id"
+              >
+                {{ cat.icon }} {{ cat.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="batchMoveDialogVisible = false">取消</button>
+          <button class="btn-confirm" :disabled="!batchMoveTargetId" @click="confirmBatchMove">确定移动</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Compare dialog -->
+    <div v-if="compareDialogVisible" class="dialog-overlay" @click.self="compareDialogVisible = false">
+      <div class="dialog dialog-wide">
+        <div class="dialog-header">
+          <h3>分类对比</h3>
+          <button class="close-btn" @click="compareDialogVisible = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <table class="compare-table">
+            <thead>
+              <tr>
+                <th>对比项</th>
+                <th v-for="cat in compareCategories" :key="cat.id">
+                  {{ cat.icon }} {{ cat.name }}
+                  <button class="btn-remove-compare" @click="removeFromCompare(cat.id)">×</button>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>知识数量</td>
+                <td v-for="cat in compareCategories" :key="cat.id">{{ cat.knowledgeCount || 0 }}</td>
+              </tr>
+              <tr>
+                <td>描述</td>
+                <td v-for="cat in compareCategories" :key="cat.id">{{ cat.description || '-' }}</td>
+              </tr>
+              <tr>
+                <td>权限级别</td>
+                <td v-for="cat in compareCategories" :key="cat.id">
+                  {{ cat.permissionLevel === 'public' ? '公开' : cat.permissionLevel === 'team' ? '团队' : '私有' }}
+                </td>
+              </tr>
+              <tr>
+                <td>创建时间</td>
+                <td v-for="cat in compareCategories" :key="cat.id">{{ cat.createdAt || '-' }}</td>
+              </tr>
+              <tr>
+                <td>更新时间</td>
+                <td v-for="cat in compareCategories" :key="cat.id">{{ cat.updatedAt || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="compareDialogVisible = false">关闭</button>
         </div>
       </div>
     </div>
@@ -1413,6 +1777,26 @@ defineExpose({ loadTree })
 .btn-trash:hover {
   background: var(--bg-hover);
   color: var(--danger);
+}
+
+.btn-compare {
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-compare:hover {
+  background: var(--bg-hover);
+}
+
+.btn-compare.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .btn-export, .btn-import, .btn-duplicate {
@@ -1786,10 +2170,119 @@ defineExpose({ loadTree })
   border-bottom: none;
 }
 
-.batch-hint {
-  margin: 0 0 12px 0;
-  color: var(--text-secondary);
+.dialog-wide {
+  width: 700px;
+}
+
+.permission-options {
+  display: flex;
+  gap: 16px;
+}
+
+.permission-option {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.permission-label {
+  font-size: 14px;
+}
+
+.permission-desc {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
   font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.permission-desc p {
+  margin: 4px 0;
+}
+
+.search-input-wrapper {
+  margin-bottom: 16px;
+}
+
+.search-results-list {
+  max-height: 300px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+}
+
+.search-result-item {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-item:hover {
+  background: var(--bg-hover);
+}
+
+.result-title {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.result-snippet {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty-results {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.compare-table th,
+.compare-table td {
+  padding: 12px;
+  border: 1px solid var(--border-color);
+  text-align: left;
+}
+
+.compare-table th {
+  background: var(--bg-tertiary);
+  font-weight: 500;
+}
+
+.btn-remove-compare {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  margin-left: 8px;
+  font-size: 16px;
+}
+
+.btn-remove-compare:hover {
+  color: var(--danger);
+}
+
+.validation-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .batch-textarea {

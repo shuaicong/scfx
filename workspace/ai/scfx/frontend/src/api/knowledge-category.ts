@@ -17,4 +17,8 @@ export const knowledgeCategoryApi = {
 
   getMoveHistory: (knowledgeId: number) =>
     request.get(`/knowledge/${knowledgeId}/move-history`),
+
+  // 批量移动知识到指定分类
+  batchMove: (knowledgeIds: number[], targetCategoryId: number, operator?: string) =>
+    request.post('/knowledge/batch/move', { knowledgeIds, targetCategoryId, operator }),
 }

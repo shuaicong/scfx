@@ -19,6 +19,10 @@ export const knowledgeApi = {
   search: (query: string, topK: number = 5) =>
     request.get('/knowledge/search', { params: { query, top_k: topK } }),
 
+  // 按分类搜索知识
+  searchInCategory: (categoryId: number, query: string) =>
+    request.get(`/knowledge/category/${categoryId}/search`, { params: { query } }),
+
   upload: (formData: FormData) =>
     request.post('/knowledge/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
