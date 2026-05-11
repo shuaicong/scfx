@@ -2,6 +2,96 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { categoryApi, type Category } from '@/api/category'
 
+// Undo action types
+interface UndoAction {
+  type: 'create' | 'update' | 'delete' | 'move'
+  before: Partial<Category> | null
+  after: Partial<Category> | null
+  timestamp: number
+}
+
+const undoStack = ref<UndoAction[]>([])
+const MAX_UNDO_SIZE = 10
+
+const pushUndo = (action: UndoAction) => {
+  undoStack.value.push(action)
+  if (undoStack.value.length > MAX_UNDO_SIZE) {
+    undoStack.value.shift()
+  }
+}
+
+// Undo functionality
+const undo = async () => {
+  const action = undoStack.value.pop()
+  if (!action) return
+
+  switch (action.type) {
+    case 'create':
+      if (action.after?.id) {
+        await categoryApi.delete(action.after.id)
+      }
+      break
+    case 'update':
+      if (action.after?.id && action.before) {
+        await categoryApi.update(action.after.id, action.before)
+      }
+      break
+    case 'delete':
+      if (action.before?.id) {
+        await categoryApi.restore(action.before.id)
+      }
+      break
+    case 'move':
+      if (action.after?.id && action.before) {
+        await categoryApi.update(action.after.id, action.before)
+      }
+      break
+  }
+  await loadTree()
+}
+
+// Real-time sync state
+const localVersion = ref(0)
+const showSyncNotification = ref(false)
+let syncInterval: ReturnType<typeof setInterval> | null = null
+
+const checkVersion = async () => {
+  try {
+    const res = await categoryApi.version()
+    const remoteVersion = res.data.data.version
+    if (remoteVersion > localVersion.value && localVersion.value > 0) {
+      showSyncNotification.value = true
+    }
+    localVersion.value = remoteVersion
+  } catch (e) {
+    console.error('Failed to check version:', e)
+  }
+}
+
+const refreshTree = async () => {
+  await loadTree()
+  const res = await categoryApi.tree()
+  localVersion.value = res.data.version
+  showSyncNotification.value = false
+}
+
+// Depth path calculation
+const getDepthPath = (category: Category, allCategories: Category[], parentPath: string = ''): string => {
+  const siblings = allCategories.filter(c => c.parentId === category.parentId)
+  const index = siblings.findIndex(c => c.id === category.id) + 1
+  const currentPath = parentPath ? `${parentPath}.${index}` : `${index}`
+
+  if (category.children?.length) {
+    return `${currentPath} (${category.children.length}个子分类)`
+  }
+  return currentPath
+}
+
+const getDisplayDepth = (category: Category): string => {
+  const path = getDepthPath(category, flattenCategories(folders.value))
+  return `[${path}] ${category.name}`
+}
+
 const props = defineProps<{
   selectedId?: number
 }>()
@@ -232,9 +322,22 @@ const openEditDialog = (category: Category) => {
 // Save category
 const saveCategory = async () => {
   if (dialogMode.value === 'create') {
-    await categoryApi.create(editingCategory.value)
+    const res = await categoryApi.create(editingCategory.value)
+    pushUndo({
+      type: 'create',
+      before: null,
+      after: res.data,
+      timestamp: Date.now()
+    })
   } else if (editingCategory.value.id) {
+    const existing = flattenCategories(folders.value).find(c => c.id === editingCategory.value.id)
     await categoryApi.update(editingCategory.value.id, editingCategory.value)
+    pushUndo({
+      type: 'update',
+      before: existing || null,
+      after: editingCategory.value,
+      timestamp: Date.now()
+    })
   }
   dialogVisible.value = false
   await loadTree()
@@ -243,7 +346,14 @@ const saveCategory = async () => {
 // Delete category
 const deleteCategory = async (id: number) => {
   if (confirm('确定要删除该分类吗？子分类也会被删除。')) {
+    const category = flattenCategories(folders.value).find(c => c.id === id)
     await categoryApi.delete(id)
+    pushUndo({
+      type: 'delete',
+      before: category || null,
+      after: null,
+      timestamp: Date.now()
+    })
     await loadTree()
   }
   contextMenuVisible.value = false
@@ -282,12 +392,27 @@ const onDrop = async (event: DragEvent, targetCategory: Category) => {
   event.preventDefault()
   if (!draggedCategory.value || draggedCategory.value.id === targetCategory.id) return
 
+  // Store original state for undo
+  const originalState = {
+    parentId: draggedCategory.value.parentId,
+    sortOrder: draggedCategory.value.sortOrder
+  }
+
   // Update parent and sort order to target category's values
   const updateData = {
     parentId: targetCategory.parentId,
     sortOrder: targetCategory.sortOrder
   }
   await categoryApi.update(draggedCategory.value.id, updateData)
+
+  // Push undo action
+  pushUndo({
+    type: 'move',
+    before: originalState,
+    after: updateData,
+    timestamp: Date.now()
+  })
+
   await loadTree()
 
   draggedCategory.value = null
@@ -344,10 +469,28 @@ onMounted(() => {
   loadTree()
   loadExpandedState()
   document.addEventListener('click', hideContextMenu)
+  // Keyboard shortcut for undo
+  const handleKeydown = (e: KeyboardEvent) => {
+    if (e.ctrlKey && e.key === 'z') {
+      e.preventDefault()
+      undo()
+    }
+  }
+  document.addEventListener('keydown', handleKeydown)
+  // Initial version check for sync
+  checkVersion()
+  // Poll for version updates every 30 seconds
+  syncInterval = setInterval(checkVersion, 30000)
+  onUnmounted(() => {
+    document.removeEventListener('keydown', handleKeydown)
+  })
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', hideContextMenu)
+  if (syncInterval) {
+    clearInterval(syncInterval)
+  }
 })
 
 defineExpose({ loadTree })
@@ -355,6 +498,10 @@ defineExpose({ loadTree })
 
 <template>
   <div class="category-tree" @click="hideContextMenu">
+    <!-- Sync notification banner -->
+    <div v-if="showSyncNotification" class="sync-notification" @click="refreshTree">
+      检测到分类更新，点击刷新
+    </div>
     <!-- Toolbar -->
     <div class="tree-toolbar">
       <button v-if="!batchMode" class="btn-new" @click="openCreateDialog(null)">+ 新建分类</button>
@@ -433,7 +580,7 @@ defineExpose({ loadTree })
               class="folder-color"
               :style="{ backgroundColor: category.color }"
             ></span>
-            <span class="folder-name">{{ category.name }}</span>
+            <span class="folder-name">{{ getDisplayDepth(category) }}</span>
             <span class="folder-count">({{ category.knowledgeCount || 0 }})</span>
           </div>
 
@@ -474,7 +621,7 @@ defineExpose({ loadTree })
                   class="folder-color"
                   :style="{ backgroundColor: child.color }"
                 ></span>
-                <span class="folder-name">{{ child.name }}</span>
+                <span class="folder-name">{{ getDisplayDepth(child) }}</span>
                 <span class="folder-count">({{ child.knowledgeCount || 0 }})</span>
               </div>
             </div>
@@ -1089,6 +1236,20 @@ defineExpose({ loadTree })
   max-width: 300px;
   z-index: 100;
   white-space: pre-wrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.sync-notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 12px 24px;
+  background: var(--accent);
+  color: var(--bg-primary);
+  border-radius: 8px;
+  cursor: pointer;
+  z-index: 1000;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 </style>
