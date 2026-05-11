@@ -57,6 +57,8 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | POST | /api/category/{id}/restore | 从回收站恢复分类 |
 | DELETE | /api/category/{id}/permanent | 永久删除分类 |
 | POST | /api/category/{id}/merge | 合并分类到目标分类 |
+| PUT | /api/category/batch/move | 批量移动分类到目标父分类 |
+| POST | /api/category/{id}/copy | 复制分类结构 |
 | GET | /api/category/search | 搜索分类（?name=） |
 
 ### 知识-分类关联
@@ -205,6 +207,9 @@ export const categoryApi = {
   restore: (id) => request.post(`/category/${id}/restore`),
   permanentDelete: (id) => request.delete(`/category/${id}/permanent`),
   merge: (id, targetId) => request.post(`/category/${id}/merge`, { targetId }),
+  batchMove: (categoryIds, targetParentId) =>
+    request.put('/category/batch/move', { categoryIds, targetParentId }),
+  copy: (id, name) => request.post(`/category/${id}/copy`, { name }),
 }
 
 export const knowledgeCategoryApi = {
@@ -259,6 +264,42 @@ export const knowledgeCategoryApi = {
 - 显示已删除的分类列表
 - 支持一键恢复或永久删除
 
+### 分类图标选择器
+
+- 新建/编辑分类弹窗中显示常用 emoji 网格
+- 点击即可选择，无需手动输入
+- 预置常用 emoji：📁 📂 🌐 🌾 🌽 🍚 📊 📈 📉 📰 📑 🗂️ 📚 🏷️
+
+### 分类层级深度限制
+
+- 分类最大支持 4 层层级深度
+- 新建子分类时，如果当前层级已达到 4 层，禁止创建
+- 已有超过 4 层的分类数据允许访问但不可继续加深
+
+### 批量移动分类
+
+- 分类支持复选框多选
+- 选中多个分类后，可一次性移动到同一父分类
+- 批量移动操作通过 `PUT /api/category/batch/move` 实现
+
+### 分类结构复制
+
+- 右键分类菜单提供"复制结构"选项
+- 复制时创建同名空结构（仅复制层级，不复制知识关联）
+- 新结构名称可编辑
+
+### 键盘快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| N | 新建分类（聚焦到分类树时） |
+| F | 聚焦分类搜索框 |
+| Delete | 删除选中分类 |
+| Enter | 确认/保存 |
+| Escape | 取消/关闭弹窗 |
+| ↑↓ | 在分类树中上下导航 |
+| →← | 展开/折叠分类 |
+
 ### Knowledge.vue Changes
 
 1. `folders` 数据从 API 获取（`GET /api/category/tree`）
@@ -274,6 +315,11 @@ export const knowledgeCategoryApi = {
 11. 回收站管理
 12. 分类合并
 13. "未分类"知识入口
+14. 分类图标选择器（emoji 网格）
+15. 分类层级深度限制（最大 4 层）
+16. 批量移动分类
+17. 分类结构复制
+18. 键盘快捷键支持
 
 ## Database Schema
 
