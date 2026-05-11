@@ -337,8 +337,8 @@ async function handleSaveEdit() {
 async function loadScriptContent() {
   try {
     const res = await scriptApi.getContent(scriptId.value)
-    scriptContent.value = res.data
-    originalContent.value = res.data
+    scriptContent.value = res.data.data
+    originalContent.value = res.data.data
   } catch (e) {
     ElMessage.error('加载脚本内容失败')
   }

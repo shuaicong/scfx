@@ -1,7 +1,7 @@
 <template>
   <span class="status-badge" :class="status">
     <span class="dot"></span>
-    <span>{{ label }}</span>
+    <span>{{ labelMap[status] }}</span>
   </span>
 </template>
 

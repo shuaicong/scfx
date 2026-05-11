@@ -63,7 +63,7 @@
                 class="sidebar-item"
                 :data-folder-id="child.id"
                 :class="{ active: selectedSource === child.key }"
-                @click="selectSource(child.key)"
+                @click="selectSource(child.key || '')"
                 @dblclick="startRename(child)"
               >
                 <span class="icon">{{ child.icon }}</span>
@@ -493,7 +493,7 @@
           </div>
           <div class="form-item">
             <label>选择文件</label>
-            <div class="file-upload" @click="$refs.fileInput.click()">
+            <div class="file-upload" @click="triggerFileInput">
               <input type="file" ref="fileInput" @change="handleFileChange" accept=".pdf,.doc,.docx,.txt,.md" style="display: none;" />
               <div class="file-upload-icon">📁</div>
               <div class="file-upload-text">将文件拖到此处，或<em>点击上传</em></div>
@@ -604,6 +604,7 @@ interface KnowledgeItem {
   content?: string
   tags?: string[]
   revectorizing?: boolean
+  score?: number
 }
 
 // Sources
@@ -686,8 +687,8 @@ const selectedFolder = ref<number | null>(null)
 function toggleFolder(folder: Folder) {
   folder.open = !folder.open
   if (folder.children?.length) {
-    const wrapper = document.querySelector(`[data-folder-id="${folder.id}"]`)
-    const arrow = wrapper?.querySelector('.arrow')
+    const wrapper = document.querySelector(`[data-folder-id="${folder.id}"]`) as HTMLElement | null
+    const arrow = wrapper?.querySelector('.arrow') as HTMLElement | null
     if (arrow) {
       arrow.style.transform = folder.open ? 'rotate(90deg)' : 'rotate(0deg)'
     }
@@ -848,7 +849,12 @@ const relatedItems = ref<KnowledgeItem[]>([])
 const showAddDialog = ref(false)
 const showDetailDialog = ref(false)
 const addTab = ref('upload')
-const fileInput = ref()
+const fileInput = ref<HTMLInputElement>()
+
+const triggerFileInput = () => {
+  fileInput.value?.click()
+}
+
 const categoryTreeRef = ref<InstanceType<typeof CategoryTree>>()
 const selectedCategoryId = ref<number | undefined>()
 

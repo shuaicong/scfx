@@ -51,7 +51,7 @@
           <div class="menu-indicator"></div>
         </el-menu-item>
         <el-menu-item index="/knowledge" class="menu-item">
-          <el-icon class="menu-icon"><Books /></el-icon>
+          <el-icon class="menu-icon"><Document /></el-icon>
           <span class="menu-text">知识库管理</span>
           <div class="menu-indicator"></div>
         </el-menu-item>
@@ -111,7 +111,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { collectLiangxinwang } from '@/api/dashboard'
-import { DataAnalysis, Collection, Document, Setting, Refresh, Tickets, ChatDotRound, Books } from '@element-plus/icons-vue'
+import { DataAnalysis, Collection, Document, Setting, Refresh, Tickets, ChatDotRound } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const collecting = ref(false)
