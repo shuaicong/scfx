@@ -72,6 +72,25 @@ const editingCategory = ref<Partial<Category>>({})
 const selectedIds = ref<Set<number>>(new Set())
 const batchMode = ref(false)
 
+// Color picker preset colors
+const presetColors = [
+  '#58A6FF', '#3FB950', '#F0883E', '#FF6B6B',
+  '#FFD93D', '#A371F7', '#8B949E', '#F5C87A'
+]
+
+// Description tooltip state
+const hoveredCategoryId = ref<number | null>(null)
+
+const showDescription = (category: Category) => {
+  if (category.description) {
+    hoveredCategoryId.value = category.id
+  }
+}
+
+const hideDescription = () => {
+  hoveredCategoryId.value = null
+}
+
 const toggleSelect = (id: number, event: Event) => {
   event.stopPropagation()
   if (selectedIds.value.has(id)) {
@@ -387,7 +406,12 @@ defineExpose({ loadTree })
             @drop="onDrop($event, category)"
             @click="selectCategory(category)"
             @contextmenu="showContextMenu($event, category)"
+            @mouseenter="showDescription(category)"
+            @mouseleave="hideDescription"
           >
+            <div v-if="hoveredCategoryId === category.id && category.description" class="description-tooltip">
+              {{ category.description }}
+            </div>
             <input
               type="checkbox"
               class="batch-checkbox"
@@ -431,7 +455,12 @@ defineExpose({ loadTree })
                 @drop="onDrop($event, child)"
                 @click="selectCategory(child)"
                 @contextmenu="showContextMenu($event, child)"
+                @mouseenter="showDescription(child)"
+                @mouseleave="hideDescription"
               >
+                <div v-if="hoveredCategoryId === child.id && child.description" class="description-tooltip">
+                  {{ child.description }}
+                </div>
                 <input
                   type="checkbox"
                   class="batch-checkbox"
@@ -519,7 +548,17 @@ defineExpose({ loadTree })
           </div>
           <div class="form-item">
             <label>颜色</label>
-            <input type="color" v-model="editingCategory.color" />
+            <input type="color" v-model="editingCategory.color" class="color-input" />
+            <div class="color-picker">
+              <div
+                v-for="color in presetColors"
+                :key="color"
+                class="color-option"
+                :class="{ selected: editingCategory.color === color }"
+                :style="{ backgroundColor: color }"
+                @click="editingCategory.color = color"
+              ></div>
+            </div>
           </div>
           <div class="form-item">
             <label>排序</label>
@@ -660,6 +699,7 @@ defineExpose({ loadTree })
   border-radius: 4px;
   cursor: pointer;
   gap: 6px;
+  position: relative;
 }
 
 .folder-row:hover {
@@ -1002,5 +1042,53 @@ defineExpose({ loadTree })
 .btn-confirm:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.color-input {
+  width: 60px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.color-option {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.1s, border-color 0.1s;
+}
+
+.color-option:hover {
+  transform: scale(1.1);
+}
+
+.color-option.selected {
+  border-color: var(--text-primary);
+}
+
+.description-tooltip {
+  position: absolute;
+  left: 100%;
+  top: 0;
+  margin-left: 8px;
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  max-width: 300px;
+  z-index: 100;
+  white-space: pre-wrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 </style>
