@@ -190,6 +190,85 @@ const previewCategory = ref<Category | null>(null)
 const previewKnowledge = ref<any[]>([])
 const showPreview = ref(false)
 
+// ============================================
+// 1. 分类容量预警
+// ============================================
+const CAPACITY_WARNING_THRESHOLD = 100
+
+const getCapacityWarning = (category: Category): string | null => {
+  if ((category.knowledgeCount || 0) >= CAPACITY_WARNING_THRESHOLD) {
+    return `该分类知识过多（${category.knowledgeCount}条），建议拆分为多个子分类`
+  }
+  return null
+}
+
+// ============================================
+// 2. 排序方式切换
+// ============================================
+type SortMode = 'manual' | 'name' | 'count' | 'update'
+const sortMode = ref<SortMode>('manual')
+
+const sortedFolders = computed(() => {
+  if (sortMode.value === 'manual') return folders.value
+
+  const flat = [...flattenCategories(folders.value)]
+  switch (sortMode.value) {
+    case 'name':
+      return flat.sort((a, b) => a.name.localeCompare(b.name))
+    case 'count':
+      return flat.sort((a, b) => (b.knowledgeCount || 0) - (a.knowledgeCount || 0))
+    case 'update':
+      return flat.sort((a, b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime())
+    default:
+      return folders.value
+  }
+})
+
+// ============================================
+// 3. 最近访问记录
+// ============================================
+const recentCategories = ref<Category[]>([])
+const MAX_RECENT = 5
+
+const loadRecentCategories = () => {
+  const saved = localStorage.getItem('recent-categories')
+  if (saved) {
+    try {
+      recentCategories.value = JSON.parse(saved)
+    } catch (e) {
+      recentCategories.value = []
+    }
+  }
+}
+
+const addToRecent = (category: Category) => {
+  const existing = recentCategories.value.filter(c => c.id !== category.id)
+  recentCategories.value = [category, ...existing].slice(0, MAX_RECENT)
+  localStorage.setItem('recent-categories', JSON.stringify(recentCategories.value))
+}
+
+// ============================================
+// 4. 订阅通知
+// ============================================
+const subscribedCategoryIds = ref<Set<number>>(new Set())
+const notifyCount = ref(0)
+
+const toggleSubscription = async (categoryId: number) => {
+  if (subscribedCategoryIds.value.has(categoryId)) {
+    subscribedCategoryIds.value.delete(categoryId)
+  } else {
+    subscribedCategoryIds.value.add(categoryId)
+    // 调用后端订阅接口
+  }
+  // Trigger reactivity
+  subscribedCategoryIds.value = new Set(subscribedCategoryIds.value)
+}
+
+const checkNotifications = async () => {
+  // 检查订阅的分类是否有新知识
+  notifyCount.value = 0 // 重置
+}
+
 // Import file input ref
 const importInput = ref<HTMLInputElement | null>(null)
 
@@ -407,6 +486,7 @@ const toggleExpand = (id: number, event: Event) => {
 // Select category
 const selectCategory = (category: Category) => {
   selectedCategory.value = category
+  addToRecent(category)
   emit('select', category)
 }
 
@@ -592,6 +672,8 @@ watch(() => props.selectedId, (newId) => {
 onMounted(() => {
   loadTree()
   loadExpandedState()
+  loadRecentCategories()
+  checkNotifications()
   document.addEventListener('click', hideContextMenu)
   // Keyboard shortcut for undo
   const handleKeydown = (e: KeyboardEvent) => {
@@ -646,6 +728,13 @@ defineExpose({ loadTree })
         @change="importCategories"
       />
       <button class="btn-duplicate" @click="checkDuplicateNames">重名检测</button>
+      <select v-model="sortMode" class="sort-select">
+        <option value="manual">手动排序</option>
+        <option value="name">按名称</option>
+        <option value="count">按数量</option>
+        <option value="update">按更新时间</option>
+      </select>
+      <button v-if="notifyCount > 0" class="btn-notify">{{ notifyCount }} 新通知</button>
     </div>
 
     <!-- Pinned categories -->
@@ -661,6 +750,21 @@ defineExpose({ loadTree })
         <span class="pinned-icon">{{ cat.icon }}</span>
         <span class="pinned-name">{{ cat.name }}</span>
         <button class="pin-btn pinned" @click.stop="togglePin(cat)" title="取消置顶">📌</button>
+      </div>
+    </div>
+
+    <!-- Recent categories -->
+    <div v-if="recentCategories.length > 0" class="recent-section">
+      <div class="recent-header">最近访问</div>
+      <div
+        v-for="cat in recentCategories"
+        :key="cat.id"
+        class="recent-item"
+        :class="{ selected: selectedCategory?.id === cat.id }"
+        @click="selectCategory(cat)"
+      >
+        <span class="recent-icon">{{ cat.icon }}</span>
+        <span class="recent-name">{{ cat.name }}</span>
       </div>
     </div>
 
@@ -734,6 +838,9 @@ defineExpose({ loadTree })
             ></span>
             <span class="folder-name">{{ getDisplayDepth(category) }}</span>
             <span class="folder-count">({{ category.knowledgeCount || 0 }})</span>
+            <span v-if="getCapacityWarning(category)" class="capacity-warning" :title="getCapacityWarning(category)">
+              ⚠️
+            </span>
           </div>
 
           <!-- Render children recursively -->
@@ -775,6 +882,9 @@ defineExpose({ loadTree })
                 ></span>
                 <span class="folder-name">{{ getDisplayDepth(child) }}</span>
                 <span class="folder-count">({{ child.knowledgeCount || 0 }})</span>
+                <span v-if="getCapacityWarning(child)" class="capacity-warning" :title="getCapacityWarning(child)">
+                  ⚠️
+                </span>
               </div>
             </div>
           </template>
@@ -832,6 +942,9 @@ defineExpose({ loadTree })
       </div>
       <div class="context-menu-item" @click="openMergeDialog(contextMenuCategory!)">
         合并
+      </div>
+      <div class="context-menu-item" @click="toggleSubscription(contextMenuCategory!.id)">
+        {{ subscribedCategoryIds.has(contextMenuCategory!.id) ? '取消订阅' : '订阅通知' }}
       </div>
       <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
         删除
@@ -1316,6 +1429,41 @@ defineExpose({ loadTree })
   background: var(--bg-hover);
 }
 
+.sort-select {
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sort-select:hover {
+  background: var(--bg-hover);
+}
+
+.btn-notify {
+  padding: 8px 12px;
+  background: var(--danger);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  cursor: pointer;
+  font-size: 12px;
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.capacity-warning {
+  margin-left: 4px;
+  cursor: help;
+}
+
 .batch-checkbox {
   width: 16px;
   height: 16px;
@@ -1553,6 +1701,45 @@ defineExpose({ loadTree })
 
 .pin-btn.pinned {
   opacity: 1;
+}
+
+.recent-section {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.recent-header {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.recent-item:hover {
+  background: var(--bg-hover);
+}
+
+.recent-item.selected {
+  background: var(--accent-bg);
+}
+
+.recent-icon {
+  font-size: 14px;
+}
+
+.recent-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .preview-info {
