@@ -12,7 +12,17 @@
       </div>
 
       <div class="sidebar-content" id="sidebarTree">
-        <div class="sidebar-section">
+        <!-- CategoryTree Component -->
+        <div class="category-tree-section">
+          <CategoryTree
+            ref="categoryTreeRef"
+            :selectedId="selectedCategoryId"
+            @select="onCategorySelect"
+            @update="onCategoriesUpdate"
+          />
+        </div>
+
+        <div class="sidebar-section" v-if="false">
           <div class="sidebar-header">
             来源分类
             <button class="sidebar-header-btn" title="新建文件夹" @click="createRootFolder">+</button>
@@ -577,6 +587,8 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { knowledgeApi } from '@/api/knowledge'
+import CategoryTree from '@/components/CategoryTree.vue'
+import CategoryStatsPanel from '@/components/CategoryStatsPanel.vue'
 
 interface KnowledgeItem {
   id?: number
@@ -733,6 +745,40 @@ function importToFolder(folder: Folder) {
   ElMessage.info(`导入文件到 "${folder.name}" 功能开发中`)
 }
 
+// Category selection handlers
+const onCategorySelect = (category: any) => {
+  selectedCategoryId.value = category.id
+  loadKnowledgeByCategory(category.id)
+}
+
+const onCategoriesUpdate = (categories: any[]) => {
+  // Category tree update callback - can be used to persist changes or sync with backend
+  console.log('Categories updated:', categories)
+}
+
+async function loadKnowledgeByCategory(categoryId: number) {
+  loading.value = true
+  try {
+    const res: any = await knowledgeApi.list({
+      page: pagination.page,
+      size: pagination.size,
+      categoryId: categoryId,
+      sourceType: filters.sourceType || undefined,
+      vectorStatus: filters.vectorStatus || undefined
+    })
+    const pageData = res.data
+    list.value = pageData.records || []
+    pagination.total = pageData.total || 0
+    pagination.start = (pagination.page - 1) * pagination.size + 1
+    pagination.end = Math.min(pagination.page * pagination.size, pagination.total)
+  } catch (e) {
+    console.error('加载分类知识列表失败', e)
+    ElMessage.error('加载知识列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
 // UI State
 const sidebarCollapsed = ref(false)
 const sidebarTab = ref('tree')
@@ -803,6 +849,8 @@ const showAddDialog = ref(false)
 const showDetailDialog = ref(false)
 const addTab = ref('upload')
 const fileInput = ref()
+const categoryTreeRef = ref<InstanceType<typeof CategoryTree>>()
+const selectedCategoryId = ref<number | undefined>()
 
 const uploadForm = reactive({
   title: '',
@@ -2639,6 +2687,11 @@ onMounted(() => {
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Category Tree Section */
+.category-tree-section {
+  padding: 8px;
 }
 
 /* Folder Hierarchy Styles */
