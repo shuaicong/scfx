@@ -41,6 +41,8 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | last_operated_at | DATETIME | 最后操作时间 |
 | permission_level | VARCHAR(20) | 权限级别：public/team/private |
 | allowed_users | VARCHAR(500) | 团队模式下允许的用户列表，逗号分隔 |
+| active_season_start | VARCHAR(10) | 活跃季节开始月份，如 "09" |
+| active_season_end | VARCHAR(10) | 活跃季节结束月份，如 "11" |
 
 ### 知识-分类关联表 `t_knowledge_category`
 
@@ -73,6 +75,17 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | last_notified_at | DATETIME | 最后通知时间 |
 | UNIQUE KEY | (category_id, user_id) | 联合唯一索引 |
 
+### 知识移动历史表 `t_knowledge_move_log`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键，自增 |
+| knowledge_id | BIGINT | 知识ID |
+| from_category_id | BIGINT | 原分类ID |
+| to_category_id | BIGINT | 目标分类ID |
+| moved_by | VARCHAR(100) | 操作人 |
+| moved_at | DATETIME | 移动时间 |
+
 ## API Design
 
 ### 分类管理
@@ -103,6 +116,10 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | GET | /api/knowledge/category/{categoryId}/search | 在分类内搜索知识 |
 | PUT | /api/category/{id}/permissions | 更新分类权限 |
 | POST | /api/knowledge/batch/move | 批量移动知识到指定分类 |
+| GET | /api/knowledge/{id}/move-history | 获取知识的分类移动历史 |
+| GET | /api/category/template/market | 获取模板市场列表 |
+| POST | /api/category/template | 发布分类为模板 |
+| POST | /api/knowledge/{id}/recommend-categories | 智能推荐分类 |
 
 ### 知识-分类关联
 
@@ -527,6 +544,38 @@ export const knowledgeCategoryApi = {
 - 不合规时提示："分类名不符合规范，建议格式：【类型】名称，如【价格】玉米日报"
 - 提供"一键修正"按钮自动格式化
 
+### 分类知识自动标签
+- 知识归类后调用 AI 自动提取标签
+- 标签显示在知识卡片上（灰色小标签）
+- 支持按标签筛选知识
+- 标签库全局共享，同标签知识可关联
+
+### 分类模板市场
+- 设置菜单提供"导出为模板"选项
+- 导出模板包含：分类名称、图标、颜色、层级结构、描述
+- 不包含：知识关联、操作日志
+- 模板存储为 JSON，可分享给其他用户
+- 前端提供"模板市场"页面，浏览和导入共享模板
+
+### 分类间知识移动历史
+- 知识移动时记录轨迹到 `t_knowledge_move_log` 表
+- 知识详情页显示"移动历史"时间线
+- 显示：从哪个分类移动到哪个分类，移动时间
+- 支持按时间筛选知识的分类变更记录
+
+### 分类季节性提醒
+- 分类可设置"活跃时间段"（如玉米分类：9-11 月）
+- 非活跃时间段自动折叠该分类
+- 折叠时显示提示："此分类将在 9 月自动展开"
+- 可手动设置"全年活跃"覆盖季节性
+
+### 分类智能推荐
+- 创建/编辑知识时，输入标题和内容后
+- 点击"智能推荐分类"按钮
+- 系统根据内容语义分析，推荐最合适的分类（TOP 3）
+- 显示推荐理由："内容涉及价格数据，推荐归类到【价格】玉米"
+- 一键确认接受推荐，或手动选择其他分类
+
 ### 批量移动分类
 
 - 分类支持复选框多选
@@ -595,6 +644,11 @@ export const knowledgeCategoryApi = {
 40. **分类知识批量移动**（一键移动所有知识到目标分类）
 41. **分类数据对比**（选中分类显示对比表格）
 42. **分类命名规范校验**（正则校验 + 一键修正）
+43. **分类知识自动标签**（AI 自动提取标签）
+44. **分类模板市场**（导出/导入/共享分类模板）
+45. **分类间知识移动历史**（时间线追溯）
+46. **分类季节性提醒**（非活跃时段自动折叠）
+47. **分类智能推荐**（创建知识时自动推荐分类）
 
 ## Database Schema
 
