@@ -60,6 +60,7 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | GET | /api/knowledge | 按分类筛选知识（?categoryId=） |
 | POST | /api/knowledge/{id}/categories | 知识分配到分类 |
 | DELETE | /api/knowledge/{id}/categories/{categoryId} | 移除知识与分类的关联 |
+| POST | /api/knowledge/batch/categories | 批量分配知识到分类 |
 
 ### Request/Response 格式
 
@@ -99,12 +100,39 @@ Request:
 { "name": "新名称", "icon": "📂", "parentId": 1, "sortOrder": 5 }
 ```
 
+**DELETE /api/category/{id}**
+
+Response:
+```json
+{
+  "code": 200,
+  "data": {
+    "deletedCategoryCount": 3,
+    "affectedKnowledgeCount": 23,
+    "orphanedKnowledgeCount": 5,
+    "deletedKnowledgeCount": 0
+  }
+}
+```
+
+**POST /api/knowledge/batch/categories**
+
+Request:
+```json
+{
+  "knowledgeIds": [1, 2, 3, 4, 5],
+  "categoryIds": [11, 12]
+}
+```
+
 ### 业务规则
 
 1. **删除分类**：
    - 有子分类时：递归删除所有子分类
-   - 有知识关联时：只删除关联记录，知识本身保留
-   - 返回被影响的知识数量
+   - 有知识关联时：
+     - 如果知识只属于被删除的分类，视为"孤儿知识"
+     - 孤儿知识处理方式由用户选择：保留到"未分类"或同时删除
+     - 返回受影响的分类数量、知识数量、孤儿知识数量
 
 2. **移动分类**：
    - `parentId` 为 null 表示移到顶级
@@ -118,7 +146,7 @@ Request:
 
 ### API Layer
 
-在 `frontend/src/api/index.ts` 或新建 `frontend/src/api/category.ts`：
+在 `frontend/src/api/category.ts`：
 
 ```typescript
 export const categoryApi = {
@@ -127,7 +155,38 @@ export const categoryApi = {
   update: (id, data) => request.put(`/category/${id}`, data),
   delete: (id) => request.delete(`/category/${id}`),
 }
+
+export const knowledgeCategoryApi = {
+  assign: (knowledgeId, categoryIds) =>
+    request.post(`/knowledge/${knowledgeId}/categories`, { categoryIds }),
+  remove: (knowledgeId, categoryId) =>
+    request.delete(`/knowledge/${knowledgeId}/categories/${categoryId}`),
+  batchAssign: (knowledgeIds, categoryIds) =>
+    request.post('/knowledge/batch/categories', { knowledgeIds, categoryIds }),
+}
 ```
+
+### 知识分配入口
+
+1. **右键菜单**：在知识卡片/列表项上右键 → "添加到分类" 子菜单 → 多选分类
+2. **详情页勾选**：打开知识详情时，侧边有"分类"区块，直接勾选分类
+
+### 批量操作
+
+1. 多选 + 批量分配：列表左上角显示已选数量，选中多条 → 点"批量分配到分类"
+2. 全选当前筛选结果：支持"全选当前筛选结果"，一次性批量分配
+3. 选中后才出现批量操作区：选中 2 条及以上时，顶部出现批量操作栏
+
+### 分类树状态保存
+
+- 使用 localStorage 持久化每个分类的展开/折叠状态
+- 刷新页面后保持上次的展开状态
+
+### 新建分类弹窗
+
+- 新建分类弹窗内嵌知识选择区块
+- 可多选知识打勾，创建分类时同时建立关联
+- 创建成功后 toast 提示"添加知识"按钮，作为补充增强
 
 ### Knowledge.vue Changes
 
@@ -140,10 +199,10 @@ export const categoryApi = {
    - 删除分类：DELETE /api/category/{id}
 3. 操作后刷新分类树
 4. 知识列表筛选支持 categoryId 参数
-
-### Mock Data Migration
-
-现有 mock 数据需要迁移到数据库，或作为初始数据导入。
+5. 右键菜单支持分配到分类
+6. 详情页支持分类勾选
+7. 批量选择和批量操作
+8. 分类展开状态 localStorage 持久化
 
 ## Database Schema
 
@@ -174,7 +233,7 @@ CREATE INDEX idx_knowledge_category_kid ON t_knowledge_category(knowledge_id);
 ## Implementation Order
 
 1. Spring Boot: 添加分类 CRUD API + MySQL 配置
-2. AI-QA Service: 添加知识-分类关联接口
+2. AI-QA Service: 添加知识-分类关联接口（含批量分配）
 3. 数据库: 创建表 + 迁移初始数据
 4. 前端: 改造 Knowledge.vue 使用 API
 5. 测试: 完整流程验证
