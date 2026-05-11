@@ -190,6 +190,13 @@ const previewCategory = ref<Category | null>(null)
 const previewKnowledge = ref<any[]>([])
 const showPreview = ref(false)
 
+// Import file input ref
+const importInput = ref<HTMLInputElement | null>(null)
+
+const triggerImport = () => {
+  importInput.value?.click()
+}
+
 const openPreview = async (category: Category) => {
   previewCategory.value = category
   // 实际应调用 API 获取该分类下的知识列表
@@ -345,6 +352,43 @@ const loadTree = async () => {
     emit('update', folders.value)
   } finally {
     loading.value = false
+  }
+}
+
+// Export categories
+const exportCategories = async () => {
+  const res = await categoryApi.export()
+  const data = res.data.data.data
+  const blob = new Blob([data], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'categories.json'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+// Import categories
+const importCategories = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  const text = await file.text()
+  await categoryApi.import(text)
+  await loadTree()
+  input.value = '' // Reset input
+}
+
+// Duplicate name check
+const checkDuplicateNames = async () => {
+  const res = await categoryApi.mergeSuggestions()
+  const duplicates = res.data.data || []
+  if (duplicates.length > 0) {
+    alert(`发现 ${duplicates.length} 个同名分类，建议合并：\n` +
+      duplicates.map((d: any) => d.name).join('\n'))
+  } else {
+    alert('没有发现同名分类')
   }
 }
 
@@ -592,6 +636,16 @@ defineExpose({ loadTree })
         <button class="btn-batch" @click="clearSelection">取消选择</button>
       </template>
       <button class="btn-trash" @click="loadTrash">回收站</button>
+      <button class="btn-export" @click="exportCategories">导出</button>
+      <button class="btn-import" @click="triggerImport">导入</button>
+      <input
+        ref="importInput"
+        type="file"
+        accept=".json"
+        style="display: none"
+        @change="importCategories"
+      />
+      <button class="btn-duplicate" @click="checkDuplicateNames">重名检测</button>
     </div>
 
     <!-- Pinned categories -->
@@ -1246,6 +1300,20 @@ defineExpose({ loadTree })
 .btn-trash:hover {
   background: var(--bg-hover);
   color: var(--danger);
+}
+
+.btn-export, .btn-import, .btn-duplicate {
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-export:hover, .btn-import:hover, .btn-duplicate:hover {
+  background: var(--bg-hover);
 }
 
 .batch-checkbox {
