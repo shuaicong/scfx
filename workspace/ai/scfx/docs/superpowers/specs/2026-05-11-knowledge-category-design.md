@@ -37,6 +37,8 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | color | VARCHAR(20) | 分类主题颜色，如 "#FF6B6B" |
 | description | VARCHAR(500) | 分类描述/备注，hover 时显示 |
 | pinned | TINYINT | 是否置顶，1=置顶显示在顶部 |
+| last_operated_by | VARCHAR(100) | 最后操作人 |
+| last_operated_at | DATETIME | 最后操作时间 |
 
 ### 知识-分类关联表 `t_knowledge_category`
 
@@ -45,6 +47,17 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | knowledge_id | BIGINT | 知识条目ID |
 | category_id | BIGINT | 分类ID |
 | PRIMARY KEY | (knowledge_id, category_id) | 联合主键 |
+
+### 分类操作日志表 `t_category_operation_log`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键，自增 |
+| category_id | BIGINT | 分类ID |
+| operator | VARCHAR(100) | 操作人 |
+| operation_type | VARCHAR(50) | 操作类型（CREATE/UPDATE/DELETE/RESTORE/MOVE） |
+| operation_detail | VARCHAR(500) | 操作详情（JSON 格式保存操作前后状态） |
+| operated_at | DATETIME | 操作时间 |
 
 ## API Design
 
@@ -66,6 +79,10 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | POST | /api/category/{id}/copy | 复制分类结构 |
 | GET | /api/category/search | 搜索分类（?name=） |
 | GET | /api/category/preview/{id} | 获取分类下的知识列表（快速预览） |
+| GET | /api/category/stats | 获取分类统计面板数据 |
+| GET | /api/category/export | 导出分类结构为 JSON |
+| POST | /api/category/import | 导入分类结构 JSON |
+| GET | /api/category/{id}/history | 获取分类操作历史 |
 
 ### 知识-分类关联
 
@@ -395,6 +412,36 @@ export const knowledgeCategoryApi = {
 - 下拉菜单实时显示匹配的分类（"玉米"）
 - 支持键盘上下键选择，Enter 确认
 
+### 分类统计面板
+- 侧边栏顶部显示分类统计概览
+- 知识数量排行榜（TOP 5 分类）
+- 一周新增知识趋势图（折线图）
+- 点击统计卡片直接跳转到对应分类
+
+### 分类操作日志
+- 每个分类显示最后修改人、最后修改时间
+- 悬停时显示 tooltip："最后修改：张三，2024-01-15 14:30"
+- 支持查看操作历史列表（创建/移动/重命名/删除等）
+- 操作历史包含：操作人、操作时间、操作类型、操作内容
+
+### 分类结构导出/导入
+- 设置菜单提供"导出分类结构"按钮
+- 导出为 JSON 文件，包含：name、icon、color、parentId、sortOrder
+- 不导出 id（导入时自动生成新 id）
+- "导入分类结构"支持拖拽上传 JSON 文件
+- 导入时检测重名，提示用户选择覆盖或跳过
+
+### 分类重名检测
+- 创建/重命名分类时，后端自动检测同名分类
+- 如有同名，返回提示："已存在同名分类 '玉米'，ID=5"
+- 前端弹窗询问："已存在同名分类，是否合并到现有分类？"
+- 确认后执行合并操作
+
+### 分类快捷切换
+- 支持 Ctrl+1/2/3/4/5 快捷键直接跳转到第 1-5 个分类
+- 按住 Ctrl 再按数字键，快速切换当前分类
+- 侧边栏分类名称旁显示对应的快捷键提示（如"玉米 ①②"）
+
 ### 批量移动分类
 
 - 分类支持复选框多选
@@ -448,6 +495,11 @@ export const knowledgeCategoryApi = {
 25. **分类知识快速预览**（hover 浮层显示知识列表）
 26. **分类创建模板**（一次性批量创建多个分类）
 27. **分类名称自动补全**（快速归类时输入首字母）
+28. **分类统计面板**（知识数量排行榜 + 趋势图）
+29. **分类操作日志**（最后修改人/时间 + 操作历史）
+30. **分类结构导出/导入**（JSON 格式）
+31. **分类重名检测**（创建时提示合并）
+32. **分类快捷切换**（Ctrl+1/2/3 直接跳转）
 
 ## Database Schema
 
@@ -461,6 +513,8 @@ CREATE TABLE t_category (
     parent_id BIGINT DEFAULT NULL,
     sort_order INT DEFAULT 0,
     pinned TINYINT DEFAULT 0 COMMENT '是否置顶，1=置顶',
+    last_operated_by VARCHAR(100) DEFAULT NULL COMMENT '最后操作人',
+    last_operated_at DATETIME DEFAULT NULL COMMENT '最后操作时间',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at DATETIME DEFAULT NULL,
