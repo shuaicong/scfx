@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 实现知识库分类管理功能，支持多级分类、软删除、回收站、批量操作、颜色主题、描述备注、实时同步、置顶、预览、批量创建、自动补全、统计面板、操作日志、导入导出、重名检测、快捷切换、容量预警、排序切换、最近访问、复制备份、订阅通知、分类内搜索、权限管理、知识批量移动、数据对比、命名校验
+**Goal:** 实现知识库分类管理功能，支持多级分类、软删除、回收站、批量操作、颜色主题、描述备注、实时同步、置顶、预览、批量创建、自动补全、统计面板、操作日志、导入导出、重名检测、快捷切换、容量预警、排序切换、最近访问、复制备份、订阅通知、分类内搜索、权限管理、知识批量移动、数据对比、命名校验、自动标签、模板市场、移动历史、季节性提醒、智能推荐
 
 **Architecture:**
 - 后端：Spring Boot + MySQL 提供分类 CRUD API，AI-QA Service 提供知识-分类关联接口
@@ -31,7 +31,8 @@
 | Task 12 | 前端增强：统计面板、操作日志、导入导出、重名检测 |
 | Task 13 | 前端增强：容量预警、排序切换、最近访问、复制备份、订阅通知 |
 | Task 14 | 前端增强：分类内搜索、权限管理、知识批量移动、数据对比、命名校验 |
-| Task 15 | 前端集成：Knowledge.vue 完整集成 |
+| Task 15 | 前端增强：自动标签、模板市场、移动历史、季节性提醒、智能推荐 |
+| Task 16 | 前端集成：Knowledge.vue 完整集成 |
 
 ---
 
