@@ -1,7 +1,7 @@
 import request from './index'
 
 export const knowledgeApi = {
-  list: (params: { page?: number; size?: number; sourceType?: string; vectorStatus?: string }) =>
+  list: (params: { page?: number; size?: number; sourceType?: string; vectorStatus?: string; categoryId?: number }) =>
     request.get('/knowledge', { params }),
 
   getById: (id: number) =>

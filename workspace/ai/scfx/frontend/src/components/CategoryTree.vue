@@ -54,6 +54,12 @@ const undo = async () => {
   await loadTree()
 }
 
+// Template import trigger
+const triggerTemplateImport = () => {
+  const input = document.getElementById('template-import-input') as HTMLInputElement | null
+  input?.click()
+}
+
 // Real-time sync state
 const localVersion = ref(0)
 const showSyncNotification = ref(false)
@@ -1754,7 +1760,7 @@ defineExpose({ loadTree })
               style="display: none"
               @change="importTemplate"
             />
-            <button class="btn-import-template" @click="document.getElementById('template-import-input')?.click()">
+            <button class="btn-import-template" @click="triggerTemplateImport">
               选择模板文件
             </button>
           </div>
