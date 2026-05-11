@@ -207,3 +207,94 @@ CREATE TABLE IF NOT EXISTS t_knowledge_base (
 INSERT INTO t_collection_task (task_name, task_type, source_name, source_url, status)
 SELECT '粮信网-玉米晨报采集', 'scheduled', 'liangxinwang', 'https://www.chinagrain.cn/report/', 'pending'
 WHERE NOT EXISTS (SELECT 1 FROM t_collection_task WHERE source_name = 'liangxinwang');
+
+-- =============================================
+-- 分类管理相关表
+-- =============================================
+
+-- 分类表
+CREATE TABLE IF NOT EXISTS t_category (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    icon VARCHAR(50) DEFAULT '📁',
+    color VARCHAR(20) DEFAULT NULL COMMENT '分类主题颜色',
+    description VARCHAR(500) DEFAULT NULL COMMENT '分类描述/备注',
+    parent_id BIGINT DEFAULT NULL COMMENT '父分类ID，NULL表示顶级',
+    sort_order INT DEFAULT 0 COMMENT '排序序号，数字越小越靠前',
+    pinned TINYINT DEFAULT 0 COMMENT '是否置顶，1=置顶',
+    last_operated_by VARCHAR(100) DEFAULT NULL COMMENT '最后操作人',
+    last_operated_at DATETIME DEFAULT NULL COMMENT '最后操作时间',
+    permission_level VARCHAR(20) DEFAULT 'public' COMMENT '权限级别：public/team/private',
+    allowed_users VARCHAR(500) DEFAULT NULL COMMENT '团队模式下允许的用户列表，逗号分隔',
+    active_season_start VARCHAR(10) DEFAULT NULL COMMENT '活跃季节开始月份，如 "09"',
+    active_season_end VARCHAR(10) DEFAULT NULL COMMENT '活跃季节结束月份，如 "11"',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME DEFAULT NULL COMMENT '软删除时间，NULL表示未删除',
+    version BIGINT DEFAULT 0 COMMENT '版本号，用于实时同步检测',
+    FOREIGN KEY (parent_id) REFERENCES t_category(id) ON DELETE SET NULL,
+    INDEX idx_category_parent (parent_id),
+    INDEX idx_category_deleted (deleted_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库分类表';
+
+-- 知识-分类关联表
+CREATE TABLE IF NOT EXISTS t_knowledge_category (
+    knowledge_id BIGINT NOT NULL COMMENT '知识条目ID',
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    PRIMARY KEY (knowledge_id, category_id),
+    INDEX idx_knowledge_category_kid (knowledge_id),
+    INDEX idx_knowledge_category_cid (category_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识-分类关联表';
+
+-- 分类操作日志表
+CREATE TABLE IF NOT EXISTS t_category_operation_log (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    operator VARCHAR(100) DEFAULT NULL COMMENT '操作人',
+    operation_type VARCHAR(50) DEFAULT NULL COMMENT '操作类型（CREATE/UPDATE/DELETE/RESTORE/MOVE）',
+    operation_detail VARCHAR(500) DEFAULT NULL COMMENT '操作详情（JSON 格式保存操作前后状态）',
+    operated_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    INDEX idx_log_category (category_id),
+    INDEX idx_log_operated (operated_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='分类操作日志表';
+
+-- 分类订阅表
+CREATE TABLE IF NOT EXISTS t_category_subscription (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    user_id VARCHAR(100) DEFAULT NULL COMMENT '订阅用户ID',
+    subscribed_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '订阅时间',
+    notify_count INT DEFAULT 0 COMMENT '未读通知数量',
+    last_notified_at DATETIME DEFAULT NULL COMMENT '最后通知时间',
+    UNIQUE KEY uk_category_user (category_id, user_id),
+    INDEX idx_subscription_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='分类订阅表';
+
+-- 知识移动历史表
+CREATE TABLE IF NOT EXISTS t_knowledge_move_log (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    knowledge_id BIGINT NOT NULL COMMENT '知识ID',
+    from_category_id BIGINT DEFAULT NULL COMMENT '原分类ID',
+    to_category_id BIGINT DEFAULT NULL COMMENT '目标分类ID',
+    moved_by VARCHAR(100) DEFAULT NULL COMMENT '操作人',
+    moved_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '移动时间',
+    INDEX idx_move_knowledge (knowledge_id),
+    INDEX idx_move_to (to_category_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识移动历史表';
+
+-- 用户分类收藏夹表
+CREATE TABLE IF NOT EXISTS t_category_favorite (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id VARCHAR(100) NOT NULL COMMENT '用户ID',
+    name VARCHAR(100) NOT NULL COMMENT '收藏夹名称，如"我的常用"',
+    category_ids VARCHAR(500) DEFAULT NULL COMMENT '包含的分类ID，逗号分隔',
+    sort_order INT DEFAULT 0 COMMENT '排序',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    INDEX idx_favorite_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户分类收藏夹表';
+
+-- 初始化数据：粮信网顶级分类
+INSERT INTO t_category (name, icon, color, sort_order) VALUES
+('粮信网', '🌐', '#58A6FF', 1),
+('我的钢铁', '🏭', '#3FB950', 2),
+('中华粮网', '🌾', '#F0883E', 3);
