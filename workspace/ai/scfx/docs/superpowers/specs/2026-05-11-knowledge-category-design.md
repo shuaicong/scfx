@@ -36,6 +36,7 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | deleted_at | DATETIME | 软删除时间，NULL表示未删除 |
 | color | VARCHAR(20) | 分类主题颜色，如 "#FF6B6B" |
 | description | VARCHAR(500) | 分类描述/备注，hover 时显示 |
+| pinned | TINYINT | 是否置顶，1=置顶显示在顶部 |
 
 ### 知识-分类关联表 `t_knowledge_category`
 
@@ -59,10 +60,12 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | DELETE | /api/category/{id} | 软删除分类（移入回收站） |
 | POST | /api/category/{id}/restore | 从回收站恢复分类 |
 | DELETE | /api/category/{id}/permanent | 永久删除分类 |
+| POST | /api/category/batch | 批量创建分类模板 |
 | POST | /api/category/{id}/merge | 合并分类到目标分类 |
 | PUT | /api/category/batch/move | 批量移动分类到目标父分类 |
 | POST | /api/category/{id}/copy | 复制分类结构 |
 | GET | /api/category/search | 搜索分类（?name=） |
+| GET | /api/category/preview/{id} | 获取分类下的知识列表（快速预览） |
 
 ### 知识-分类关联
 
@@ -152,6 +155,30 @@ Request:
 - 分类 A 的所有知识转移到分类 B
 - 分类 A 的所有子分类移到分类 B 下
 - 分类 A 被软删除
+
+**POST /api/category/batch**
+
+Request:
+```json
+{
+  "categories": [
+    { "name": "玉米", "icon": "🌐", "parentId": 1 },
+    { "name": "小麦", "icon": "🌾", "parentId": 1 },
+    { "name": "大豆", "icon": "🫘", "parentId": 1 }
+  ]
+}
+```
+
+Response:
+```json
+{
+  "code": 200,
+  "data": {
+    "created": 3,
+    "ids": [11, 12, 13]
+  }
+}
+```
 
 **GET /api/category/search?name=玉米**
 
@@ -338,6 +365,36 @@ export const knowledgeCategoryApi = {
 - 与本地缓存的 version 对比，发生变化时弹出刷新通知
 - 版本号在分类任何变更时 +1
 
+### 分类收藏/置顶
+- 每个分类右侧显示"Pin"图标按钮
+- 点击后分类置顶到列表最上方（最多置顶 3 个）
+- 置顶分类保存在 localStorage，切换页面后保持
+- 置顶分类优先于普通分类显示
+
+### 分类知识快速预览
+- 鼠标悬停分类名称 500ms 后显示浮层
+- 浮层中列出该分类下的知识条目（标题 + 更新时间，最多显示 5 条）
+- 点击浮层中的知识标题直接跳转到知识详情
+- 浮层随鼠标移动，取消时自动消失
+
+### 分类创建模板
+- 新建分类弹窗中提供"批量创建"切换 Tab
+- 输入多个分类名称（每行一个），如：
+  ```
+  玉米
+  小麦
+  大豆
+  稻谷
+  ```
+- 选择统一的图标和父分类，一次性创建
+- 创建成功后显示创建结果：已创建 X 个分类
+
+### 分类名称自动补全
+- 在知识详情页的分类分配区域
+- 输入框输入分类名首字母（如"ym"）
+- 下拉菜单实时显示匹配的分类（"玉米"）
+- 支持键盘上下键选择，Enter 确认
+
 ### 批量移动分类
 
 - 分类支持复选框多选
@@ -387,6 +444,10 @@ export const knowledgeCategoryApi = {
 21. **多级 Undo 撤销**（Ctrl+Z / 操作历史栈）
 22. **分类备注/描述**（hover tooltip）
 23. **实时同步通知**（30 秒轮询 + 刷新条幅）
+24. **分类收藏/置顶**（一键访问常用分类）
+25. **分类知识快速预览**（hover 浮层显示知识列表）
+26. **分类创建模板**（一次性批量创建多个分类）
+27. **分类名称自动补全**（快速归类时输入首字母）
 
 ## Database Schema
 
@@ -399,6 +460,7 @@ CREATE TABLE t_category (
     description VARCHAR(500) DEFAULT NULL,
     parent_id BIGINT DEFAULT NULL,
     sort_order INT DEFAULT 0,
+    pinned TINYINT DEFAULT 0 COMMENT '是否置顶，1=置顶',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at DATETIME DEFAULT NULL,
