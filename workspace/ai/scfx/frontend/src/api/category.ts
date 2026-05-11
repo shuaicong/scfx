@@ -45,6 +45,7 @@ export const categoryApi = {
   delete: (id: number, operator?: string) => request.delete(`/category/${id}`, { params: { operator } }),
   restore: (id: number, operator?: string) => request.post(`/category/${id}/restore`, {}, { params: { operator } }),
   permanentDelete: (id: number) => request.delete(`/category/${id}/permanent`),
+  merge: (sourceId: number, targetId: number) => request.post('/category/merge', { sourceId, targetId }),
   preview: (id: number) => request.get<Category>(`/category/preview/${id}`),
   stats: () => request.get('/category/stats'),
   history: (id: number) => request.get(`/category/${id}/history`),

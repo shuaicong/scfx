@@ -68,6 +68,85 @@ const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const editingCategory = ref<Partial<Category>>({})
 
+// Batch selection state
+const selectedIds = ref<Set<number>>(new Set())
+const batchMode = ref(false)
+
+const toggleSelect = (id: number, event: Event) => {
+  event.stopPropagation()
+  if (selectedIds.value.has(id)) {
+    selectedIds.value.delete(id)
+  } else {
+    selectedIds.value.add(id)
+  }
+  batchMode.value = selectedIds.value.size > 0
+}
+
+const selectAll = () => {
+  const all = flattenCategories(folders.value)
+  all.forEach(c => selectedIds.value.add(c.id))
+}
+
+const clearSelection = () => {
+  selectedIds.value.clear()
+  batchMode.value = false
+}
+
+// Trash state
+const trashCategories = ref<Category[]>([])
+const showTrash = ref(false)
+
+const loadTrash = async () => {
+  const res = await categoryApi.trash()
+  trashCategories.value = res.data.data || []
+  showTrash.value = true
+}
+
+const restoreCategory = async (id: number) => {
+  await categoryApi.restore(id)
+  await loadTrash()
+  await loadTree()
+}
+
+const permanentDeleteCategory = async (id: number) => {
+  if (confirm('确定要永久删除吗？此操作不可恢复。')) {
+    await categoryApi.permanentDelete(id)
+    await loadTrash()
+  }
+}
+
+const closeTrash = () => {
+  showTrash.value = false
+  loadTree()
+}
+
+// Merge category
+const mergeCategory = async (sourceId: number, targetId: number) => {
+  if (confirm('合并后源分类的知识将转移到目标分类，确定要合并吗？')) {
+    await categoryApi.merge(sourceId, targetId)
+    await loadTree()
+  }
+}
+
+// Merge dialog state
+const mergeDialogVisible = ref(false)
+const mergeSourceCategory = ref<Category | null>(null)
+const mergeTargetId = ref<number | ''>('')
+
+const openMergeDialog = (category: Category) => {
+  mergeSourceCategory.value = category
+  mergeTargetId.value = ''
+  mergeDialogVisible.value = true
+  contextMenuVisible.value = false
+}
+
+const confirmMerge = async () => {
+  if (mergeSourceCategory.value && mergeTargetId.value) {
+    await mergeCategory(mergeSourceCategory.value.id, mergeTargetId.value)
+    mergeDialogVisible.value = false
+  }
+}
+
 // Load category tree
 const loadTree = async () => {
   loading.value = true
@@ -259,7 +338,13 @@ defineExpose({ loadTree })
   <div class="category-tree" @click="hideContextMenu">
     <!-- Toolbar -->
     <div class="tree-toolbar">
-      <button class="btn-new" @click="openCreateDialog(null)">+ 新建分类</button>
+      <button v-if="!batchMode" class="btn-new" @click="openCreateDialog(null)">+ 新建分类</button>
+      <template v-else>
+        <span class="batch-info">已选择 {{ selectedIds.size }} 项</span>
+        <button class="btn-batch" @click="selectAll">全选</button>
+        <button class="btn-batch" @click="clearSelection">取消选择</button>
+      </template>
+      <button class="btn-trash" @click="loadTrash">回收站</button>
     </div>
 
     <!-- Search input -->
@@ -303,6 +388,12 @@ defineExpose({ loadTree })
             @click="selectCategory(category)"
             @contextmenu="showContextMenu($event, category)"
           >
+            <input
+              type="checkbox"
+              class="batch-checkbox"
+              :checked="selectedIds.has(category.id)"
+              @click="toggleSelect(category.id, $event)"
+            />
             <span
               v-if="category.children?.length"
               class="folder-toggle"
@@ -341,6 +432,12 @@ defineExpose({ loadTree })
                 @click="selectCategory(child)"
                 @contextmenu="showContextMenu($event, child)"
               >
+                <input
+                  type="checkbox"
+                  class="batch-checkbox"
+                  :checked="selectedIds.has(child.id)"
+                  @click="toggleSelect(child.id, $event)"
+                />
                 <span class="folder-toggle-placeholder"></span>
                 <span class="folder-icon">{{ child.icon }}</span>
                 <span
@@ -355,6 +452,29 @@ defineExpose({ loadTree })
           </template>
         </div>
       </template>
+    </div>
+
+    <!-- Trash panel -->
+    <div v-if="showTrash" class="trash-panel">
+      <div class="trash-header">
+        <h3>回收站</h3>
+        <button class="close-btn" @click="closeTrash">×</button>
+      </div>
+      <div class="trash-content">
+        <div v-if="trashCategories.length === 0" class="empty-trash">回收站为空</div>
+        <div
+          v-for="cat in trashCategories"
+          :key="cat.id"
+          class="trash-item"
+        >
+          <span class="trash-icon">{{ cat.icon }}</span>
+          <span class="trash-name">{{ cat.name }}</span>
+          <div class="trash-actions">
+            <button class="btn-restore" @click="restoreCategory(cat.id)">恢复</button>
+            <button class="btn-permanent-delete" @click="permanentDeleteCategory(cat.id)">永久删除</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Context menu -->
@@ -372,6 +492,9 @@ defineExpose({ loadTree })
       </div>
       <div class="context-menu-item" @click="duplicateCategory(contextMenuCategory!)">
         复制
+      </div>
+      <div class="context-menu-item" @click="openMergeDialog(contextMenuCategory!)">
+        合并
       </div>
       <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
         删除
@@ -406,6 +529,36 @@ defineExpose({ loadTree })
         <div class="dialog-footer">
           <button class="btn-cancel" @click="dialogVisible = false">取消</button>
           <button class="btn-confirm" @click="saveCategory">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Merge dialog -->
+    <div v-if="mergeDialogVisible" class="dialog-overlay" @click.self="mergeDialogVisible = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>合并分类</h3>
+          <button class="close-btn" @click="mergeDialogVisible = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <p class="merge-info">将「{{ mergeSourceCategory?.name }}」合并到：</p>
+          <div class="form-item">
+            <select v-model="mergeTargetId" class="merge-select">
+              <option value="">选择目标分类</option>
+              <option
+                v-for="cat in flattenCategories(folders)"
+                :key="cat.id"
+                :value="cat.id"
+                :disabled="cat.id === mergeSourceCategory?.id"
+              >
+                {{ cat.icon }} {{ cat.name }}
+              </option>
+            </select>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="mergeDialogVisible = false">取消</button>
+          <button class="btn-confirm" :disabled="!mergeTargetId" @click="confirmMerge">确定合并</button>
         </div>
       </div>
     </div>
@@ -684,5 +837,170 @@ defineExpose({ loadTree })
   padding: 20px;
   text-align: center;
   color: var(--text-muted);
+}
+
+.tree-toolbar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.batch-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.btn-batch {
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-batch:hover {
+  background: var(--bg-hover);
+}
+
+.btn-trash {
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-trash:hover {
+  background: var(--bg-hover);
+  color: var(--danger);
+}
+
+.batch-checkbox {
+  width: 16px;
+  height: 16px;
+  margin-right: 4px;
+  cursor: pointer;
+}
+
+.trash-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100%;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border-color);
+  z-index: 1002;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
+}
+
+.trash-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.trash-header h3 {
+  margin: 0;
+}
+
+.trash-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.empty-trash {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.trash-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.trash-item:last-child {
+  border-bottom: none;
+}
+
+.trash-icon {
+  font-size: 14px;
+}
+
+.trash-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trash-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.btn-restore, .btn-permanent-delete {
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-restore {
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+}
+
+.btn-restore:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
+.btn-permanent-delete {
+  background: transparent;
+  border: 1px solid var(--danger);
+  color: var(--danger);
+}
+
+.btn-permanent-delete:hover {
+  background: var(--danger);
+  color: var(--bg-primary);
+}
+
+.merge-info {
+  margin: 0 0 16px 0;
+  color: var(--text-secondary);
+}
+
+.merge-select {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.btn-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
