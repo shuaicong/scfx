@@ -188,6 +188,115 @@ const togglePin = async (category: Category) => {
   await loadTree()
 }
 
+// ============================================
+// 10. 分类知识自动标签
+// ============================================
+const autoTagging = async (knowledgeId: number) => {
+  // 调用后端 AI 自动提取标签接口
+  // POST /api/knowledge/{id}/auto-tag
+  alert('AI 自动标签功能开发中')
+}
+
+// ============================================
+// 11. 分类模板市场
+// ============================================
+const showTemplateMarket = ref(false)
+
+const exportAsTemplate = async (category: Category) => {
+  // 导出为模板
+  const template = {
+    name: category.name,
+    icon: category.icon,
+    color: category.color,
+    description: category.description,
+    children: category.children?.map(c => ({
+      name: c.name,
+      icon: c.icon,
+      color: c.color
+    }))
+  }
+  const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${category.name}-template.json`
+  a.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('模板已导出')
+}
+
+const importTemplate = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+
+  try {
+    const text = await file.text()
+    const template = JSON.parse(text)
+    // 调用后端导入接口
+    alert(`模板导入功能开发中：${template.name}`)
+  } catch (e) {
+    ElMessage.error('模板文件格式错误')
+  }
+  input.value = '' // Reset input
+}
+
+// ============================================
+// 12. 分类间知识移动历史
+// ============================================
+const showMoveHistory = ref(false)
+const moveHistory = ref<any[]>([])
+
+const loadMoveHistory = async (knowledgeId: number) => {
+  try {
+    const res = await knowledgeCategoryApi.getMoveHistory(knowledgeId)
+    moveHistory.value = res.data.data || []
+    showMoveHistory.value = true
+  } catch (e) {
+    console.error('Failed to load move history:', e)
+    ElMessage.error('加载移动历史失败')
+  }
+}
+
+// ============================================
+// 13. 分类季节性提醒
+// ============================================
+const checkSeasonalStatus = (category: Category): { active: boolean; message: string } => {
+  if (!category.activeSeasonStart || !category.activeSeasonEnd) {
+    return { active: true, message: '' }
+  }
+
+  const now = new Date()
+  const month = now.getMonth() + 1
+  const start = parseInt(category.activeSeasonStart)
+  const end = parseInt(category.activeSeasonEnd)
+
+  if (start <= end) {
+    if (month >= start && month <= end) {
+      return { active: true, message: '' }
+    }
+  } else {
+    // 跨年情况，如 9-2 月
+    if (month >= start || month <= end) {
+      return { active: true, message: '' }
+    }
+  }
+
+  return {
+    active: false,
+    message: `此分类将在 ${category.activeSeasonStart} 月自动展开`
+  }
+}
+
+// ============================================
+// 14. 分类智能推荐
+// ============================================
+const recommendCategories = async (knowledgeTitle: string, knowledgeContent: string) => {
+  // 调用后端智能推荐接口
+  // POST /api/knowledge/{id}/recommend-categories
+  alert('智能推荐功能开发中，根据标题和内容自动推荐分类')
+}
+
 // Preview category state
 const previewCategory = ref<Category | null>(null)
 const previewKnowledge = ref<any[]>([])
@@ -926,6 +1035,7 @@ defineExpose({ loadTree })
         @change="importCategories"
       />
       <button class="btn-duplicate" @click="checkDuplicateNames">重名检测</button>
+      <button class="btn-template" @click="showTemplateMarket = true">模板市场</button>
       <select v-model="sortMode" class="sort-select">
         <option value="manual">手动排序</option>
         <option value="name">按名称</option>
@@ -1039,6 +1149,9 @@ defineExpose({ loadTree })
             <span v-if="getCapacityWarning(category)" class="capacity-warning" :title="getCapacityWarning(category)">
               ⚠️
             </span>
+            <span v-if="!checkSeasonalStatus(category).active" class="seasonal-inactive" :title="checkSeasonalStatus(category).message">
+              ❄️
+            </span>
           </div>
 
           <!-- Render children recursively -->
@@ -1149,6 +1262,15 @@ defineExpose({ loadTree })
       </div>
       <div class="context-menu-item" @click="openCategorySearch(contextMenuCategory!)">
         搜索知识
+      </div>
+      <div class="context-menu-item" @click="loadMoveHistory(contextMenuCategory!.id)">
+        移动历史
+      </div>
+      <div class="context-menu-item" @click="autoTagging(contextMenuCategory!.id)">
+        AI 自动标签
+      </div>
+      <div class="context-menu-item" @click="exportAsTemplate(contextMenuCategory!)">
+        导出模板
       </div>
       <div class="context-menu-item" @click="addToCompare(contextMenuCategory!)">
         加入对比
@@ -1440,6 +1562,66 @@ defineExpose({ loadTree })
         </div>
         <div class="dialog-footer">
           <button class="btn-cancel" @click="compareDialogVisible = false">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Template market dialog -->
+    <div v-if="showTemplateMarket" class="dialog-overlay" @click.self="showTemplateMarket = false">
+      <div class="dialog dialog-wide">
+        <div class="dialog-header">
+          <h3>分类模板市场</h3>
+          <button class="close-btn" @click="showTemplateMarket = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <p class="template-hint">从模板文件导入分类结构</p>
+          <div class="template-import-section">
+            <input
+              type="file"
+              accept=".json"
+              id="template-import-input"
+              style="display: none"
+              @change="importTemplate"
+            />
+            <button class="btn-import-template" @click="document.getElementById('template-import-input')?.click()">
+              选择模板文件
+            </button>
+          </div>
+          <div class="template-tips">
+            <h4>导出模板</h4>
+            <p>在分类上右键选择"导出模板"可以将当前分类及其子分类导出为 JSON 格式的模板文件</p>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showTemplateMarket = false">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Move history dialog -->
+    <div v-if="showMoveHistory" class="dialog-overlay" @click.self="showMoveHistory = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>移动历史</h3>
+          <button class="close-btn" @click="showMoveHistory = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div v-if="moveHistory.length === 0" class="empty-history">
+            暂无移动记录
+          </div>
+          <div v-else class="history-list">
+            <div
+              v-for="(item, index) in moveHistory"
+              :key="index"
+              class="history-item"
+            >
+              <span class="history-time">{{ item.createdAt }}</span>
+              <span class="history-action">{{ item.action || '移动分类' }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showMoveHistory = false">关闭</button>
         </div>
       </div>
     </div>
@@ -1813,6 +1995,21 @@ defineExpose({ loadTree })
   background: var(--bg-hover);
 }
 
+.btn-template {
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-template:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
 .sort-select {
   padding: 8px 12px;
   background: var(--bg-tertiary);
@@ -1841,6 +2038,11 @@ defineExpose({ loadTree })
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.7; }
+}
+
+.seasonal-inactive {
+  margin-left: 4px;
+  cursor: help;
 }
 
 .capacity-warning {
@@ -2295,5 +2497,78 @@ defineExpose({ loadTree })
   font-family: inherit;
   resize: vertical;
   box-sizing: border-box;
+}
+
+.template-hint {
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+}
+
+.template-import-section {
+  margin-bottom: 16px;
+}
+
+.btn-import-template {
+  padding: 8px 16px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.btn-import-template:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
+}
+
+.template-tips {
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.template-tips h4 {
+  margin: 0 0 8px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.template-tips p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.empty-history {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.history-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.history-item:last-child {
+  border-bottom: none;
+}
+
+.history-time {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.history-action {
+  color: var(--text-primary);
+  font-size: 14px;
 }
 </style>
