@@ -297,6 +297,136 @@ const recommendCategories = async (knowledgeTitle: string, knowledgeContent: str
   alert('智能推荐功能开发中，根据标题和内容自动推荐分类')
 }
 
+// ============================================
+// 16. 分类批量重命名
+// ============================================
+const showBatchRenameDialog = ref(false)
+const batchRenameMode = ref<'prefix' | 'suffix' | 'replace'>('prefix')
+const batchRenameValue = ref('')
+const batchRenameReplace = ref('')
+
+const findCategoryById = (id: number): Category | undefined => {
+  return flattenCategories(folders.value).find(c => c.id === id)
+}
+
+const openBatchRenameDialog = () => {
+  if (selectedIds.value.size === 0) {
+    alert('请先选择要重命名的分类')
+    return
+  }
+  showBatchRenameDialog.value = true
+}
+
+const confirmBatchRename = async () => {
+  for (const id of selectedIds.value) {
+    const category = findCategoryById(id)
+    if (!category) continue
+
+    let newName = category.name
+    switch (batchRenameMode.value) {
+      case 'prefix':
+        newName = batchRenameValue.value + newName
+        break
+      case 'suffix':
+        newName = newName + batchRenameValue.value
+        break
+      case 'replace':
+        newName = newName.replace(batchRenameValue.value, batchRenameReplace.value)
+        break
+    }
+
+    await categoryApi.update(id, { name: newName })
+  }
+
+  showBatchRenameDialog.value = false
+  batchRenameValue.value = ''
+  batchRenameReplace.value = ''
+  clearSelection()
+  await loadTree()
+}
+
+// ============================================
+// 16. 分类知识完整性检查
+// ============================================
+const integrityCheck = async (knowledgeId: number) => {
+  // 调用后端检查接口
+  // GET /api/knowledge/{id}/integrity-check
+  alert('知识完整性检查功能开发中')
+}
+
+// ============================================
+// 16. 分类收藏夹
+// ============================================
+const userFavorites = ref<Category[][]>([])
+const MAX_FAVORITES = 5
+
+const loadFavorites = () => {
+  const saved = localStorage.getItem('category-favorites')
+  if (saved) {
+    try {
+      userFavorites.value = JSON.parse(saved)
+    } catch (e) {
+      userFavorites.value = []
+    }
+  }
+}
+
+const saveFavorites = () => {
+  localStorage.setItem('category-favorites', JSON.stringify(userFavorites.value))
+}
+
+const addToFavorites = (categoryIds: number[]) => {
+  const categories = categoryIds.map(id => findCategoryById(id)).filter(Boolean) as Category[]
+  userFavorites.value.push(categories)
+  if (userFavorites.value.length > MAX_FAVORITES) {
+    userFavorites.value.shift()
+  }
+  saveFavorites()
+  ElMessage.success('已添加到收藏夹')
+}
+
+const loadFavoriteCategories = () => {
+  // Load a saved favorite group by index
+  const idx = parseInt(localStorage.getItem('current-favorite-index') || '0')
+  if (userFavorites.value[idx]) {
+    userFavorites.value[idx].forEach(cat => selectCategory(cat))
+  }
+}
+
+// ============================================
+// 16. 分类热点分析
+// ============================================
+const showHotAnalysis = ref(false)
+const hotAnalysisData = ref<any[]>([])
+
+const loadHotAnalysis = async () => {
+  try {
+    const res = await categoryApi.hotAnalysis()
+    hotAnalysisData.value = res.data.data || []
+    showHotAnalysis.value = true
+  } catch (e) {
+    console.error('Failed to load hot analysis:', e)
+    ElMessage.error('加载热点分析失败')
+  }
+}
+
+// ============================================
+// 16. 分类合并建议
+// ============================================
+const showMergeSuggestions = ref(false)
+const mergeSuggestions = ref<any[]>([])
+
+const loadMergeSuggestions = async () => {
+  try {
+    const res = await categoryApi.mergeSuggestions()
+    mergeSuggestions.value = res.data.data || []
+    showMergeSuggestions.value = true
+  } catch (e) {
+    console.error('Failed to load merge suggestions:', e)
+    ElMessage.error('加载合并建议失败')
+  }
+}
+
 // Preview category state
 const previewCategory = ref<Category | null>(null)
 const previewKnowledge = ref<any[]>([])
@@ -711,6 +841,14 @@ const confirmMerge = async () => {
   }
 }
 
+const openMergeDialogFromSuggestion = (suggestion: any) => {
+  const category = findCategoryById(suggestion.id)
+  if (category) {
+    openMergeDialog(category)
+  }
+  showMergeSuggestions.value = false
+}
+
 // Load category tree
 const loadTree = async () => {
   loading.value = true
@@ -972,6 +1110,7 @@ onMounted(() => {
   loadTree()
   loadExpandedState()
   loadRecentCategories()
+  loadFavorites()
   checkNotifications()
   document.addEventListener('click', hideContextMenu)
   // Keyboard shortcut for undo
@@ -1015,6 +1154,8 @@ defineExpose({ loadTree })
         <span class="batch-info">已选择 {{ selectedIds.size }} 项</span>
         <button class="btn-batch" @click="selectAll">全选</button>
         <button class="btn-batch" @click="openBatchMoveDialog">批量移动</button>
+        <button class="btn-batch" @click="openBatchRenameDialog">批量重命名</button>
+        <button class="btn-batch" @click="addToFavorites([...selectedIds])">收藏</button>
         <button class="btn-batch" @click="clearSelection">取消选择</button>
       </template>
       <button class="btn-trash" @click="loadTrash">回收站</button>
@@ -1036,6 +1177,8 @@ defineExpose({ loadTree })
       />
       <button class="btn-duplicate" @click="checkDuplicateNames">重名检测</button>
       <button class="btn-template" @click="showTemplateMarket = true">模板市场</button>
+      <button class="btn-hot" @click="loadHotAnalysis">热点分析</button>
+      <button class="btn-merge" @click="loadMergeSuggestions">合并建议</button>
       <select v-model="sortMode" class="sort-select">
         <option value="manual">手动排序</option>
         <option value="name">按名称</option>
@@ -1058,6 +1201,28 @@ defineExpose({ loadTree })
         <span class="pinned-icon">{{ cat.icon }}</span>
         <span class="pinned-name">{{ cat.name }}</span>
         <button class="pin-btn pinned" @click.stop="togglePin(cat)" title="取消置顶">📌</button>
+      </div>
+    </div>
+
+    <!-- Favorite categories -->
+    <div v-if="userFavorites.length > 0" class="favorites-section">
+      <div class="favorites-header">我的收藏 ({{ userFavorites.length }}/{{ MAX_FAVORITES }})</div>
+      <div
+        v-for="(favGroup, idx) in userFavorites"
+        :key="idx"
+        class="favorite-group"
+      >
+        <div class="favorite-group-items">
+          <span
+            v-for="cat in favGroup"
+            :key="cat.id"
+            class="favorite-item"
+            :class="{ selected: selectedCategory?.id === cat.id }"
+            @click="selectCategory(cat)"
+          >
+            {{ cat.icon }}
+          </span>
+        </div>
       </div>
     </div>
 
@@ -1274,6 +1439,12 @@ defineExpose({ loadTree })
       </div>
       <div class="context-menu-item" @click="addToCompare(contextMenuCategory!)">
         加入对比
+      </div>
+      <div class="context-menu-item" @click="addToFavorites([contextMenuCategory!.id])">
+        添加到收藏夹
+      </div>
+      <div class="context-menu-item" @click="integrityCheck(contextMenuCategory!.id)">
+        完整性检查
       </div>
       <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
         删除
@@ -1622,6 +1793,102 @@ defineExpose({ loadTree })
         </div>
         <div class="dialog-footer">
           <button class="btn-cancel" @click="showMoveHistory = false">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Batch rename dialog -->
+    <div v-if="showBatchRenameDialog" class="dialog-overlay" @click.self="showBatchRenameDialog = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>批量重命名</h3>
+          <button class="close-btn" @click="showBatchRenameDialog = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <p class="batch-hint">将 {{ selectedIds.size }} 个分类进行批量重命名</p>
+          <div class="form-item">
+            <label>重命名模式</label>
+            <select v-model="batchRenameMode" class="batch-rename-mode">
+              <option value="prefix">添加前缀</option>
+              <option value="suffix">添加后缀</option>
+              <option value="replace">替换文本</option>
+            </select>
+          </div>
+          <div class="form-item">
+            <label>{{ batchRenameMode === 'replace' ? '要替换的文本' : '添加的文本' }}</label>
+            <input v-model="batchRenameValue" :placeholder="batchRenameMode === 'prefix' ? '输入前缀' : batchRenameMode === 'suffix' ? '输入后缀' : '输入要替换的文本'" />
+          </div>
+          <div v-if="batchRenameMode === 'replace'" class="form-item">
+            <label>替换为</label>
+            <input v-model="batchRenameReplace" placeholder="输入替换文本" />
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showBatchRenameDialog = false">取消</button>
+          <button class="btn-confirm" @click="confirmBatchRename">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hot analysis dialog -->
+    <div v-if="showHotAnalysis" class="dialog-overlay" @click.self="showHotAnalysis = false">
+      <div class="dialog dialog-wide">
+        <div class="dialog-header">
+          <h3>分类热点分析</h3>
+          <button class="close-btn" @click="showHotAnalysis = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div v-if="hotAnalysisData.length === 0" class="empty-history">
+            暂无热点数据
+          </div>
+          <div v-else class="hot-analysis-list">
+            <div
+              v-for="(item, index) in hotAnalysisData"
+              :key="index"
+              class="hot-analysis-item"
+            >
+              <div class="hot-rank">{{ index + 1 }}</div>
+              <div class="hot-info">
+                <span class="hot-name">{{ item.name }}</span>
+                <span class="hot-count">{{ item.count }} 条知识</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showHotAnalysis = false">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Merge suggestions dialog -->
+    <div v-if="showMergeSuggestions" class="dialog-overlay" @click.self="showMergeSuggestions = false">
+      <div class="dialog dialog-wide">
+        <div class="dialog-header">
+          <h3>分类合并建议</h3>
+          <button class="close-btn" @click="showMergeSuggestions = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <div v-if="mergeSuggestions.length === 0" class="empty-history">
+            暂无合并建议
+          </div>
+          <div v-else class="merge-suggestions-list">
+            <div
+              v-for="(suggestion, index) in mergeSuggestions"
+              :key="index"
+              class="merge-suggestion-item"
+            >
+              <div class="merge-suggestion-info">
+                <span class="merge-icon">{{ suggestion.icon || '📁' }}</span>
+                <span class="merge-name">{{ suggestion.name }}</span>
+                <span class="merge-count">{{ suggestion.count }} 条知识</span>
+              </div>
+              <button class="btn-merge" @click="openMergeDialogFromSuggestion(suggestion)">合并</button>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showMergeSuggestions = false">关闭</button>
         </div>
       </div>
     </div>
@@ -2294,6 +2561,44 @@ defineExpose({ loadTree })
   border-bottom: 1px solid var(--border-color);
 }
 
+.favorites-section {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.favorites-header {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.favorite-group {
+  margin-bottom: 4px;
+}
+
+.favorite-group-items {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+}
+
+.favorite-item {
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.favorite-item:hover {
+  background: var(--bg-hover);
+}
+
+.favorite-item.selected {
+  background: var(--accent-bg);
+}
+
 .recent-header {
   font-size: 12px;
   color: var(--text-muted);
@@ -2570,5 +2875,128 @@ defineExpose({ loadTree })
 .history-action {
   color: var(--text-primary);
   font-size: 14px;
+}
+
+.btn-hot, .btn-merge {
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-hot:hover, .btn-merge:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
+.batch-rename-mode {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.hot-analysis-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.hot-analysis-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.hot-analysis-item:last-child {
+  border-bottom: none;
+}
+
+.hot-rank {
+  width: 28px;
+  height: 28px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.hot-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hot-name {
+  font-weight: 500;
+}
+
+.hot-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.merge-suggestions-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.merge-suggestion-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.merge-suggestion-item:last-child {
+  border-bottom: none;
+}
+
+.merge-suggestion-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.merge-icon {
+  font-size: 16px;
+}
+
+.merge-name {
+  font-weight: 500;
+}
+
+.merge-count {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.btn-merge {
+  padding: 4px 12px;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-merge:hover {
+  background: var(--accent);
+  color: var(--bg-primary);
 }
 </style>
