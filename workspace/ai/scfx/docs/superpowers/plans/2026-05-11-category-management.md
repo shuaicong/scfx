@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** 实现知识库分类管理功能，支持多级分类、软删除、回收站、批量操作、颜色主题、描述备注和实时同步通知
+**Goal:** 实现知识库分类管理功能，支持多级分类、软删除、回收站、批量操作、颜色主题、描述备注、实时同步、置顶、预览、批量创建和自动补全
 
 **Architecture:**
 - 后端：Spring Boot + MySQL 提供分类 CRUD API，AI-QA Service 提供知识-分类关联接口
@@ -18,7 +18,7 @@
 | 任务 | 范围 |
 |------|------|
 | Task 1 | 数据库：创建分类表、关联表 |
-| Task 2 | Spring Boot：分类 CRUD API（含回收站） |
+| Task 2 | Spring Boot：分类 CRUD API（含回收站、批量创建、预览） |
 | Task 3 | Spring Boot：知识-分类关联 API |
 | Task 4 | 前端 API 层：category.ts + knowledge-category.ts |
 | Task 5 | 前端基础：分类树组件 + CRUD |
@@ -26,7 +26,8 @@
 | Task 7 | 前端功能：批量操作、回收站、合并 |
 | Task 8 | 前端增强：颜色选择器、描述 tooltip |
 | Task 9 | 前端增强：层级深度显示、Undo、实时同步 |
-| Task 10 | 前端集成：Knowledge.vue 完整集成 |
+| Task 10 | 前端增强：置顶、预览、批量创建、自动补全 |
+| Task 11 | 前端集成：Knowledge.vue 完整集成 |
 
 ---
 
