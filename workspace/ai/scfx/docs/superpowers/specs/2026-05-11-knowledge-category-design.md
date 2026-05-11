@@ -34,6 +34,8 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | created_at | DATETIME | 创建时间 |
 | updated_at | DATETIME | 更新时间 |
 | deleted_at | DATETIME | 软删除时间，NULL表示未删除 |
+| color | VARCHAR(20) | 分类主题颜色，如 "#FF6B6B" |
+| description | VARCHAR(500) | 分类描述/备注，hover 时显示 |
 
 ### 知识-分类关联表 `t_knowledge_category`
 
@@ -50,6 +52,7 @@ Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | /api/category/tree | 获取分类树（层级结构） |
+| GET | /api/category/version | 获取分类树版本号（用于检测更新） |
 | GET | /api/category/trash | 获取回收站中的分类 |
 | POST | /api/category | 新建分类 |
 | PUT | /api/category/{id} | 更新分类（名称/图标/父级/排序） |
@@ -85,15 +88,28 @@ Response:
       "id": 1,
       "name": "粮信网",
       "icon": "🌐",
+      "color": "#FF6B6B",
+      "description": "粮信网主分类",
       "parentId": null,
       "sortOrder": 1,
       "knowledgeCount": 156,
       "children": [
-        { "id": 11, "name": "玉米", "icon": "🌐", "parentId": 1, "sortOrder": 1, "knowledgeCount": 45, "children": [] },
-        { "id": 12, "name": "小麦", "icon": "🌐", "parentId": 1, "sortOrder": 2, "knowledgeCount": 23, "children": [] }
+        { "id": 11, "name": "玉米", "icon": "🌐", "color": "#FFD93D", "description": "玉米期货价格", "parentId": 1, "sortOrder": 1, "knowledgeCount": 45, "children": [] },
+        { "id": 12, "name": "小麦", "icon": "🌐", "color": "#D4A574", "description": null, "parentId": 1, "sortOrder": 2, "knowledgeCount": 23, "children": [] }
       ]
     }
-  ]
+  ],
+  "version": 12
+}
+```
+
+**GET /api/category/version**
+
+Response:
+```json
+{
+  "code": 200,
+  "data": { "version": 12 }
 }
 ```
 
@@ -101,14 +117,14 @@ Response:
 
 Request:
 ```json
-{ "name": "新建分类", "icon": "📁", "parentId": null, "sortOrder": 99 }
+{ "name": "新建分类", "icon": "📁", "parentId": null, "sortOrder": 99, "color": "#58A6FF", "description": "分类描述" }
 ```
 
 **PUT /api/category/{id}**
 
 Request:
 ```json
-{ "name": "新名称", "icon": "📂", "parentId": 1, "sortOrder": 5 }
+{ "name": "新名称", "icon": "📂", "parentId": 1, "sortOrder": 5, "color": "#FF6B6B", "description": "分类描述文字" }
 ```
 
 **DELETE /api/category/{id}**
@@ -191,6 +207,34 @@ Request:
    - 可手动恢复或永久删除
 
 ## Frontend Changes
+
+### 分类颜色/主题
+- 每个分类左侧显示小色块（8px 宽的左边线）
+- 新建/编辑弹窗中增加颜色选择器（预设 8-10 种常用颜色）
+- 默认颜色跟随 emoji 主题色或随机分配
+
+### 分类层级深度显示
+- 分类树中根据层级深度动态计算缩进量（每层 +16px）
+- 分类名前显示序号路径，如 "1.2.3" 表示三级分类
+- 序号路径可点击跳转至对应层级
+
+### 多级 Undo（撤销）
+- 前端维护操作历史栈（最多保存 10 条）
+- 每次操作记录：type + beforeState + afterState
+- 工具栏或快捷键 Ctrl+Z 触发撤销
+- 支持连续撤销直到栈空
+- 切换分类 Tab 时清空栈
+
+### 分类备注/描述
+- 新建/编辑弹窗中增加"描述"输入框（最多 500 字）
+- 鼠标悬停分类名称时显示 tooltip
+- 描述文字支持复制
+
+### 实时同步通知
+- 前端每 30 秒轮询检查分类树版本
+- 发现更新时顶部弹出通知条幅："检测到分类更新，点击刷新"
+- 点击刷新按钮重新加载分类树
+- 通知条幅 5 秒后自动消失（未点击情况下）
 
 ### API Layer
 
@@ -276,6 +320,24 @@ export const knowledgeCategoryApi = {
 - 新建子分类时，如果当前层级已达到 4 层，禁止创建
 - 已有超过 4 层的分类数据允许访问但不可继续加深
 
+### 分类颜色/主题
+
+- 每个分类左侧显示小色块（8px 宽左边线）
+- 颜色值存储在 `color` 字段
+- 新建/编辑时从预设 8 色盘中选择
+
+### 分类描述/备注
+
+- 描述文字存储在 `description` 字段
+- hover 分类名称时显示 tooltip 浮层
+- 描述最长 500 字符
+
+### 实时同步
+
+- 前端每 30 秒调用 `GET /api/category/version` 获取当前版本号
+- 与本地缓存的 version 对比，发生变化时弹出刷新通知
+- 版本号在分类任何变更时 +1
+
 ### 批量移动分类
 
 - 分类支持复选框多选
@@ -320,6 +382,11 @@ export const knowledgeCategoryApi = {
 16. 批量移动分类
 17. 分类结构复制
 18. 键盘快捷键支持
+19. **分类颜色/主题**（左侧小色块 + 颜色选择器）
+20. **分类层级深度显示**（缩进 + 序号路径）
+21. **多级 Undo 撤销**（Ctrl+Z / 操作历史栈）
+22. **分类备注/描述**（hover tooltip）
+23. **实时同步通知**（30 秒轮询 + 刷新条幅）
 
 ## Database Schema
 
@@ -328,11 +395,14 @@ CREATE TABLE t_category (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     icon VARCHAR(50) DEFAULT '📁',
+    color VARCHAR(20) DEFAULT NULL,
+    description VARCHAR(500) DEFAULT NULL,
     parent_id BIGINT DEFAULT NULL,
     sort_order INT DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at DATETIME DEFAULT NULL,
+    version BIGINT DEFAULT 0,
     FOREIGN KEY (parent_id) REFERENCES t_category(id) ON DELETE SET NULL,
     INDEX idx_category_parent (parent_id),
     INDEX idx_category_deleted (deleted_at)
