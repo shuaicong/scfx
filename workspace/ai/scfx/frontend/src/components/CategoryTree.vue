@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { categoryApi, type Category } from '@/api/category'
 
 const props = defineProps<{
@@ -15,6 +15,48 @@ const folders = ref<Category[]>([])
 const expandedIds = ref<Set<number>>(new Set())
 const loading = ref(false)
 const selectedCategory = ref<Category | null>(null)
+
+// Search state
+const searchQuery = ref('')
+const searchResults = computed(() => {
+  if (!searchQuery.value) return []
+  const query = searchQuery.value.toLowerCase()
+  return flattenCategories(folders.value).filter(c =>
+    c.name.toLowerCase().includes(query)
+  )
+})
+
+const flattenCategories = (cats: Category[]): Category[] => {
+  return cats.flatMap(c => [c, ...flattenCategories(c.children || [])])
+}
+
+// Navigate to search result
+const navigateToCategory = (category: Category) => {
+  // Expand all parent categories first
+  const expandParents = (cats: Category[], targetId: number, path: number[] = []): boolean => {
+    for (const cat of cats) {
+      if (cat.id === targetId) {
+        // Expand all ancestors
+        path.forEach(id => expandedIds.value.add(id))
+        expandedIds.value = new Set(expandedIds.value)
+        return true
+      }
+      if (cat.children) {
+        if (expandParents(cat.children, targetId, [...path, cat.id])) {
+          return true
+        }
+      }
+    }
+    return false
+  }
+  expandParents(folders.value, category.id)
+  selectCategory(category)
+  searchQuery.value = ''
+}
+
+// Drag and drop state
+const draggedCategory = ref<Category | null>(null)
+const dropTargetId = ref<number | null>(null)
 
 // Context menu state
 const contextMenuVisible = ref(false)
@@ -121,6 +163,52 @@ const hideContextMenu = () => {
   contextMenuVisible.value = false
 }
 
+// Drag and drop handlers
+const onDragStart = (event: DragEvent, category: Category) => {
+  draggedCategory.value = category
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+  }
+}
+
+const onDragOver = (event: DragEvent, category: Category) => {
+  event.preventDefault()
+  dropTargetId.value = category.id
+}
+
+const onDragLeave = () => {
+  dropTargetId.value = null
+}
+
+const onDrop = async (event: DragEvent, targetCategory: Category) => {
+  event.preventDefault()
+  if (!draggedCategory.value || draggedCategory.value.id === targetCategory.id) return
+
+  // Update parent and sort order to target category's values
+  const updateData = {
+    parentId: targetCategory.parentId,
+    sortOrder: targetCategory.sortOrder
+  }
+  await categoryApi.update(draggedCategory.value.id, updateData)
+  await loadTree()
+
+  draggedCategory.value = null
+  dropTargetId.value = null
+}
+
+// Duplicate category
+const duplicateCategory = async (category: Category) => {
+  await categoryApi.create({
+    name: category.name + ' (copy)',
+    icon: category.icon,
+    color: category.color,
+    parentId: category.parentId,
+    sortOrder: category.sortOrder + 1
+  })
+  await loadTree()
+  contextMenuVisible.value = false
+}
+
 // Calculate indent
 const getIndent = (depth: number) => depth * 16
 
@@ -160,6 +248,10 @@ onMounted(() => {
   document.addEventListener('click', hideContextMenu)
 })
 
+onUnmounted(() => {
+  document.removeEventListener('click', hideContextMenu)
+})
+
 defineExpose({ loadTree })
 </script>
 
@@ -168,6 +260,26 @@ defineExpose({ loadTree })
     <!-- Toolbar -->
     <div class="tree-toolbar">
       <button class="btn-new" @click="openCreateDialog(null)">+ 新建分类</button>
+    </div>
+
+    <!-- Search input -->
+    <div class="tree-search">
+      <input
+        v-model="searchQuery"
+        placeholder="搜索分类..."
+        class="search-input"
+      />
+      <div v-if="searchResults.length > 0" class="search-results">
+        <div
+          v-for="result in searchResults"
+          :key="result.id"
+          class="search-result-item"
+          @click="navigateToCategory(result)"
+        >
+          <span class="search-icon">{{ result.icon }}</span>
+          <span class="search-name">{{ result.name }}</span>
+        </div>
+      </div>
     </div>
 
     <!-- Category list -->
@@ -181,8 +293,13 @@ defineExpose({ loadTree })
         >
           <div
             class="folder-row"
-            :class="{ selected: selectedCategory?.id === category.id }"
+            :class="{ selected: selectedCategory?.id === category.id, 'drag-over': dropTargetId === category.id }"
             :style="{ paddingLeft: getIndent(0) + 'px' }"
+            draggable="true"
+            @dragstart="onDragStart($event, category)"
+            @dragover="onDragOver($event, category)"
+            @dragleave="onDragLeave"
+            @drop="onDrop($event, category)"
             @click="selectCategory(category)"
             @contextmenu="showContextMenu($event, category)"
           >
@@ -214,8 +331,13 @@ defineExpose({ loadTree })
             >
               <div
                 class="folder-row"
-                :class="{ selected: selectedCategory?.id === child.id }"
+                :class="{ selected: selectedCategory?.id === child.id, 'drag-over': dropTargetId === child.id }"
                 :style="{ paddingLeft: getIndent(1) + 'px' }"
+                draggable="true"
+                @dragstart="onDragStart($event, child)"
+                @dragover="onDragOver($event, child)"
+                @dragleave="onDragLeave"
+                @drop="onDrop($event, child)"
                 @click="selectCategory(child)"
                 @contextmenu="showContextMenu($event, child)"
               >
@@ -247,6 +369,9 @@ defineExpose({ loadTree })
       </div>
       <div class="context-menu-item" @click="openEditDialog(contextMenuCategory!)">
         编辑
+      </div>
+      <div class="context-menu-item" @click="duplicateCategory(contextMenuCategory!)">
+        复制
       </div>
       <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
         删除
@@ -299,6 +424,61 @@ defineExpose({ loadTree })
   border-bottom: 1px solid var(--border-color);
 }
 
+.tree-search {
+  padding: 8px;
+  position: relative;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.search-results {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 100;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.search-result-item:hover {
+  background: var(--bg-hover);
+}
+
+.search-icon {
+  font-size: 14px;
+}
+
+.search-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .btn-new {
   width: 100%;
   padding: 8px;
@@ -336,6 +516,11 @@ defineExpose({ loadTree })
 .folder-row.selected {
   background: var(--accent-bg);
   color: var(--accent);
+}
+
+.folder-row.drag-over {
+  background: var(--accent-bg);
+  outline: 2px dashed var(--accent);
 }
 
 .folder-toggle {
