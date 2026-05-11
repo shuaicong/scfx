@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { debounce } from 'lodash-es'
 import { categoryApi, type Category } from '@/api/category'
 
 // Undo action types
@@ -170,6 +171,85 @@ const presetColors = [
 
 // Description tooltip state
 const hoveredCategoryId = ref<number | null>(null)
+
+// Pinned categories
+const pinnedCategories = computed(() => {
+  return flattenCategories(folders.value)
+    .filter(c => c.pinned === 1)
+    .slice(0, 3) // 最多置顶 3 个
+})
+
+const togglePin = async (category: Category) => {
+  const newPinned = category.pinned === 1 ? 0 : 1
+  await categoryApi.update(category.id, { pinned: newPinned })
+  await loadTree()
+}
+
+// Preview category state
+const previewCategory = ref<Category | null>(null)
+const previewKnowledge = ref<any[]>([])
+const showPreview = ref(false)
+
+const openPreview = async (category: Category) => {
+  previewCategory.value = category
+  // 实际应调用 API 获取该分类下的知识列表
+  previewKnowledge.value = []
+  showPreview.value = true
+  contextMenuVisible.value = false
+}
+
+const closePreview = () => {
+  showPreview.value = false
+  previewCategory.value = null
+  previewKnowledge.value = []
+}
+
+// Batch create state
+const showBatchCreate = ref(false)
+const batchCreateNames = ref('')
+
+const openBatchCreateDialog = (parentId: number | null = null) => {
+  editingCategory.value = { ...editingCategory.value, parentId }
+  showBatchCreate.value = true
+  contextMenuVisible.value = false
+}
+
+const confirmBatchCreate = async () => {
+  const names = batchCreateNames.value.split('\n').filter(n => n.trim())
+  for (const name of names) {
+    await categoryApi.create({
+      name: name.trim(),
+      icon: editingCategory.value.icon || '📁',
+      color: editingCategory.value.color,
+      parentId: editingCategory.value.parentId,
+      sortOrder: 99
+    })
+  }
+  showBatchCreate.value = false
+  batchCreateNames.value = ''
+  await loadTree()
+}
+
+// Autocomplete state
+const autocompleteQuery = ref('')
+const autocompleteResults = ref<Category[]>([])
+
+const searchCategories = async (query: string) => {
+  if (!query) {
+    autocompleteResults.value = []
+    return
+  }
+  try {
+    const res = await categoryApi.search(query)
+    // API returns { code, data: [...] } after interceptor, so use res.data
+    autocompleteResults.value = res.data || []
+  } catch (e) {
+    console.error('Failed to search categories:', e)
+    autocompleteResults.value = []
+  }
+}
+
+const debouncedSearch = debounce(searchCategories, 300)
 
 const showDescription = (category: Category) => {
   if (category.description) {
@@ -505,6 +585,7 @@ defineExpose({ loadTree })
     <!-- Toolbar -->
     <div class="tree-toolbar">
       <button v-if="!batchMode" class="btn-new" @click="openCreateDialog(null)">+ 新建分类</button>
+      <button v-if="!batchMode" class="btn-batch-tool" @click="openBatchCreateDialog(null)">批量创建</button>
       <template v-else>
         <span class="batch-info">已选择 {{ selectedIds.size }} 项</span>
         <button class="btn-batch" @click="selectAll">全选</button>
@@ -513,19 +594,36 @@ defineExpose({ loadTree })
       <button class="btn-trash" @click="loadTrash">回收站</button>
     </div>
 
-    <!-- Search input -->
+    <!-- Pinned categories -->
+    <div v-if="pinnedCategories.length > 0" class="pinned-section">
+      <div class="pinned-header">置顶分类</div>
+      <div
+        v-for="cat in pinnedCategories"
+        :key="cat.id"
+        class="pinned-item"
+        :class="{ selected: selectedCategory?.id === cat.id }"
+        @click="selectCategory(cat)"
+      >
+        <span class="pinned-icon">{{ cat.icon }}</span>
+        <span class="pinned-name">{{ cat.name }}</span>
+        <button class="pin-btn pinned" @click.stop="togglePin(cat)" title="取消置顶">📌</button>
+      </div>
+    </div>
+
+    <!-- Search input with autocomplete -->
     <div class="tree-search">
       <input
-        v-model="searchQuery"
+        v-model="autocompleteQuery"
+        @input="debouncedSearch(autocompleteQuery)"
         placeholder="搜索分类..."
         class="search-input"
       />
-      <div v-if="searchResults.length > 0" class="search-results">
+      <div v-if="autocompleteResults.length > 0" class="search-results">
         <div
-          v-for="result in searchResults"
+          v-for="result in autocompleteResults"
           :key="result.id"
           class="search-result-item"
-          @click="navigateToCategory(result)"
+          @click="navigateToCategory(result); autocompleteQuery = ''; autocompleteResults = []"
         >
           <span class="search-icon">{{ result.icon }}</span>
           <span class="search-name">{{ result.name }}</span>
@@ -663,8 +761,17 @@ defineExpose({ loadTree })
       <div class="context-menu-item" @click="openCreateDialog(contextMenuCategory?.id || null)">
         新建子分类
       </div>
+      <div class="context-menu-item" @click="openBatchCreateDialog(contextMenuCategory?.id || null)">
+        批量创建
+      </div>
       <div class="context-menu-item" @click="openEditDialog(contextMenuCategory!)">
         编辑
+      </div>
+      <div class="context-menu-item" @click="togglePin(contextMenuCategory!)">
+        {{ contextMenuCategory?.pinned === 1 ? '取消置顶' : '置顶' }}
+      </div>
+      <div class="context-menu-item" @click="openPreview(contextMenuCategory!)">
+        预览
       </div>
       <div class="context-menu-item" @click="duplicateCategory(contextMenuCategory!)">
         复制
@@ -748,6 +855,63 @@ defineExpose({ loadTree })
         </div>
       </div>
     </div>
+
+    <!-- Preview dialog -->
+    <div v-if="showPreview" class="dialog-overlay" @click.self="closePreview">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>分类预览：{{ previewCategory?.name }}</h3>
+          <button class="close-btn" @click="closePreview">×</button>
+        </div>
+        <div class="dialog-body">
+          <div class="preview-info">
+            <span class="preview-icon">{{ previewCategory?.icon }}</span>
+            <span class="preview-name">{{ previewCategory?.name }}</span>
+          </div>
+          <div class="preview-section">
+            <h4>知识列表</h4>
+            <div v-if="previewKnowledge.length === 0" class="empty-preview">
+              暂无知识
+            </div>
+            <div v-else class="preview-list">
+              <div
+                v-for="knowledge in previewKnowledge"
+                :key="knowledge.id"
+                class="preview-item"
+              >
+                {{ knowledge.title }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="closePreview">关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Batch create dialog -->
+    <div v-if="showBatchCreate" class="dialog-overlay" @click.self="showBatchCreate = false">
+      <div class="dialog">
+        <div class="dialog-header">
+          <h3>批量创建分类</h3>
+          <button class="close-btn" @click="showBatchCreate = false">×</button>
+        </div>
+        <div class="dialog-body">
+          <p class="batch-hint">每行一个分类名称</p>
+          <textarea
+            v-model="batchCreateNames"
+            class="batch-textarea"
+            placeholder="分类名称1&#10;分类名称2&#10;分类名称3"
+            rows="8"
+          ></textarea>
+        </div>
+        <div class="dialog-footer">
+          <button class="btn-cancel" @click="showBatchCreate = false">取消</button>
+          <button class="btn-confirm" @click="confirmBatchCreate">确定创建</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -826,6 +990,21 @@ defineExpose({ loadTree })
   border-radius: 4px;
   color: var(--accent);
   cursor: pointer;
+}
+
+.btn-batch-tool {
+  width: 100%;
+  padding: 8px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.btn-batch-tool:hover {
+  background: var(--bg-hover);
 }
 
 .btn-new:hover {
@@ -1251,5 +1430,122 @@ defineExpose({ loadTree })
   cursor: pointer;
   z-index: 1000;
   box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.pinned-section {
+  padding: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.pinned-header {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.pinned-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.pinned-item:hover {
+  background: var(--bg-hover);
+}
+
+.pinned-item.selected {
+  background: var(--accent-bg);
+}
+
+.pinned-icon {
+  font-size: 14px;
+}
+
+.pinned-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pin-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.pin-btn:hover {
+  opacity: 1;
+}
+
+.pin-btn.pinned {
+  opacity: 1;
+}
+
+.preview-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+
+.preview-icon {
+  font-size: 20px;
+}
+
+.preview-name {
+  font-weight: 500;
+}
+
+.preview-section h4 {
+  margin: 0 0 8px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.empty-preview {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.preview-list {
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.preview-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.preview-item:last-child {
+  border-bottom: none;
+}
+
+.batch-hint {
+  margin: 0 0 12px 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.batch-textarea {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
 }
 </style>
