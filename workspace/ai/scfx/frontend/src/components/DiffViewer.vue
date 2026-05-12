@@ -15,7 +15,6 @@
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue'
 import { Loading, WarningFilled } from '@element-plus/icons-vue'
-import * as monaco from 'monaco-editor'
 
 const props = withDefaults(defineProps<{
   originalValue?: string
@@ -32,30 +31,45 @@ const props = withDefaults(defineProps<{
 const containerRef = ref<HTMLElement | null>(null)
 const loading = ref(true)
 const error = ref('')
-let diffEditor: monaco.editor.IStandaloneDiffEditor | null = null
+let diffEditor: any = null
 
 function initDiffEditor() {
   if (!containerRef.value) return
 
   try {
-    diffEditor = monaco.editor.createDiffEditor(containerRef.value, {
-      theme: 'vs-dark',
-      automaticLayout: true,
-      readOnly: true,
-      renderSideBySide: true,
-      originalEditable: false,
-      scrollBeyondLastLine: false,
-    })
+    // 等待 monaco 从 CDN 加载完成
+    const checkMonaco = setInterval(() => {
+      if (window.monaco) {
+        clearInterval(checkMonaco)
+        diffEditor = window.monaco.editor.createDiffEditor(containerRef.value, {
+          theme: 'vs-dark',
+          automaticLayout: true,
+          readOnly: true,
+          renderSideBySide: true,
+          originalEditable: false,
+          scrollBeyondLastLine: false,
+        })
 
-    const originalModel = monaco.editor.createModel(props.originalValue, props.language)
-    const modifiedModel = monaco.editor.createModel(props.modifiedValue, props.language)
+        const originalModel = window.monaco.editor.createModel(props.originalValue, props.language)
+        const modifiedModel = window.monaco.editor.createModel(props.modifiedValue, props.language)
 
-    diffEditor.setModel({
-      original: originalModel,
-      modified: modifiedModel,
-    })
+        diffEditor.setModel({
+          original: originalModel,
+          modified: modifiedModel,
+        })
 
-    loading.value = false
+        loading.value = false
+      }
+    }, 50)
+
+    // 超时处理
+    setTimeout(() => {
+      clearInterval(checkMonaco)
+      if (!diffEditor) {
+        error.value = '编辑器加载超时'
+        loading.value = false
+      }
+    }, 10000)
   } catch (e) {
     error.value = '编辑器初始化失败'
     loading.value = false
