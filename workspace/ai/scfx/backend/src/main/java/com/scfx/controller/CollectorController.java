@@ -30,17 +30,12 @@ public class CollectorController {
      */
     @PostMapping("/start")
     public Result<Map<String, Object>> startExecution(@RequestBody Map<String, Object> request) {
-        Long taskId = ((Number) request.get("taskId")).longValue();
-        Result<TaskExecution> result = executionService.startExecution(taskId);
+        Long scriptId = ((Number) request.get("taskId")).longValue();
+        TaskExecution execution = executionService.createExecution(scriptId, "manual");
 
-        if (result.getCode() != 200) {
-            return Result.error(result.getMessage());
-        }
-
-        TaskExecution execution = result.getData();
         return Result.success(Map.of(
             "executionId", execution.getExecutionId(),
-            "taskId", execution.getTaskId(),
+            "scriptId", execution.getScriptId(),
             "startTime", execution.getStartTime()
         ));
     }
@@ -54,8 +49,7 @@ public class CollectorController {
     public Result<Void> reportProgress(
             @PathVariable String executionId,
             @RequestBody Map<String, Object> request) {
-        int collectedCount = ((Number) request.get("collectedCount")).intValue();
-        executionService.reportProgress(executionId, collectedCount);
+        // 不需要单独存储进度，在完成时更新即可
         return Result.success();
     }
 
@@ -70,7 +64,7 @@ public class CollectorController {
             @RequestBody Map<String, Object> request) {
         String level = (String) request.getOrDefault("level", "INFO");
         String message = (String) request.get("message");
-        executionService.addLog(executionId, level, message);
+        executionService.addLog(executionId, null, level, message);
         return Result.success();
     }
 
@@ -106,7 +100,6 @@ public class CollectorController {
         }
 
         reportService.saveReport(report);
-        executionService.reportProgress(executionId, 1);
         return Result.success();
     }
 

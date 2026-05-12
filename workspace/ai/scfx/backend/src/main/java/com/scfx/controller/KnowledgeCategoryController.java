@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/knowledge")
+@RequestMapping("/knowledge")
 @RequiredArgsConstructor
 public class KnowledgeCategoryController {
     private final KnowledgeCategoryService service;

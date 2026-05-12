@@ -11,7 +11,6 @@ import java.time.DayOfWeek;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
-import java.util.Date;
 import java.util.List;
 
 @Slf4j
@@ -126,12 +125,12 @@ public class TriggerScheduleService {
                 org.springframework.scheduling.support.CronExpression.parse(script.getCronExpression());
 
             // 计算当前时间对应的下一个执行时间
-            Date nowDate = Date.from(now.atZone(ZoneId.systemDefault()).toInstant());
-            Date next = cron.next(nowDate);
+            java.time.ZonedDateTime nowZoned = now.atZone(ZoneId.systemDefault());
+            java.time.temporal.TemporalAccessor next = cron.next(nowZoned);
             if (next == null) return false;
 
             // 检查下一个执行时间是否在当前分钟范围内
-            LocalDateTime nextExec = LocalDateTime.ofInstant(next.toInstant(), ZoneId.systemDefault());
+            LocalDateTime nextExec = LocalDateTime.ofInstant(java.time.Instant.from(next), ZoneId.systemDefault());
             LocalDateTime minuteEnd = now.plusMinutes(1).withSecond(0).withNano(0);
 
             return !nextExec.isBefore(now) && nextExec.isBefore(minuteEnd);

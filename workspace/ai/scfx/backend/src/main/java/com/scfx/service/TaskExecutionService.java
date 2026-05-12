@@ -88,6 +88,23 @@ public class TaskExecutionService {
     }
 
     /**
+     * 上报错误（被采集器调用）
+     */
+    public void reportError(String executionId, String errorMessage) {
+        updateStatus(executionId, "failed", errorMessage);
+        addLog(executionId, null, "ERROR", errorMessage);
+    }
+
+    /**
+     * 完成执行（被采集器调用）
+     */
+    public void completeExecution(String executionId, String status, int collectedCount) {
+        updateStatus(executionId, status, null);
+        String logMsg = "Execution completed with status: " + status + ", collected: " + collectedCount;
+        addLog(executionId, null, "INFO", logMsg);
+    }
+
+    /**
      * 获取执行日志
      */
     public List<TaskExecutionLog> getLogs(String executionId) {
@@ -98,7 +115,7 @@ public class TaskExecutionService {
         );
     }
 
-    private TaskExecution findByExecutionId(String executionId) {
+    public TaskExecution findByExecutionId(String executionId) {
         return executionMapper.selectOne(
             new LambdaQueryWrapper<TaskExecution>()
                 .eq(TaskExecution::getExecutionId, executionId)
