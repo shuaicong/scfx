@@ -54,4 +54,7 @@ export const categoryApi = {
   export: () => request.get<{ code: number; data: { data: string } }>('/category/export'),
   import: (data: string, operator?: string) => request.post('/category/import', { data, operator }),
   hotAnalysis: () => request.get('/category/hot-analysis'),
+
+  // 获取分类向量化状态
+  getVectorizeStatus: (categoryId: number) => request.get(`/category/${categoryId}/vectorize-status`),
 }

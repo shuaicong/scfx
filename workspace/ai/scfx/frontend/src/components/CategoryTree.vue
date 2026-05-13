@@ -292,6 +292,20 @@ const hasVectorizeBadge = (category: Category): boolean => {
   return getVectorizeBadge(category) !== ''
 }
 
+const getVectorizeStatus = (categoryId: number): VectorizeStatus | undefined => {
+  return vectorizeStatusMap.value.get(categoryId)
+}
+
+const hasFailedVectorize = (categoryId: number): boolean => {
+  const status = vectorizeStatusMap.value.get(categoryId)
+  return (status?.failed ?? 0) > 0
+}
+
+const hasProcessingVectorize = (categoryId: number): boolean => {
+  const status = vectorizeStatusMap.value.get(categoryId)
+  return (status?.processing ?? 0) > 0
+}
+
 const loadVectorizeStatus = async (category: Category) => {
   try {
     // 调用 API 获取向量化状态
@@ -1510,7 +1524,7 @@ defineExpose({ loadTree })
             <span
               v-if="hasVectorizeBadge(category)"
               class="vectorize-badge"
-              :class="{ 'has-failed': vectorizeStatusMap.get(category.id)?.failed > 0, 'is-processing': vectorizeStatusMap.get(category.id)?.processing > 0 }"
+              :class="{ 'has-failed': hasFailedVectorize(category.id), 'is-processing': hasProcessingVectorize(category.id) }"
             >{{ getVectorizeBadge(category) }}</span>
             <button class="inline-add-btn" @click.stop="openCreateDialog(category.id)" title="添加子分类">+</button>
           </div>

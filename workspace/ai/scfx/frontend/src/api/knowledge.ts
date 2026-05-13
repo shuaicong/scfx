@@ -2,7 +2,7 @@ import request from './index'
 
 export const knowledgeApi = {
   list: (params: { page?: number; size?: number; sourceType?: string; vectorStatus?: string; categoryId?: number }) =>
-    request.get('/knowledge', { params }),
+    request.get('/knowledge/list', { params }),
 
   getById: (id: number) =>
     request.get(`/knowledge/${id}`),
@@ -30,4 +30,8 @@ export const knowledgeApi = {
 
   manualAdd: (data: { title: string; content: string; source?: string; author?: string; publishTime?: string }) =>
     request.post('/knowledge/manual', data),
+
+  // 获取未分类知识数量
+  getUncategorizedCount: () =>
+    request.get('/knowledge/uncategorized/count'),
 }
