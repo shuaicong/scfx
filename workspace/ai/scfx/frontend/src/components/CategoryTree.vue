@@ -1480,9 +1480,6 @@ defineExpose({ loadTree })
       <div class="context-menu-item" @click="openCreateDialog(contextMenuCategory?.id || null)">
         新建子分类
       </div>
-      <div class="context-menu-item" @click="openBatchCreateDialog(contextMenuCategory?.id || null)">
-        批量创建
-      </div>
       <div class="context-menu-item" @click="openEditDialog(contextMenuCategory!)">
         编辑
       </div>
@@ -1498,29 +1495,11 @@ defineExpose({ loadTree })
       <div class="context-menu-item" @click="openMergeDialog(contextMenuCategory!)">
         合并
       </div>
-      <div class="context-menu-item" @click="toggleSubscription(contextMenuCategory!.id)">
-        {{ subscribedCategoryIds.has(contextMenuCategory!.id) ? '取消订阅' : '订阅通知' }}
-      </div>
       <div class="context-menu-item" @click="showPermissionDialog(contextMenuCategory!)">
         权限设置
       </div>
-      <div class="context-menu-item" @click="openCategorySearch(contextMenuCategory!)">
-        搜索知识
-      </div>
-      <div class="context-menu-item" @click="loadMoveHistory(contextMenuCategory!.id)">
-        移动历史
-      </div>
-      <div class="context-menu-item" @click="autoTagging(contextMenuCategory!.id)">
-        AI 自动标签
-      </div>
-      <div class="context-menu-item" @click="addToCompare(contextMenuCategory!)">
-        加入对比
-      </div>
       <div class="context-menu-item" @click="addToFavorites([contextMenuCategory!.id])">
         添加到收藏夹
-      </div>
-      <div class="context-menu-item" @click="integrityCheck(contextMenuCategory!.id)">
-        完整性检查
       </div>
       <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
         删除
