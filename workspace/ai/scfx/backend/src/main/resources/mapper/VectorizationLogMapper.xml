@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scfx.mapper.VectorizationLogMapper">
+    <resultMap id="BaseResultMap" type="com.scfx.entity.VectorizationLog">
+        <id column="id" property="id"/>
+        <result column="knowledge_id" property="knowledgeId"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="status" property="status"/>
+        <result column="retry_count" property="retryCount"/>
+        <result column="error_message" property="errorMessage"/>
+        <result column="vector_id" property="vectorId"/>
+        <result column="process_time_ms" property="processTimeMs"/>
+        <result column="model_version" property="modelVersion"/>
+        <result column="content_hash" property="contentHash"/>
+        <result column="content_length" property="contentLength"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+</mapper>
