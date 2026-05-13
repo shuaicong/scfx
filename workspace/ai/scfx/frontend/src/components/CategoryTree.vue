@@ -1125,6 +1125,7 @@ const confirmDelete = async () => {
     }
 
     await categoryApi.delete(deleteTargetId.value)
+    ElMessage.success('分类已删除')
     pushUndo({
       type: 'delete',
       before: category || null,
