@@ -46,3 +46,11 @@ export function previewCategoryMapping(source: string, variety?: string, reportT
     params: { source, variety, reportType }
   })
 }
+
+export function getCategoryDependency(categoryId: number) {
+  return request.get(`/category-mapping/dependency/${categoryId}`)
+}
+
+export function getMappingsByCategory(categoryId: number) {
+  return request.get(`/category-mapping/by-category/${categoryId}`)
+}

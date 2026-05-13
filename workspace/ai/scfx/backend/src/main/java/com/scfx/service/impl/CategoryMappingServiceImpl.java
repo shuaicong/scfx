@@ -2,18 +2,23 @@ package com.scfx.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scfx.entity.CategoryMapping;
+import com.scfx.entity.KnowledgeBase;
 import com.scfx.mapper.CategoryMappingMapper;
+import com.scfx.mapper.KnowledgeBaseMapper;
 import com.scfx.service.CategoryMappingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 public class CategoryMappingServiceImpl implements CategoryMappingService {
 
     private final CategoryMappingMapper mappingMapper;
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
 
     // 默认分类ID（未分类）
     private static final Long DEFAULT_CATEGORY_ID = 1L;
@@ -95,5 +100,30 @@ public class CategoryMappingServiceImpl implements CategoryMappingService {
     @Override
     public Long preview(String source, String variety, String reportType) {
         return map(source, variety, reportType);
+    }
+
+    @Override
+    public List<CategoryMapping> getByCategoryId(Long categoryId) {
+        LambdaQueryWrapper<CategoryMapping> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(CategoryMapping::getCategoryId, categoryId);
+        return mappingMapper.selectList(wrapper);
+    }
+
+    @Override
+    public Map<String, Object> getCategoryDependency(Long categoryId) {
+        Map<String, Object> result = new HashMap<>();
+
+        // 获取引用该分类的映射规则
+        List<CategoryMapping> mappings = getByCategoryId(categoryId);
+        result.put("mappingCount", mappings.size());
+        result.put("mappings", mappings);
+
+        // 获取该分类下的知识数量
+        LambdaQueryWrapper<KnowledgeBase> kbWrapper = new LambdaQueryWrapper<>();
+        kbWrapper.eq(KnowledgeBase::getCategoryId, categoryId);
+        Long knowledgeCount = knowledgeBaseMapper.selectCount(kbWrapper);
+        result.put("knowledgeCount", knowledgeCount);
+
+        return result;
     }
 }

@@ -2,6 +2,7 @@ package com.scfx.service;
 
 import com.scfx.entity.CategoryMapping;
 import java.util.List;
+import java.util.Map;
 
 public interface CategoryMappingService {
 
@@ -35,4 +36,14 @@ public interface CategoryMappingService {
      * 测试映射预览
      */
     Long preview(String source, String variety, String reportType);
+
+    /**
+     * 获取引用某个分类的所有映射规则
+     */
+    List<CategoryMapping> getByCategoryId(Long categoryId);
+
+    /**
+     * 获取分类的引用统计
+     */
+    Map<String, Object> getCategoryDependency(Long categoryId);
 }

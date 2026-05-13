@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/category-mapping")
@@ -55,5 +56,17 @@ public class CategoryMappingController {
         Long categoryId = categoryMappingService.preview(source, variety, reportType);
         Category category = categoryService.getById(categoryId);
         return Result.success(category);
+    }
+
+    // 获取分类的映射规则依赖
+    @GetMapping("/dependency/{categoryId}")
+    public Result<Map<String, Object>> getDependency(@PathVariable Long categoryId) {
+        return Result.success(categoryMappingService.getCategoryDependency(categoryId));
+    }
+
+    // 获取引用某个分类的所有映射规则
+    @GetMapping("/by-category/{categoryId}")
+    public Result<List<CategoryMapping>> getByCategory(@PathVariable Long categoryId) {
+        return Result.success(categoryMappingService.getByCategoryId(categoryId));
     }
 }

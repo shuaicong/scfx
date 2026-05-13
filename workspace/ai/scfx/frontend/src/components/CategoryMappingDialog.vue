@@ -76,7 +76,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { listCategoryMappings, createCategoryMapping, updateCategoryMapping, deleteCategoryMapping, type CategoryMapping } from '@/api/category-mapping'
+import { listCategoryMappings, createCategoryMapping, updateCategoryMapping, deleteCategoryMapping, getCategoryDependency, type CategoryMapping } from '@/api/category-mapping'
 
 const props = defineProps<{ modelValue: boolean }>()
 const emit = defineEmits(['update:modelValue'])
@@ -130,7 +130,20 @@ async function handleSave() {
 
 async function handleDelete(row: CategoryMapping) {
   if (!row.id) return
+
+  // 先查询依赖
   try {
+    const res: any = await getCategoryDependency(row.categoryId)
+    if (res.code === 200) {
+      const data = res.data
+      if (data.mappingCount > 0) {
+        ElMessage.warning(`该分类被 ${data.mappingCount} 条映射规则引用`)
+      }
+      if (data.knowledgeCount > 0) {
+        ElMessage.warning(`该分类下有 ${data.knowledgeCount} 条知识`)
+      }
+    }
+
     await deleteCategoryMapping(row.id)
     loadMappings()
     ElMessage.success('删除成功')
