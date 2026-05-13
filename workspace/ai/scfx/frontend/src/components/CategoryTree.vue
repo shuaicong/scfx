@@ -54,12 +54,6 @@ const undo = async () => {
   await loadTree()
 }
 
-// Template import trigger
-const triggerTemplateImport = () => {
-  const input = document.getElementById('template-import-input') as HTMLInputElement | null
-  input?.click()
-}
-
 // Real-time sync state
 const localVersion = ref(0)
 const showSyncNotification = ref(false)
@@ -68,7 +62,7 @@ let syncInterval: ReturnType<typeof setInterval> | null = null
 const checkVersion = async () => {
   try {
     const res = await categoryApi.version()
-    const remoteVersion = res.data.data.version
+    const remoteVersion = res.data?.data?.version ?? 0
     if (remoteVersion > localVersion.value && localVersion.value > 0) {
       showSyncNotification.value = true
     }
@@ -102,6 +96,33 @@ const getDisplayDepth = (category: Category): string => {
   return `[${path}] ${category.name}`
 }
 
+const getCategoryDepth = (category: Category): number => {
+  let depth = 0
+  let current = category
+  const all = flattenCategories(folders.value)
+  while (current.parentId) {
+    depth++
+    current = all.find(c => c.id === current.parentId) || current
+    if (depth > 10) break // prevent infinite loop
+  }
+  return depth
+}
+
+const getDepthClass = (category: Category): string => {
+  const depth = getCategoryDepth(category)
+  if (depth >= 3) return 'depth-3'
+  if (depth >= 2) return 'depth-2'
+  if (depth >= 1) return 'depth-1'
+  return ''
+}
+
+const getDepthClassByDepth = (depth: number): string => {
+  if (depth >= 3) return 'depth-3'
+  if (depth >= 2) return 'depth-2'
+  if (depth >= 1) return 'depth-1'
+  return ''
+}
+
 const props = defineProps<{
   selectedId?: number
 }>()
@@ -122,13 +143,49 @@ const searchResults = computed(() => {
   if (!searchQuery.value) return []
   const query = searchQuery.value.toLowerCase()
   return flattenCategories(folders.value).filter(c =>
-    c.name.toLowerCase().includes(query)
+    c.name.toLowerCase().includes(query) ||
+    (c.description && c.description.toLowerCase().includes(query))
   )
 })
 
 const flattenCategories = (cats: Category[]): Category[] => {
   return cats.flatMap(c => [c, ...flattenCategories(c.children || [])])
 }
+
+// Flatten tree to array with depth for recursive rendering
+interface FlattenedCategory {
+  category: Category
+  depth: number
+}
+
+const flattenWithDepth = (cats: Category[], depth: number = 0): FlattenedCategory[] => {
+  return cats.flatMap(c => [
+    { category: c, depth },
+    ...flattenWithDepth(c.children || [], depth + 1)
+  ])
+}
+
+// Get visible categories based on expanded state
+const visibleCategories = computed<FlattenedCategory[]>(() => {
+  const result: FlattenedCategory[] = []
+
+  const walk = (cats: Category[], depth: number, parentExpanded: boolean) => {
+    for (const cat of cats) {
+      const isExpanded = expandedIds.value.has(cat.id)
+      // Only include if parent is expanded (or it's root level, depth === 0)
+      if (depth === 0 || parentExpanded) {
+        result.push({ category: cat, depth })
+      }
+      // Recurse into children only if this category is expanded
+      if (cat.children?.length && isExpanded) {
+        walk(cat.children, depth + 1, true)
+      }
+    }
+  }
+
+  walk(folders.value, 0, false)
+  return result
+})
 
 // Navigate to search result
 const navigateToCategory = (category: Category) => {
@@ -168,6 +225,11 @@ const dialogVisible = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const editingCategory = ref<Partial<Category>>({})
 
+// Delete confirmation dialog state
+const deleteDialogVisible = ref(false)
+const deleteTargetId = ref<number | null>(null)
+const deleteTargetName = ref('')
+
 // Batch selection state
 const selectedIds = ref<Set<number>>(new Set())
 const batchMode = ref(false)
@@ -178,8 +240,24 @@ const presetColors = [
   '#FFD93D', '#A371F7', '#8B949E', '#F5C87A'
 ]
 
+// Default emoji icons
+const defaultEmojis = [
+  '📁', '📂', '📃', '📄', '📅', '📆', '📇', '📈',
+  '📉', '📊', '📋', '📌', '📍', '📎', '📏', '📐',
+  '🗂️', '🗃️', '🗄️', '🗑️', '📑', '🔖', '🏷️', '🏷️',
+  '📦', '📧', '📨', '📩', '📪', '📫', '📬', '📭',
+  '💼', '📁', '📋', '📌', '📎', '🔗', '📎', '🖇️',
+  '💰', '💵', '💴', '💶', '💷', '💸', '💳', '🧾',
+  '📝', '📜', '📃', '📄', '📑', '📋', '🗒️', '🗓️',
+  '🌐', '🌍', '🌎', '🌏', '🌐', '🗺️', '🧭', '🧭',
+  '📡', '🔍', '🔎', '🔏', '🔐', '🔑', '🔒', '🔓',
+]
+
 // Description tooltip state
 const hoveredCategoryId = ref<number | null>(null)
+
+// More dropdown state
+const moreDropdownOpen = ref(false)
 
 // Pinned categories
 const pinnedCategories = computed(() => {
@@ -200,53 +278,11 @@ const togglePin = async (category: Category) => {
 const autoTagging = async (knowledgeId: number) => {
   // 调用后端 AI 自动提取标签接口
   // POST /api/knowledge/{id}/auto-tag
-  alert('AI 自动标签功能开发中')
+  ElMessage.info('AI 自动标签功能开发中')
 }
 
 // ============================================
 // 11. 分类模板市场
-// ============================================
-const showTemplateMarket = ref(false)
-
-const exportAsTemplate = async (category: Category) => {
-  // 导出为模板
-  const template = {
-    name: category.name,
-    icon: category.icon,
-    color: category.color,
-    description: category.description,
-    children: category.children?.map(c => ({
-      name: c.name,
-      icon: c.icon,
-      color: c.color
-    }))
-  }
-  const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = `${category.name}-template.json`
-  a.click()
-  URL.revokeObjectURL(url)
-  ElMessage.success('模板已导出')
-}
-
-const importTemplate = async (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  try {
-    const text = await file.text()
-    const template = JSON.parse(text)
-    // 调用后端导入接口
-    alert(`模板导入功能开发中：${template.name}`)
-  } catch (e) {
-    ElMessage.error('模板文件格式错误')
-  }
-  input.value = '' // Reset input
-}
-
 // ============================================
 // 12. 分类间知识移动历史
 // ============================================
@@ -300,7 +336,7 @@ const checkSeasonalStatus = (category: Category): { active: boolean; message: st
 const recommendCategories = async (knowledgeTitle: string, knowledgeContent: string) => {
   // 调用后端智能推荐接口
   // POST /api/knowledge/{id}/recommend-categories
-  alert('智能推荐功能开发中，根据标题和内容自动推荐分类')
+  ElMessage.info('智能推荐功能开发中，根据标题和内容自动推荐分类')
 }
 
 // ============================================
@@ -317,7 +353,7 @@ const findCategoryById = (id: number): Category | undefined => {
 
 const openBatchRenameDialog = () => {
   if (selectedIds.value.size === 0) {
-    alert('请先选择要重命名的分类')
+    ElMessage.warning('请先选择要重命名的分类')
     return
   }
   showBatchRenameDialog.value = true
@@ -357,7 +393,7 @@ const confirmBatchRename = async () => {
 const integrityCheck = async (knowledgeId: number) => {
   // 调用后端检查接口
   // GET /api/knowledge/{id}/integrity-check
-  alert('知识完整性检查功能开发中')
+  ElMessage.info('知识完整性检查功能开发中')
 }
 
 // ============================================
@@ -473,30 +509,7 @@ const sortedFolders = computed(() => {
 })
 
 // ============================================
-// 3. 最近访问记录
-// ============================================
-const recentCategories = ref<Category[]>([])
-const MAX_RECENT = 5
-
-const loadRecentCategories = () => {
-  const saved = localStorage.getItem('recent-categories')
-  if (saved) {
-    try {
-      recentCategories.value = JSON.parse(saved)
-    } catch (e) {
-      recentCategories.value = []
-    }
-  }
-}
-
-const addToRecent = (category: Category) => {
-  const existing = recentCategories.value.filter(c => c.id !== category.id)
-  recentCategories.value = [category, ...existing].slice(0, MAX_RECENT)
-  localStorage.setItem('recent-categories', JSON.stringify(recentCategories.value))
-}
-
-// ============================================
-// 4. 订阅通知
+// 3. 订阅通知
 // ============================================
 const subscribedCategoryIds = ref<Set<number>>(new Set())
 const notifyCount = ref(0)
@@ -594,6 +607,30 @@ const searchCategories = async (query: string) => {
 }
 
 const debouncedSearch = debounce(searchCategories, 300)
+
+// 关键词高亮函数
+const highlightText = (text: string, query: string): string => {
+  if (!query) return text
+  const regex = new RegExp(`(${query})`, 'gi')
+  return text.replace(regex, '<mark>$1</mark>')
+}
+
+// Get parent category path for display
+const getParentPath = (category: Category): string => {
+  const all = flattenCategories(folders.value)
+  const parts: string[] = []
+  let current = category
+  while (current.parentId) {
+    const parent = all.find(c => c.id === current.parentId)
+    if (parent) {
+      parts.unshift(parent.name)
+      current = parent
+    } else {
+      break
+    }
+  }
+  return parts.length > 0 ? parts.join(' > ') : ''
+}
 
 const showDescription = (category: Category) => {
   if (category.description) {
@@ -778,10 +815,8 @@ const validateCategoryName = (name: string): { valid: boolean; message: string }
   if (NAME_PATTERN.test(name)) {
     return { valid: true, message: '符合规范' }
   }
-  return {
-    valid: false,
-    message: '建议格式：【类型】名称，如【价格】玉米日报'
-  }
+  // 允许保存，但给出格式建议
+  return { valid: true, message: '建议格式：【类型】名称，如【价格】玉米日报' }
 }
 
 const formatName = (name: string): string => {
@@ -897,10 +932,9 @@ const checkDuplicateNames = async () => {
   const res = await categoryApi.mergeSuggestions()
   const duplicates = res.data.data || []
   if (duplicates.length > 0) {
-    alert(`发现 ${duplicates.length} 个同名分类，建议合并：\n` +
-      duplicates.map((d: any) => d.name).join('\n'))
+    ElMessage.warning(`发现 ${duplicates.length} 个同名分类，建议合并：${duplicates.map((d: any) => d.name).join('、')}`)
   } else {
-    alert('没有发现同名分类')
+    ElMessage.success('没有发现同名分类')
   }
 }
 
@@ -919,7 +953,6 @@ const toggleExpand = (id: number, event: Event) => {
 // Select category
 const selectCategory = (category: Category) => {
   selectedCategory.value = category
-  addToRecent(category)
   emit('select', category)
 }
 
@@ -943,7 +976,7 @@ const loadExpandedState = () => {
 // Open create dialog
 const openCreateDialog = (parentId: number | null = null) => {
   dialogMode.value = 'create'
-  editingCategory.value = { parentId, sortOrder: 99 }
+  editingCategory.value = { parentId, sortOrder: 99, icon: '📁' }
   dialogVisible.value = true
   contextMenuVisible.value = false
 }
@@ -992,9 +1025,35 @@ const saveCategory = async () => {
 
 // Delete category
 const deleteCategory = async (id: number) => {
-  if (confirm('确定要删除该分类吗？子分类也会被删除。')) {
-    const category = flattenCategories(folders.value).find(c => c.id === id)
-    await categoryApi.delete(id)
+  const category = flattenCategories(folders.value).find(c => c.id === id)
+  if (category) {
+    deleteTargetId.value = id
+    deleteTargetName.value = category.name
+    deleteDialogVisible.value = true
+  }
+  contextMenuVisible.value = false
+}
+
+const confirmDelete = async () => {
+  if (deleteTargetId.value) {
+    // Check if category has knowledge
+    const countRes = await knowledgeCategoryApi.getCountByCategory(deleteTargetId.value)
+    const count = countRes.data?.data?.count || 0
+    if (count > 0) {
+      ElMessage.error(`该分类下还有 ${count} 条知识，请先删除或移动知识后再试`)
+      deleteDialogVisible.value = false
+      return
+    }
+
+    // Check if category has children
+    const category = flattenCategories(folders.value).find(c => c.id === deleteTargetId.value)
+    if (category && category.children && category.children.length > 0) {
+      ElMessage.error(`该分类下还有 ${category.children.length} 个子分类，请先删除子分类后再试`)
+      deleteDialogVisible.value = false
+      return
+    }
+
+    await categoryApi.delete(deleteTargetId.value)
     pushUndo({
       type: 'delete',
       before: category || null,
@@ -1003,14 +1062,37 @@ const deleteCategory = async (id: number) => {
     })
     await loadTree()
   }
-  contextMenuVisible.value = false
+  deleteDialogVisible.value = false
+  deleteTargetId.value = null
 }
 
 // Context menu handlers
 const showContextMenu = (event: MouseEvent, category: Category) => {
   event.preventDefault()
   contextMenuCategory.value = category
-  contextMenuPosition.value = { x: event.clientX, y: event.clientY }
+
+  // Calculate position with boundary check
+  let x = event.clientX
+  let y = event.clientY
+  const menuWidth = 160
+  const menuItemHeight = 36
+  const menuItemCount = 16 // approximate number of items
+  const menuHeight = menuItemHeight * menuItemCount
+
+  // Adjust if menu would overflow right edge
+  if (x + menuWidth > window.innerWidth) {
+    x = window.innerWidth - menuWidth - 10
+  }
+  // Adjust if menu would overflow bottom edge - flip up
+  if (y + menuHeight > window.innerHeight) {
+    y = y - menuHeight - 20 // show above click point
+    if (y < 10) {
+      // If still off screen top, cap at 10
+      y = 10
+    }
+  }
+
+  contextMenuPosition.value = { x, y }
   contextMenuVisible.value = true
 }
 
@@ -1115,7 +1197,6 @@ watch(() => props.selectedId, (newId) => {
 onMounted(() => {
   loadTree()
   loadExpandedState()
-  loadRecentCategories()
   loadFavorites()
   checkNotifications()
   document.addEventListener('click', hideContextMenu)
@@ -1154,26 +1235,115 @@ defineExpose({ loadTree })
     </div>
     <!-- Toolbar -->
     <div class="tree-toolbar">
-      <button v-if="!batchMode" class="btn-new" @click="openCreateDialog(null)">+ 新建分类</button>
-      <button v-if="!batchMode" class="btn-batch-tool" @click="openBatchCreateDialog(null)">批量创建</button>
-      <template v-else>
-        <span class="batch-info">已选择 {{ selectedIds.size }} 项</span>
-        <button class="btn-batch" @click="selectAll">全选</button>
-        <button class="btn-batch" @click="openBatchMoveDialog">批量移动</button>
-        <button class="btn-batch" @click="openBatchRenameDialog">批量重命名</button>
-        <button class="btn-batch" @click="addToFavorites([...selectedIds])">收藏</button>
-        <button class="btn-batch" @click="clearSelection">取消选择</button>
-      </template>
-      <button class="btn-trash" @click="loadTrash">回收站</button>
-      <button
-        class="btn-compare"
-        :class="{ active: compareMode }"
-        @click="toggleCompareMode"
-      >
-        {{ compareMode ? '退出对比' : '对比模式' }}
-      </button>
-      <button class="btn-export" @click="exportCategories">导出</button>
-      <button class="btn-import" @click="triggerImport">导入</button>
+      <!-- Search bar -->
+      <div class="toolbar-search">
+        <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input
+          v-model="autocompleteQuery"
+          @input="debouncedSearch(autocompleteQuery)"
+          placeholder="搜索分类..."
+          class="toolbar-search-input"
+        />
+        <div v-if="autocompleteResults.length > 0" class="toolbar-search-results">
+          <div
+            v-for="result in autocompleteResults"
+            :key="result.id"
+            class="toolbar-search-result-item"
+            :class="{ selected: selectedCategory?.id === result.id }"
+            @click="navigateToCategory(result); autocompleteQuery = ''; autocompleteResults = []"
+          >
+            <span class="search-icon-emoji">{{ result.icon }}</span>
+            <div class="search-result-info">
+              <span class="search-result-name" v-html="highlightText(result.name, autocompleteQuery)"></span>
+              <span v-if="result.description" class="search-result-desc">
+                {{ result.description.length > 50 ? result.description.slice(0, 50) + '...' : result.description }}
+              </span>
+              <span v-if="getParentPath(result)" class="search-result-path">{{ getParentPath(result) }}</span>
+              <div class="search-result-meta">
+                <span v-if="result.knowledgeCount" class="search-result-count">{{ result.knowledgeCount }} 条</span>
+                <span class="search-result-depth">第 {{ getCategoryDepth(result) + 1 }} 层</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <button class="btn-more" @click="moreDropdownOpen = !moreDropdownOpen">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="1"/>
+            <circle cx="12" cy="5" r="1"/>
+            <circle cx="12" cy="19" r="1"/>
+          </svg>
+          更多
+        </button>
+        <div class="more-menu" v-show="moreDropdownOpen">
+          <button class="more-menu-item" @click="openCreateDialog(null); moreDropdownOpen = false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            新建分类
+          </button>
+          <button class="more-menu-item" @click="openBatchCreateDialog(null); moreDropdownOpen = false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="12" y1="8" x2="12" y2="16"/>
+              <line x1="8" y1="12" x2="16" y2="12"/>
+            </svg>
+            批量创建
+          </button>
+          <div class="more-menu-divider"></div>
+          <button class="more-menu-item" @click="triggerImport(); moreDropdownOpen = false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17,8 12,3 7,8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            导入
+          </button>
+          <button class="more-menu-item" @click="exportCategories(); moreDropdownOpen = false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7,10 12,15 17,10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            导出
+          </button>
+          <div class="more-menu-divider"></div>
+          <button class="more-menu-item" @click="checkDuplicateNames(); moreDropdownOpen = false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+              <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+            重名检测
+          </button>
+          <button class="more-menu-item" @click="loadHotAnalysis(); moreDropdownOpen = false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+            </svg>
+            热点分析
+          </button>
+          <button class="more-menu-item" @click="loadMergeSuggestions(); moreDropdownOpen = false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 3h5v5"/>
+              <path d="M8 21H3v-5"/>
+              <path d="M21 3l-9 9"/>
+              <path d="M3 21l9-9"/>
+            </svg>
+            合并建议
+          </button>
+          <div class="more-menu-divider"></div>
+          <button class="more-menu-item" @click="loadTrash(); moreDropdownOpen = false">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3,6 5,6 21,6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            回收站
+          </button>
+        </div>
+      </div>
       <input
         ref="importInput"
         type="file"
@@ -1181,17 +1351,6 @@ defineExpose({ loadTree })
         style="display: none"
         @change="importCategories"
       />
-      <button class="btn-duplicate" @click="checkDuplicateNames">重名检测</button>
-      <button class="btn-template" @click="showTemplateMarket = true">模板市场</button>
-      <button class="btn-hot" @click="loadHotAnalysis">热点分析</button>
-      <button class="btn-merge" @click="loadMergeSuggestions">合并建议</button>
-      <select v-model="sortMode" class="sort-select">
-        <option value="manual">手动排序</option>
-        <option value="name">按名称</option>
-        <option value="count">按数量</option>
-        <option value="update">按更新时间</option>
-      </select>
-      <button v-if="notifyCount > 0" class="btn-notify">{{ notifyCount }} 新通知</button>
     </div>
 
     <!-- Pinned categories -->
@@ -1224,46 +1383,12 @@ defineExpose({ loadTree })
             :key="cat.id"
             class="favorite-item"
             :class="{ selected: selectedCategory?.id === cat.id }"
+            :title="cat.name"
             @click="selectCategory(cat)"
           >
-            {{ cat.icon }}
+            <span class="favorite-icon">{{ cat.icon }}</span>
+            <span class="favorite-name">{{ cat.name }}</span>
           </span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Recent categories -->
-    <div v-if="recentCategories.length > 0" class="recent-section">
-      <div class="recent-header">最近访问</div>
-      <div
-        v-for="cat in recentCategories"
-        :key="cat.id"
-        class="recent-item"
-        :class="{ selected: selectedCategory?.id === cat.id }"
-        @click="selectCategory(cat)"
-      >
-        <span class="recent-icon">{{ cat.icon }}</span>
-        <span class="recent-name">{{ cat.name }}</span>
-      </div>
-    </div>
-
-    <!-- Search input with autocomplete -->
-    <div class="tree-search">
-      <input
-        v-model="autocompleteQuery"
-        @input="debouncedSearch(autocompleteQuery)"
-        placeholder="搜索分类..."
-        class="search-input"
-      />
-      <div v-if="autocompleteResults.length > 0" class="search-results">
-        <div
-          v-for="result in autocompleteResults"
-          :key="result.id"
-          class="search-result-item"
-          @click="navigateToCategory(result); autocompleteQuery = ''; autocompleteResults = []"
-        >
-          <span class="search-icon">{{ result.icon }}</span>
-          <span class="search-name">{{ result.name }}</span>
         </div>
       </div>
     </div>
@@ -1273,14 +1398,14 @@ defineExpose({ loadTree })
       <div v-if="loading" class="loading">加载中...</div>
       <template v-else>
         <div
-          v-for="category in folders"
+          v-for="{ category, depth } in visibleCategories"
           :key="category.id"
           class="folder-wrapper"
         >
           <div
             class="folder-row"
-            :class="{ selected: selectedCategory?.id === category.id, 'drag-over': dropTargetId === category.id }"
-            :style="{ paddingLeft: getIndent(0) + 'px' }"
+            :class="[{ selected: selectedCategory?.id === category.id, 'drag-over': dropTargetId === category.id }, getDepthClassByDepth(depth)]"
+            :style="{ paddingLeft: getIndent(depth) + 'px' }"
             draggable="true"
             @dragstart="onDragStart($event, category)"
             @dragover="onDragOver($event, category)"
@@ -1294,82 +1419,27 @@ defineExpose({ loadTree })
             <div v-if="hoveredCategoryId === category.id && category.description" class="description-tooltip">
               {{ category.description }}
             </div>
-            <input
-              type="checkbox"
-              class="batch-checkbox"
-              :checked="selectedIds.has(category.id)"
-              @click="toggleSelect(category.id, $event)"
-            />
             <span
               v-if="category.children?.length"
               class="folder-toggle"
               :class="{ expanded: expandedIds.has(category.id) }"
-              @click="toggleExpand(category.id, $event)"
+              @click.stop="toggleExpand(category.id, $event)"
             >
-              ▶
+              <svg v-if="expandedIds.has(category.id)" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6,9 12,15 18,9"/>
+              </svg>
+              <svg v-else width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="9,6 15,12 9,18"/>
+              </svg>
             </span>
             <span v-else class="folder-toggle-placeholder"></span>
-            <span class="folder-icon">{{ category.icon }}</span>
-            <span
-              v-if="category.color"
-              class="folder-color"
-              :style="{ backgroundColor: category.color }"
-            ></span>
-            <span class="folder-name">{{ getDisplayDepth(category) }}</span>
-            <span class="folder-count">({{ category.knowledgeCount || 0 }})</span>
-            <span v-if="getCapacityWarning(category)" class="capacity-warning" :title="getCapacityWarning(category)">
-              ⚠️
-            </span>
-            <span v-if="!checkSeasonalStatus(category).active" class="seasonal-inactive" :title="checkSeasonalStatus(category).message">
-              ❄️
-            </span>
-          </div>
-
-          <!-- Render children recursively -->
-          <template v-if="category.children?.length && expandedIds.has(category.id)">
-            <div
-              v-for="child in category.children"
-              :key="child.id"
-              class="folder-wrapper sub"
-            >
-              <div
-                class="folder-row"
-                :class="{ selected: selectedCategory?.id === child.id, 'drag-over': dropTargetId === child.id }"
-                :style="{ paddingLeft: getIndent(1) + 'px' }"
-                draggable="true"
-                @dragstart="onDragStart($event, child)"
-                @dragover="onDragOver($event, child)"
-                @dragleave="onDragLeave"
-                @drop="onDrop($event, child)"
-                @click="selectCategory(child)"
-                @contextmenu="showContextMenu($event, child)"
-                @mouseenter="showDescription(child)"
-                @mouseleave="hideDescription"
-              >
-                <div v-if="hoveredCategoryId === child.id && child.description" class="description-tooltip">
-                  {{ child.description }}
-                </div>
-                <input
-                  type="checkbox"
-                  class="batch-checkbox"
-                  :checked="selectedIds.has(child.id)"
-                  @click="toggleSelect(child.id, $event)"
-                />
-                <span class="folder-toggle-placeholder"></span>
-                <span class="folder-icon">{{ child.icon }}</span>
-                <span
-                  v-if="child.color"
-                  class="folder-color"
-                  :style="{ backgroundColor: child.color }"
-                ></span>
-                <span class="folder-name">{{ getDisplayDepth(child) }}</span>
-                <span class="folder-count">({{ child.knowledgeCount || 0 }})</span>
-                <span v-if="getCapacityWarning(child)" class="capacity-warning" :title="getCapacityWarning(child)">
-                  ⚠️
-                </span>
-              </div>
+            <div class="folder-label">
+              <span class="folder-icon">{{ category.icon }}</span>
+              <span class="folder-name" :title="category.name">{{ category.name }}</span>
             </div>
-          </template>
+            <span class="folder-count" v-if="category.knowledgeCount">{{ category.knowledgeCount }}条</span>
+            <button class="inline-add-btn" @click.stop="openCreateDialog(category.id)" title="添加子分类">+</button>
+          </div>
         </div>
       </template>
     </div>
@@ -1440,9 +1510,6 @@ defineExpose({ loadTree })
       <div class="context-menu-item" @click="autoTagging(contextMenuCategory!.id)">
         AI 自动标签
       </div>
-      <div class="context-menu-item" @click="exportAsTemplate(contextMenuCategory!)">
-        导出模板
-      </div>
       <div class="context-menu-item" @click="addToCompare(contextMenuCategory!)">
         加入对比
       </div>
@@ -1474,7 +1541,17 @@ defineExpose({ loadTree })
           </div>
           <div class="form-item">
             <label>图标</label>
-            <input v-model="editingCategory.icon" placeholder="emoji 图标" maxlength="2" />
+            <div class="emoji-picker">
+              <div
+                v-for="emoji in defaultEmojis"
+                :key="emoji"
+                class="emoji-option"
+                :class="{ selected: editingCategory.icon === emoji }"
+                @click="editingCategory.icon = emoji"
+              >
+                {{ emoji }}
+              </div>
+            </div>
           </div>
           <div class="form-item">
             <label>颜色</label>
@@ -1498,6 +1575,20 @@ defineExpose({ loadTree })
         <div class="dialog-footer">
           <button class="btn-cancel" @click="dialogVisible = false">取消</button>
           <button class="btn-confirm" @click="saveCategory">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete confirmation dialog -->
+    <div v-if="deleteDialogVisible" class="dialog-overlay" @click.self="deleteDialogVisible = false">
+      <div class="delete-dialog">
+        <div class="delete-dialog-icon">⚠️</div>
+        <h3 class="delete-dialog-title">删除确认</h3>
+        <p class="delete-dialog-message">确定要删除分类「{{ deleteTargetName }}」吗？</p>
+        <p class="delete-dialog-warning">删除后，该分类下的所有子分类也将被永久移除</p>
+        <div class="delete-dialog-actions">
+          <button class="btn-cancel" @click="deleteDialogVisible = false">取消</button>
+          <button class="btn-delete" @click="confirmDelete">删除</button>
         </div>
       </div>
     </div>
@@ -1743,38 +1834,6 @@ defineExpose({ loadTree })
       </div>
     </div>
 
-    <!-- Template market dialog -->
-    <div v-if="showTemplateMarket" class="dialog-overlay" @click.self="showTemplateMarket = false">
-      <div class="dialog dialog-wide">
-        <div class="dialog-header">
-          <h3>分类模板市场</h3>
-          <button class="close-btn" @click="showTemplateMarket = false">×</button>
-        </div>
-        <div class="dialog-body">
-          <p class="template-hint">从模板文件导入分类结构</p>
-          <div class="template-import-section">
-            <input
-              type="file"
-              accept=".json"
-              id="template-import-input"
-              style="display: none"
-              @change="importTemplate"
-            />
-            <button class="btn-import-template" @click="triggerTemplateImport">
-              选择模板文件
-            </button>
-          </div>
-          <div class="template-tips">
-            <h4>导出模板</h4>
-            <p>在分类上右键选择"导出模板"可以将当前分类及其子分类导出为 JSON 格式的模板文件</p>
-          </div>
-        </div>
-        <div class="dialog-footer">
-          <button class="btn-cancel" @click="showTemplateMarket = false">关闭</button>
-        </div>
-      </div>
-    </div>
-
     <!-- Move history dialog -->
     <div v-if="showMoveHistory" class="dialog-overlay" @click.self="showMoveHistory = false">
       <div class="dialog">
@@ -1909,8 +1968,273 @@ defineExpose({ loadTree })
 }
 
 .tree-toolbar {
-  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.toolbar-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.toolbar-search-input {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.toolbar-search-input:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+.toolbar-search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.toolbar-search .search-icon {
+  position: absolute;
+  left: 10px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.btn-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-more:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.more-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  min-width: 160px;
+  background: #1e2128;
+  border: 1px solid #404550;
+  border-radius: 8px;
+  padding: 6px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  margin-top: 8px;
+}
+
+.btn-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-more:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.toolbar-search-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 320px;
+  margin-top: 6px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  max-height: 400px;
+  overflow-y: auto;
+  z-index: 200;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+
+.toolbar-search-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toolbar-search-result-item:last-child {
+  border-bottom: none;
+}
+
+.toolbar-search-result-item:hover,
+.toolbar-search-result-item.selected {
+  background: var(--bg-hover);
+}
+
+.search-icon-emoji {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.search-result-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.search-result-name {
+  font-size: 14px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-primary);
+}
+
+.search-result-name mark {
+  background: var(--accent-bg);
+  color: var(--accent);
+  padding: 0 2px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.search-result-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.search-result-path {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.search-result-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.search-result-count {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.search-result-depth {
+  font-size: 11px;
+  color: var(--accent);
+  background: var(--accent-bg);
+  padding: 1px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.more-dropdown {
+  position: relative;
+  z-index: 200;
+}
+
+.more-menu {
+  position: absolute;
+  top: 100%;
+  left: auto;
+  right: 0;
+  min-width: 160px;
+  background: #1e2128;
+  border: 1px solid #404550;
+  border-radius: 8px;
+  padding: 6px;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  margin-top: 8px;
+}
+
+.more-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #c0c0c0;
+  font-size: 13px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.more-menu-item:hover {
+  background: #2a3040;
+  color: var(--accent);
+}
+
+.more-menu-divider {
+  height: 1px;
+  background: #404550;
+  margin: 6px 0;
+}
+
+.sort-select {
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.sort-select:focus {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .tree-search {
@@ -1948,9 +2272,11 @@ defineExpose({ loadTree })
 .search-result-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 10px;
+  padding: 12px 14px;
   cursor: pointer;
+  font-size: 14px;
+  transition: background 0.15s;
 }
 
 .search-result-item:hover {
@@ -1958,7 +2284,8 @@ defineExpose({ loadTree })
 }
 
 .search-icon {
-  font-size: 14px;
+  font-size: 16px;
+  color: var(--text-secondary);
 }
 
 .search-name {
@@ -1966,36 +2293,29 @@ defineExpose({ loadTree })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--text-primary);
 }
 
-.btn-new {
-  width: 100%;
-  padding: 8px;
-  background: var(--accent-bg);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  color: var(--accent);
-  cursor: pointer;
+.batch-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
+  font-size: 14px;
 }
 
-.btn-batch-tool {
-  width: 100%;
-  padding: 8px;
+.btn-batch {
+  padding: 6px 12px;
   background: var(--bg-tertiary);
   border: 1px solid var(--border-color);
   border-radius: 4px;
-  color: var(--text-secondary);
+  color: var(--text-primary);
   cursor: pointer;
   font-size: 12px;
 }
 
-.btn-batch-tool:hover {
+.btn-batch:hover {
   background: var(--bg-hover);
-}
-
-.btn-new:hover {
-  background: var(--accent);
-  color: var(--bg-primary);
 }
 
 .tree-content {
@@ -2004,14 +2324,32 @@ defineExpose({ loadTree })
   padding: 8px;
 }
 
+.folder-wrapper {
+  position: relative;
+}
+
+.folder-wrapper.sub::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--border-color);
+  opacity: 0.5;
+}
+
 .folder-row {
   display: flex;
   align-items: center;
-  padding: 8px;
-  border-radius: 4px;
+  padding: 6px 8px;
+  border-radius: 6px;
   cursor: pointer;
   gap: 6px;
   position: relative;
+  transition: all 0.15s ease;
+  font-size: 12px;
+  min-width: 0;
 }
 
 .folder-row:hover {
@@ -2020,7 +2358,18 @@ defineExpose({ loadTree })
 
 .folder-row.selected {
   background: var(--accent-bg);
-  color: var(--accent);
+}
+
+.folder-row.depth-1 {
+  background: rgba(245, 200, 122, 0.05);
+}
+
+.folder-row.depth-2 {
+  background: rgba(245, 200, 122, 0.08);
+}
+
+.folder-row.depth-3 {
+  background: rgba(245, 200, 122, 0.12);
 }
 
 .folder-row.drag-over {
@@ -2029,26 +2378,93 @@ defineExpose({ loadTree })
 }
 
 .folder-toggle {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  color: var(--text-muted);
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: all 0.15s;
+  flex-shrink: 0;
 }
 
-.folder-toggle.expanded {
-  transform: rotate(90deg);
+.folder-toggle:hover {
+  color: var(--accent);
 }
 
 .folder-toggle-placeholder {
-  width: 16px;
+  width: 18px;
+  flex-shrink: 0;
+}
+
+.folder-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .folder-icon {
   font-size: 14px;
+  flex-shrink: 0;
+}
+
+.folder-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--text-primary);
+  min-width: 0;
+}
+
+.folder-row.selected .folder-name {
+  color: var(--accent);
+}
+
+.folder-count {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.inline-add-btn {
+  display: none;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.inline-add-btn:hover {
+  background: var(--accent);
+  color: #1a1f2e;
+}
+
+.folder-row:hover .inline-add-btn {
+  display: flex;
+}
+
+.folder-icon {
+  font-size: 12px;
 }
 
 .folder-color {
@@ -2063,11 +2479,23 @@ defineExpose({ loadTree })
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
+  max-width: 200px;
 }
 
 .folder-count {
-  color: var(--text-muted);
-  font-size: 12px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  min-width: 20px;
+  text-align: center;
+}
+
+.folder-row.selected .folder-count {
+  background: var(--accent);
+  color: var(--bg-primary);
 }
 
 .context-menu {
@@ -2078,6 +2506,8 @@ defineExpose({ loadTree })
   padding: 4px 0;
   z-index: 1000;
   min-width: 120px;
+  max-height: 70vh;
+  overflow-y: auto;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -2183,6 +2613,61 @@ defineExpose({ loadTree })
   background: var(--accent);
   border: none;
   color: var(--bg-primary);
+}
+
+.btn-delete {
+  padding: 10px 24px;
+  border-radius: 6px;
+  border: none;
+  background: #dc3545;
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete:hover {
+  background: #c82333;
+}
+
+.delete-dialog {
+  background: var(--bg-card);
+  border-radius: 12px;
+  padding: 32px;
+  width: 380px;
+  max-width: 90vw;
+  text-align: center;
+}
+
+.delete-dialog-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.delete-dialog-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.delete-dialog-message {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin: 0 0 8px 0;
+}
+
+.delete-dialog-warning {
+  font-size: 13px;
+  color: #dc3545;
+  margin: 0 0 24px 0;
+}
+
+.delete-dialog-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
 }
 
 .loading {
@@ -2478,6 +2963,37 @@ defineExpose({ loadTree })
   border-color: var(--text-primary);
 }
 
+.emoji-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.emoji-option {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  background: var(--bg-tertiary);
+  transition: all 0.15s;
+}
+
+.emoji-option:hover {
+  background: var(--bg-hover);
+  transform: scale(1.1);
+}
+
+.emoji-option.selected {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
 .description-tooltip {
   position: absolute;
   left: 100%;
@@ -2562,11 +3078,6 @@ defineExpose({ loadTree })
   opacity: 1;
 }
 
-.recent-section {
-  padding: 8px;
-  border-bottom: 1px solid var(--border-color);
-}
-
 .favorites-section {
   padding: 8px;
   border-bottom: 1px solid var(--border-color);
@@ -2592,9 +3103,25 @@ defineExpose({ loadTree })
 
 .favorite-item {
   cursor: pointer;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s;
+}
+
+.favorite-icon {
   font-size: 14px;
-  padding: 2px 4px;
-  border-radius: 2px;
+}
+
+.favorite-name {
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
 }
 
 .favorite-item:hover {
@@ -2603,40 +3130,6 @@ defineExpose({ loadTree })
 
 .favorite-item.selected {
   background: var(--accent-bg);
-}
-
-.recent-header {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
-
-.recent-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.recent-item:hover {
-  background: var(--bg-hover);
-}
-
-.recent-item.selected {
-  background: var(--accent-bg);
-}
-
-.recent-icon {
-  font-size: 14px;
-}
-
-.recent-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .preview-info {
@@ -2728,9 +3221,14 @@ defineExpose({ loadTree })
 }
 
 .search-result-item {
-  padding: 12px;
+  padding: 12px 14px;
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.15s;
 }
 
 .search-result-item:last-child {
