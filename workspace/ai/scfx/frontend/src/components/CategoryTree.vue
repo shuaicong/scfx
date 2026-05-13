@@ -685,32 +685,6 @@ const savePermission = async () => {
   }
 }
 
-// Batch create state
-const showBatchCreate = ref(false)
-const batchCreateNames = ref('')
-
-const openBatchCreateDialog = (parentId: number | null = null) => {
-  editingCategory.value = { ...editingCategory.value, parentId }
-  showBatchCreate.value = true
-  contextMenuVisible.value = false
-}
-
-const confirmBatchCreate = async () => {
-  const names = batchCreateNames.value.split('\n').filter(n => n.trim())
-  for (const name of names) {
-    await categoryApi.create({
-      name: name.trim(),
-      icon: editingCategory.value.icon || '📁',
-      color: editingCategory.value.color,
-      parentId: editingCategory.value.parentId,
-      sortOrder: 99
-    })
-  }
-  showBatchCreate.value = false
-  batchCreateNames.value = ''
-  await loadTree()
-}
-
 // Autocomplete state
 const autocompleteQuery = ref('')
 const autocompleteResults = ref<Category[]>([])
@@ -1384,14 +1358,6 @@ defineExpose({ loadTree })
             </svg>
             新建分类
           </button>
-          <button class="more-menu-item" @click="openBatchCreateDialog(null); moreDropdownOpen = false">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="3" width="18" height="18" rx="2"/>
-              <line x1="12" y1="8" x2="12" y2="16"/>
-              <line x1="8" y1="12" x2="16" y2="12"/>
-            </svg>
-            批量创建
-          </button>
           <div class="more-menu-divider"></div>
           <button class="more-menu-item" @click="checkDuplicateNames(); moreDropdownOpen = false">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1740,29 +1706,6 @@ defineExpose({ loadTree })
         </div>
         <div class="dialog-footer">
           <button class="btn-cancel" @click="closePreview">关闭</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Batch create dialog -->
-    <div v-if="showBatchCreate" class="dialog-overlay" @click.self="showBatchCreate = false">
-      <div class="dialog">
-        <div class="dialog-header">
-          <h3>批量创建分类</h3>
-          <button class="close-btn" @click="showBatchCreate = false">×</button>
-        </div>
-        <div class="dialog-body">
-          <p class="batch-hint">每行一个分类名称</p>
-          <textarea
-            v-model="batchCreateNames"
-            class="batch-textarea"
-            placeholder="分类名称1&#10;分类名称2&#10;分类名称3"
-            rows="8"
-          ></textarea>
-        </div>
-        <div class="dialog-footer">
-          <button class="btn-cancel" @click="showBatchCreate = false">取消</button>
-          <button class="btn-confirm" @click="confirmBatchCreate">确定创建</button>
         </div>
       </div>
     </div>
