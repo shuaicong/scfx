@@ -1,14 +1,13 @@
 <template>
   <div class="knowledge-container">
     <!-- Left Sidebar -->
-    <aside class="sidebar" id="sidebar" :class="{ collapsed: sidebarCollapsed }">
-      <button class="sidebar-toggle-btn" id="sidebarToggle" @click="toggleSidebar" title="折叠">
-        {{ sidebarCollapsed ? '▶' : '◀' }}
-      </button>
+    <aside class="sidebar" id="sidebar" :class="{ collapsed: sidebarCollapsed }" :style="sidebarCollapsed ? {} : { width: sidebarWidth + 'px' }">
+      <div class="sidebar-resize-handle" @mousedown="startResize" v-if="!sidebarCollapsed"></div>
 
       <div class="sidebar-tabs">
         <button class="sidebar-tab" :class="{ active: sidebarTab === 'tree' }" @click="sidebarTab = 'tree'">分类</button>
         <button class="sidebar-tab" :class="{ active: sidebarTab === 'tag' }" @click="sidebarTab = 'tag'">标签</button>
+        <button class="sidebar-collapse-btn" @click="toggleSidebar" title="折叠侧边栏">◀</button>
       </div>
 
       <div class="sidebar-content" id="sidebarTree">
@@ -133,12 +132,47 @@
           </svg>
           导出
         </button>
+        <button class="btn btn-secondary" @click="showMappingDialog = true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+            <path d="M2 17l10 5 10-5"/>
+            <path d="M2 12l10 5 10-5"/>
+          </svg>
+          映射配置
+        </button>
       </div>
     </aside>
 
     <!-- List Area -->
     <section class="list-area" id="listArea" :class="{ 'list-sidebar-mode': previewVisible }">
+      <!-- Expand button (shown when sidebar is collapsed) -->
+      <button v-if="sidebarCollapsed" class="sidebar-expand-btn" @click="toggleSidebar" title="展开侧边栏">
+        <span class="expand-icon">▶</span>
+        <span class="expand-text">展开侧边栏</span>
+      </button>
       <button class="list-collapse-btn" @click="toggleList" title="折叠列表">◀</button>
+
+      <!-- Breadcrumb Navigation -->
+      <nav class="breadcrumb-nav" v-if="breadcrumbPath.length > 0">
+        <span class="breadcrumb-item" @click="clearBreadcrumb">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+            <polyline points="9,22 9,12 15,12 15,22"/>
+          </svg>
+          全部
+        </span>
+        <template v-for="(cat, index) in breadcrumbPath" :key="cat.id">
+          <span class="breadcrumb-separator">/</span>
+          <span
+            class="breadcrumb-item"
+            :class="{ active: index === breadcrumbPath.length - 1 }"
+            @click="navigateToBreadcrumb(cat)"
+          >
+            <span class="breadcrumb-icon">{{ cat.icon }}</span>
+            {{ cat.name }}
+          </span>
+        </template>
+      </nav>
 
       <div class="list-header">
         <div class="list-header-left">
@@ -174,45 +208,56 @@
         </div>
       </div>
 
-      <!-- Filters Bar -->
+      <!-- Filters Bar - Tag Style -->
       <div class="filters-bar">
-        <div class="filter-dropdown" :class="{ open: sourceDropdownOpen }">
-          <button class="filter-dropdown-btn" @click="sourceDropdownOpen = !sourceDropdownOpen">
-            来源 <span>{{ filters.sourceName || '全部' }}</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m6 9 6 6 6-6"/>
-            </svg>
-          </button>
-          <div class="filter-dropdown-menu">
-            <div
+        <div class="filter-group">
+          <span class="filter-label">来源:</span>
+          <div class="filter-tags">
+            <button
               v-for="source in sources"
               :key="source.key"
-              class="filter-dropdown-item"
-              :class="{ selected: filters.sourceType === (source.key === 'all' ? '' : source.key) }"
+              class="filter-tag"
+              :class="{ active: filters.sourceType === (source.key === 'all' ? '' : source.key) }"
               @click="selectSourceFilter(source.key, source.name)"
-            >{{ source.icon }} {{ source.name }}</div>
+              :title="source.name"
+            >
+              {{ source.abbr }}
+            </button>
           </div>
         </div>
-
-        <div class="filter-dropdown" :class="{ open: statusDropdownOpen }">
-          <button class="filter-dropdown-btn" @click="statusDropdownOpen = !statusDropdownOpen">
-            状态 <span>{{ filters.vectorStatus || '全部' }}</span>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="m6 9 6 6 6-6"/>
-            </svg>
-          </button>
-          <div class="filter-dropdown-menu">
-            <div class="filter-dropdown-item" :class="{ selected: !filters.vectorStatus }" @click="selectStatusFilter('')">全部</div>
-            <div class="filter-dropdown-item" :class="{ selected: filters.vectorStatus === 'vectorized' }" @click="selectStatusFilter('vectorized')">✅ 已向量化</div>
-            <div class="filter-dropdown-item" :class="{ selected: filters.vectorStatus === 'pending' }" @click="selectStatusFilter('pending')">⏳ 未向量化</div>
-            <div class="filter-dropdown-item" :class="{ selected: filters.vectorStatus === 'processing' }" @click="selectStatusFilter('processing')">🔄 处理中</div>
-            <div class="filter-dropdown-item" :class="{ selected: filters.vectorStatus === 'failed' }" @click="selectStatusFilter('failed')">❌ 失败</div>
+        <div class="filter-group">
+          <span class="filter-label">状态:</span>
+          <div class="filter-tags">
+            <button
+              class="filter-tag"
+              :class="{ active: !filters.vectorStatus }"
+              @click="selectStatusFilter('')"
+            >全部</button>
+            <button
+              class="filter-tag status-vectorized"
+              :class="{ active: filters.vectorStatus === 'vectorized' }"
+              @click="selectStatusFilter('vectorized')"
+            >已向量化</button>
+            <button
+              class="filter-tag status-pending"
+              :class="{ active: filters.vectorStatus === 'pending' }"
+              @click="selectStatusFilter('pending')"
+            >未向量化</button>
+            <button
+              class="filter-tag status-processing"
+              :class="{ active: filters.vectorStatus === 'processing' }"
+              @click="selectStatusFilter('processing')"
+            >处理中</button>
+            <button
+              class="filter-tag status-failed"
+              :class="{ active: filters.vectorStatus === 'failed' }"
+              @click="selectStatusFilter('failed')"
+            >失败</button>
           </div>
         </div>
-
         <div class="filter-spacer"></div>
         <button class="filter-clear" :class="{ show: hasFilters }" @click="clearFilters">
-          ✕ 清除筛选
+          清除筛选
         </button>
       </div>
 
@@ -317,9 +362,25 @@
               <td>{{ item.publishTime || item.createdAt }}</td>
               <td>
                 <div class="actions">
-                  <button @click.stop="viewDetail(item)">查看</button>
-                  <button @click.stop="handleRevectorize(item)">重向量化</button>
-                  <button @click.stop="handleDelete(item)">删除</button>
+                  <button class="action-btn" @click.stop="viewDetail(item)" title="查看">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  </button>
+                  <button class="action-btn" @click.stop="handleRevectorize(item)" title="重向量化">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="23,4 23,10 17,10"/>
+                      <polyline points="1,20 1,14 7,14"/>
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                  </button>
+                  <button class="action-btn danger" @click.stop="handleDelete(item)" title="删除">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <polyline points="3,6 5,6 21,6"/>
+                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -581,14 +642,19 @@
       </div>
     </div>
   </div>
+
+  <!-- Category Mapping Dialog -->
+  <CategoryMappingDialog v-model="showMappingDialog" />
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { knowledgeApi } from '@/api/knowledge'
+import { categoryApi, type Category } from '@/api/category'
 import CategoryTree from '@/components/CategoryTree.vue'
 import CategoryStatsPanel from '@/components/CategoryStatsPanel.vue'
+import CategoryMappingDialog from '@/components/CategoryMappingDialog.vue'
 
 interface KnowledgeItem {
   id?: number
@@ -609,12 +675,12 @@ interface KnowledgeItem {
 
 // Sources
 const sources = ref([
-  { key: 'all', name: '全部', icon: '📚', count: 0 },
-  { key: 'liangxin', name: '粮信网', icon: '🌐', count: 0 },
-  { key: 'mysteel', name: '我的钢铁', icon: '📺', count: 0 },
-  { key: 'chinagrain', name: '中华粮网', icon: '🌾', count: 0 },
-  { key: 'usda', name: 'USDA', icon: '🦃', count: 0 },
-  { key: 'manual', name: '人工录入', icon: '✍️', count: 0 }
+  { key: 'all', name: '全部', abbr: 'A', count: 0 },
+  { key: 'liangxin', name: '粮信网', abbr: 'L', count: 0 },
+  { key: 'mysteel', name: '我的钢铁', abbr: 'M', count: 0 },
+  { key: 'chinagrain', name: '中华粮网', abbr: 'C', count: 0 },
+  { key: 'usda', name: 'USDA', abbr: 'U', count: 0 },
+  { key: 'manual', name: '人工录入', abbr: 'R', count: 0 }
 ])
 
 // Tags
@@ -752,9 +818,9 @@ const onCategorySelect = (category: any) => {
   loadKnowledgeByCategory(category.id)
 }
 
-const onCategoriesUpdate = (categories: any[]) => {
+const onCategoriesUpdate = (cats: any[]) => {
   // Category tree update callback - can be used to persist changes or sync with backend
-  console.log('Categories updated:', categories)
+  categories.value = cats
 }
 
 async function loadKnowledgeByCategory(categoryId: number) {
@@ -782,6 +848,7 @@ async function loadKnowledgeByCategory(categoryId: number) {
 
 // UI State
 const sidebarCollapsed = ref(false)
+const sidebarWidth = ref(280)
 const sidebarTab = ref('tree')
 const listCollapsed = ref(false)
 const viewMode = ref('card')
@@ -789,6 +856,36 @@ const previewVisible = ref(false)
 const previewFullscreen = ref(false)
 const sourceDropdownOpen = ref(false)
 const statusDropdownOpen = ref(false)
+
+// Sidebar resize
+let isResizing = false
+let startX = 0
+let startWidth = 0
+
+const startResize = (e: MouseEvent) => {
+  isResizing = true
+  startX = e.clientX
+  startWidth = sidebarWidth.value
+  document.addEventListener('mousemove', doResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+const doResize = (e: MouseEvent) => {
+  if (!isResizing) return
+  const diff = e.clientX - startX
+  const newWidth = Math.max(200, Math.min(500, startWidth + diff))
+  sidebarWidth.value = newWidth
+}
+
+const stopResize = () => {
+  isResizing = false
+  document.removeEventListener('mousemove', doResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
 
 // Filters
 const selectedSource = ref('all')
@@ -848,6 +945,7 @@ const relatedItems = ref<KnowledgeItem[]>([])
 // Dialogs
 const showAddDialog = ref(false)
 const showDetailDialog = ref(false)
+const showMappingDialog = ref(false)
 const addTab = ref('upload')
 const fileInput = ref<HTMLInputElement>()
 
@@ -857,6 +955,38 @@ const triggerFileInput = () => {
 
 const categoryTreeRef = ref<InstanceType<typeof CategoryTree>>()
 const selectedCategoryId = ref<number | undefined>()
+const categories = ref<Category[]>([])
+
+// Build breadcrumb path from root to selected category
+const flattenCategories = (cats: Category[]): Category[] => {
+  return cats.flatMap(c => [c, ...flattenCategories(c.children || [])])
+}
+
+const getCategoryPath = (targetId: number | undefined): Category[] => {
+  if (!targetId) return []
+  const all = flattenCategories(categories.value)
+  const path: Category[] = []
+  let current = all.find(c => c.id === targetId)
+  while (current) {
+    path.unshift(current)
+    current = current.parentId ? all.find(c => c.id === current!.parentId) : undefined
+  }
+  return path
+}
+
+const breadcrumbPath = computed(() => {
+  return getCategoryPath(selectedCategoryId.value)
+})
+
+const navigateToBreadcrumb = (category: Category) => {
+  selectedCategoryId.value = category.id
+  loadKnowledgeByCategory(category.id)
+}
+
+const clearBreadcrumb = () => {
+  selectedCategoryId.value = undefined
+  loadData()
+}
 
 const uploadForm = reactive({
   title: '',
@@ -906,13 +1036,7 @@ watch(sidebarTab, (val) => {
 
 // Methods
 function toggleSidebar() {
-  const sidebar = document.getElementById('sidebar')
-  const btn = document.getElementById('sidebarToggle')
-  if (sidebar && btn) {
-    sidebarCollapsed.value = !sidebarCollapsed.value
-    sidebar.classList.toggle('collapsed', sidebarCollapsed.value)
-    btn.textContent = sidebarCollapsed.value ? '▶' : '◀'
-  }
+  sidebarCollapsed.value = !sidebarCollapsed.value
 }
 
 function toggleList() {
@@ -1325,43 +1449,115 @@ onMounted(() => {
   width: 0;
   min-width: 0;
   border-right: none;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .sidebar.collapsed > * {
   display: none !important;
 }
 
-.sidebar-toggle-btn {
-  position: absolute;
-  top: 50%;
-  right: -14px;
-  transform: translateY(-50%);
-  width: 28px;
-  height: 28px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 50%;
-  cursor: pointer;
+.sidebar-tabs {
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 12px;
+  gap: 4px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.sidebar-tab {
+  padding: 6px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
   color: var(--text-muted);
-  z-index: 100;
-  transition: all 0.2s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-  opacity: 0;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
 }
 
-.sidebar:hover .sidebar-toggle-btn {
-  opacity: 1;
+.sidebar-tab:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
-.sidebar-toggle-btn:hover {
-  background: var(--accent);
-  color: #1a1f2e;
+.sidebar-tab.active {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.sidebar-collapse-btn {
+  margin-left: auto;
+  padding: 6px 10px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: all 0.15s;
+}
+
+.sidebar-collapse-btn:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
   border-color: var(--accent);
+}
+
+.sidebar-expand-btn {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-left: none;
+  border-radius: 0 8px 8px 0;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 13px;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.1);
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.sidebar-expand-btn:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.expand-icon {
+  font-size: 12px;
+}
+
+.expand-text {
+  white-space: nowrap;
+}
+
+.sidebar-expand-btn:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.sidebar-resize-handle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 4px;
+  height: 100%;
+  cursor: col-resize;
+  background: transparent;
+  transition: background 0.2s;
+  z-index: 10;
+}
+
+.sidebar-resize-handle:hover {
+  background: var(--accent);
 }
 
 .sidebar-tabs {
@@ -1628,79 +1824,107 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
-/* Filters */
+/* Filters - Tag Style */
 .filters-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
+  gap: 16px;
+  padding: 8px 20px;
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
+  flex-wrap: wrap;
 }
 
-.filter-dropdown {
-  position: relative;
-}
-
-.filter-dropdown-btn {
+.filter-group {
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.filter-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.filter-tags {
+  display: flex;
   gap: 6px;
-  padding: 8px 12px;
+  flex-wrap: wrap;
+}
+
+.filter-tag {
+  padding: 6px 12px;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 6px;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.15s;
+  white-space: nowrap;
+  font-weight: 500;
 }
 
-.filter-dropdown-btn:hover {
+.filter-tag:hover {
   border-color: var(--accent);
-  color: var(--text-primary);
+  color: var(--accent);
 }
 
-.filter-dropdown-btn span {
+.filter-tag.active {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.filter-tag.status-vectorized.active {
+  background: rgba(63, 185, 80, 0.15);
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.filter-tag.status-pending.active {
+  background: rgba(210, 153, 34, 0.15);
+  border-color: var(--yellow);
+  color: var(--yellow);
+}
+
+.filter-tag.status-processing.active {
+  background: rgba(88, 166, 255, 0.15);
+  border-color: var(--blue);
+  color: var(--blue);
+}
+
+.filter-tag.status-failed.active {
+  background: rgba(248, 81, 73, 0.15);
+  border-color: var(--red);
+  color: var(--red);
+}
+
+.filter-spacer {
+  flex: 1;
+}
+
+.filter-clear {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 16px;
   color: var(--text-muted);
-}
-
-.filter-dropdown-menu {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  min-width: 160px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 4px;
-  z-index: 100;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  display: none;
-}
-
-.filter-dropdown.open .filter-dropdown-menu {
-  display: block;
-}
-
-.filter-dropdown-item {
-  padding: 8px 12px;
-  font-size: 13px;
-  color: var(--text-secondary);
+  font-size: 12px;
   cursor: pointer;
-  border-radius: 4px;
+  opacity: 0;
   transition: all 0.15s;
 }
 
-.filter-dropdown-item:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
+.filter-clear.show {
+  opacity: 1;
 }
 
-.filter-dropdown-item.selected {
-  background: var(--accent-bg);
+.filter-clear:hover {
   color: var(--accent);
+  border-color: var(--accent);
 }
 
 .filter-spacer {
@@ -1764,17 +1988,38 @@ onMounted(() => {
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-light, #f5c87a));
+  opacity: 0;
+  transition: opacity 0.2s;
 }
 
 .card:hover {
   border-color: var(--accent);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 12px rgba(217, 119, 6, 0.15);
+}
+
+.card:hover::before {
+  opacity: 1;
 }
 
 .card.selected {
   border-color: var(--accent);
   background: var(--accent-bg);
+}
+
+.card.selected::before {
+  opacity: 1;
 }
 
 .card-checkbox {
@@ -1964,14 +2209,14 @@ onMounted(() => {
 
 .data-table th,
 .data-table td {
-  padding: 12px;
+  padding: 8px 12px;
   text-align: left;
   border-bottom: 1px solid var(--border-color);
 }
 
 .data-table th {
   background: var(--bg-secondary);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -1980,6 +2225,7 @@ onMounted(() => {
 .data-table td {
   font-size: 13px;
   color: var(--text-secondary);
+  height: 44px;
 }
 
 .data-table tbody tr {
@@ -2060,8 +2306,9 @@ onMounted(() => {
 
 .actions {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   opacity: 0;
+  transition: opacity 0.15s;
 }
 
 .data-table tbody tr:hover .actions {
@@ -2069,7 +2316,7 @@ onMounted(() => {
 }
 
 .actions button {
-  padding: 4px 8px;
+  padding: 4px 6px;
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -2081,6 +2328,33 @@ onMounted(() => {
 .actions button:hover {
   background: var(--bg-tertiary);
   color: var(--text-primary);
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.action-btn:hover {
+  background: var(--bg-tertiary);
+  border-color: var(--border-color);
+  color: var(--accent);
+}
+
+.action-btn.danger:hover {
+  background: rgba(248, 81, 73, 0.15);
+  border-color: var(--red);
+  color: var(--red);
 }
 
 /* Pagination */
@@ -2886,5 +3160,51 @@ onMounted(() => {
 
 .sidebar-mode-item .item-status.failed {
   background: var(--red);
+}
+
+/* Breadcrumb Navigation */
+.breadcrumb-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 16px;
+  background: var(--bg-tertiary, #f8f9fa);
+  border-bottom: 1px solid var(--border-color, #e5e7eb);
+  font-size: 13px;
+}
+
+.breadcrumb-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-secondary, #6b7280);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.breadcrumb-item:hover {
+  background: var(--bg-hover, #f3f4f6);
+  color: var(--accent, #d97706);
+}
+
+.breadcrumb-item.active {
+  color: var(--accent, #d97706);
+  font-weight: 500;
+  cursor: default;
+}
+
+.breadcrumb-item.active:hover {
+  background: transparent;
+}
+
+.breadcrumb-icon {
+  font-size: 12px;
+}
+
+.breadcrumb-separator {
+  color: var(--text-muted, #9ca3af);
+  user-select: none;
 }
 </style>
