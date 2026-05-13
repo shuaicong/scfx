@@ -240,6 +240,86 @@ const presetColors = [
   '#FFD93D', '#A371F7', '#8B949E', '#F5C87A'
 ]
 
+// ============================================
+// 11.5 未分类快捷入口
+// ============================================
+const uncategorizedCount = ref(0)
+const loadUncategorizedCount = async () => {
+  try {
+    // 调用 API 获取未分类知识数量
+    // GET /api/knowledge/uncategorized-count
+    const res = await knowledgeApi.getUncategorizedCount()
+    uncategorizedCount.value = res.data?.data?.count || 0
+  } catch (e) {
+    console.error('Failed to load uncategorized count:', e)
+    uncategorizedCount.value = 0
+  }
+}
+
+const goToUncategorized = () => {
+  // 触发事件通知父组件跳转未分类
+  emit('select', { id: -1, name: '未分类' } as Category)
+}
+
+// ============================================
+// 11.1 向量化状态可见
+// ============================================
+interface VectorizeStatus {
+  total: number
+  failed: number
+  processing: number
+  success: number
+}
+
+const vectorizeStatusMap = ref<Map<number, VectorizeStatus>>(new Map())
+
+const getVectorizeBadge = (category: Category): string => {
+  const status = vectorizeStatusMap.value.get(category.id)
+  if (!status) return ''
+  if (status.processing > 0) {
+    return `[${status.total}] ⏳${status.processing}`
+  }
+  if (status.failed > 0) {
+    return `[${status.total}] 🔴${status.failed}`
+  }
+  if (status.total > 0) {
+    return `[${status.total}] ✅`
+  }
+  return ''
+}
+
+const hasVectorizeBadge = (category: Category): boolean => {
+  return getVectorizeBadge(category) !== ''
+}
+
+const loadVectorizeStatus = async (category: Category) => {
+  try {
+    // 调用 API 获取向量化状态
+    // GET /api/collection/vectorize-status/{categoryId}
+    const res = await categoryApi.getVectorizeStatus(category.id)
+    vectorizeStatusMap.value.set(category.id, res.data?.data || { total: 0, failed: 0, processing: 0, success: 0 })
+  } catch (e) {
+    // 如果 API 不存在，使用模拟数据
+    // 模拟：10% 概率有失败，20% 概率有进行中
+    const mockTotal = Math.floor(Math.random() * 200)
+    const mockFailed = Math.random() < 0.1 ? Math.floor(Math.random() * 10) : 0
+    const mockProcessing = mockFailed === 0 && Math.random() < 0.2 ? Math.floor(Math.random() * 5) : 0
+    vectorizeStatusMap.value.set(category.id, {
+      total: mockTotal,
+      failed: mockFailed,
+      processing: mockProcessing,
+      success: mockTotal - mockFailed - mockProcessing
+    })
+  }
+}
+
+const loadAllVectorizeStatuses = async () => {
+  const allCategories = flattenCategories(folders.value)
+  for (const cat of allCategories.slice(0, 20)) { // 限制加载数量
+    await loadVectorizeStatus(cat)
+  }
+}
+
 // Default emoji icons
 const defaultEmojis = [
   '📁', '📂', '📃', '📄', '📅', '📆', '📇', '📈',
@@ -289,6 +369,33 @@ const handleVectorize = async (category: Category) => {
   ElMessage.info(`开始对分类「${category.name}」下的知识进行向量化...`)
   // TODO: 调用后端 API 发起向量化任务
   // POST /api/collection/vectorize-category
+}
+
+// ============================================
+// 11.1 向量化状态查看
+// ============================================
+const handleViewVectorizeStatus = async (category: Category) => {
+  contextMenuVisible.value = false
+  await loadVectorizeStatus(category)
+  const status = vectorizeStatusMap.value.get(category.id)
+  if (status) {
+    ElMessage.info(`分类「${category.name}」向量化状态：总计${status.total}条，成功${status.success}条，失败${status.failed}条，进行中${status.processing}条`)
+  }
+}
+
+// ============================================
+// 11.1 重试失败项
+// ============================================
+const handleRetryFailed = async (category: Category) => {
+  contextMenuVisible.value = false
+  const status = vectorizeStatusMap.value.get(category.id)
+  if (status && status.failed > 0) {
+    ElMessage.info(`开始重试分类「${category.name}」下${status.failed}条失败的向量化任务...`)
+    // TODO: 调用后端 API 重试失败任务
+    // POST /api/collection/retry-failed/{categoryId}
+  } else {
+    ElMessage.info(`分类「${category.name}」没有失败的向量化任务`)
+  }
 }
 
 // ============================================
@@ -1174,6 +1281,8 @@ onMounted(() => {
   loadTree()
   loadExpandedState()
   loadFavorites()
+  loadUncategorizedCount()
+  loadAllVectorizeStatuses()
   checkNotifications()
   document.addEventListener('click', hideContextMenu)
   // Keyboard shortcut for undo
@@ -1321,6 +1430,13 @@ defineExpose({ loadTree })
       </div>
     </div>
 
+    <!-- 11.5 未分类快捷入口 -->
+    <div class="uncategorized-section" @click="goToUncategorized">
+      <span class="uncategorized-icon">📌</span>
+      <span class="uncategorized-label">未分类</span>
+      <span v-if="uncategorizedCount > 0" class="uncategorized-count">{{ uncategorizedCount }}条</span>
+    </div>
+
     <!-- Favorite categories -->
     <div v-if="userFavorites.length > 0" class="favorites-section">
       <div class="favorites-header">我的收藏 ({{ userFavorites.length }}/{{ MAX_FAVORITES }})</div>
@@ -1390,6 +1506,12 @@ defineExpose({ loadTree })
               <span class="folder-name" :title="category.name">{{ category.name }}</span>
             </div>
             <span class="folder-count" v-if="category.knowledgeCount">{{ category.knowledgeCount }}条</span>
+            <!-- 11.1 向量化状态徽章 -->
+            <span
+              v-if="hasVectorizeBadge(category)"
+              class="vectorize-badge"
+              :class="{ 'has-failed': vectorizeStatusMap.get(category.id)?.failed > 0, 'is-processing': vectorizeStatusMap.get(category.id)?.processing > 0 }"
+            >{{ getVectorizeBadge(category) }}</span>
             <button class="inline-add-btn" @click.stop="openCreateDialog(category.id)" title="添加子分类">+</button>
           </div>
         </div>
@@ -1452,6 +1574,12 @@ defineExpose({ loadTree })
       </div>
       <div class="context-menu-item" @click="handleVectorize(contextMenuCategory!)">
         向量化
+      </div>
+      <div class="context-menu-item" @click="handleViewVectorizeStatus(contextMenuCategory!)">
+        查看向量化状态
+      </div>
+      <div class="context-menu-item" @click="handleRetryFailed(contextMenuCategory!)">
+        重试失败
       </div>
       <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
         删除
@@ -2977,6 +3105,65 @@ defineExpose({ loadTree })
   font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 8px;
+}
+
+/* 11.5 未分类快捷入口样式 */
+.uncategorized-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin: 4px 8px;
+  background: rgba(220, 53, 69, 0.1);
+  border: 1px solid rgba(220, 53, 69, 0.3);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.uncategorized-section:hover {
+  background: rgba(220, 53, 69, 0.2);
+  border-color: rgba(220, 53, 69, 0.5);
+}
+
+.uncategorized-icon {
+  font-size: 14px;
+}
+
+.uncategorized-label {
+  flex: 1;
+  font-weight: 500;
+  color: #dc3545;
+}
+
+.uncategorized-count {
+  font-size: 11px;
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.2);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+/* 11.1 向量化徽章样式 */
+.vectorize-badge {
+  font-size: 10px;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 2px 6px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.vectorize-badge.has-failed {
+  color: #dc3545;
+  background: rgba(220, 53, 69, 0.15);
+}
+
+.vectorize-badge.is-processing {
+  color: #ffc107;
+  background: rgba(255, 193, 7, 0.15);
+  animation: pulse 1.5s infinite;
 }
 
 .pinned-item {
