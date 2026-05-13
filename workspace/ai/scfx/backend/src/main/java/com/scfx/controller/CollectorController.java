@@ -1,11 +1,15 @@
 package com.scfx.controller;
 
 import com.scfx.common.Result;
+import com.scfx.entity.KnowledgeBase;
 import com.scfx.entity.Report;
 import com.scfx.entity.TaskExecution;
+import com.scfx.service.CategoryMappingService;
+import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.ReportService;
 import com.scfx.service.TaskExecutionService;
 import lombok.RequiredArgsConstructor;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -21,6 +25,8 @@ public class CollectorController {
 
     private final TaskExecutionService executionService;
     private final ReportService reportService;
+    private final CategoryMappingService categoryMappingService;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     /**
      * 启动采集任务
@@ -74,9 +80,10 @@ public class CollectorController {
      * Body: {"title": "...", "source": "...", "url": "...", "variety": "...", "reportType": "...", "content": "...", "publishTime": "..."}
      */
     @PostMapping("/{executionId}/data")
-    public Result<Void> submitData(
+    public Result<Map<String, Object>> submitData(
             @PathVariable String executionId,
             @RequestBody Map<String, Object> request) {
+        // 1. 构建 Report（原始数据）- 保持原有逻辑
         Report report = new Report();
         report.setTitle((String) request.get("title"));
         report.setSource((String) request.get("source"));
@@ -84,6 +91,7 @@ public class CollectorController {
         report.setVariety((String) request.get("variety"));
         report.setReportType((String) request.get("reportType"));
         report.setContent((String) request.get("content"));
+        report.setExecutionId(executionId);
 
         Object publishTimeObj = request.get("publishTime");
         if (publishTimeObj != null) {
@@ -94,13 +102,59 @@ public class CollectorController {
             }
         }
 
-        // 检查是否已存在（根据URL去重）
+        // 2. 检查 Report 去重（根据URL）
         if (report.getOriginalUrl() != null && reportService.existsByUrl(report.getOriginalUrl())) {
             return Result.error("报告已存在");
         }
-
         reportService.saveReport(report);
-        return Result.success();
+
+        // 3. 构建 KnowledgeBase（知识库）- 新增
+        KnowledgeBase kb = new KnowledgeBase();
+        kb.setTitle(report.getTitle());
+        kb.setSourceType(report.getSource());
+        kb.setSourceName(getSourceName(report.getSource()));
+        kb.setOriginalUrl(report.getOriginalUrl());
+        kb.setContent(report.getContent());
+        kb.setPublishTime(report.getPublishTime());
+        kb.setExecutionId(executionId);
+        kb.setCollectionSource(report.getSource());
+        kb.setCollectionVariety(report.getVariety());
+        kb.setCollectionReportType(report.getReportType());
+        kb.setVectorStatus("pending");  // 初始状态：待向量化
+
+        // 4. 分类映射 - 新增
+        Long categoryId = categoryMappingService.map(
+            kb.getSourceType(),
+            kb.getCollectionVariety(),
+            kb.getCollectionReportType()
+        );
+        kb.setCategoryId(categoryId);
+
+        // 5. 内容Hash去重 - 新增
+        String hash = DigestUtils.md5Hex(kb.getContent());
+        if (knowledgeBaseService.existsByHash(hash)) {
+            return Result.error("知识已存在");
+        }
+        kb.setContentHash(hash);
+
+        // 6. 写入知识库 - 新增
+        knowledgeBaseService.save(kb);
+
+        // 7. 触发分类向量化（异步）- 新增（暂无VectorTaskService，跳过）
+
+        return Result.success(Map.of("knowledgeId", kb.getId()));
+    }
+
+    /**
+     * 获取来源名称
+     */
+    private String getSourceName(String source) {
+        Map<String, String> map = Map.of(
+            "liangxinwang", "粮信网",
+            "mysteel", "我的钢铁网",
+            "china_grain", "中华粮网"
+        );
+        return map.getOrDefault(source, source);
     }
 
     /**
