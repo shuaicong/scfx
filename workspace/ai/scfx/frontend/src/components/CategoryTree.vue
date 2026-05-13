@@ -1607,7 +1607,7 @@ defineExpose({ loadTree })
 
     <!-- Preview dialog -->
     <div v-if="showPreview" class="dialog-overlay" @click.self="closePreview">
-      <div class="dialog">
+      <div class="dialog dialog-preview">
         <div class="dialog-header">
           <h3>分类预览：{{ previewCategory?.name }}</h3>
           <button class="close-btn" @click="closePreview">×</button>
@@ -1617,19 +1617,30 @@ defineExpose({ loadTree })
             <span class="preview-icon">{{ previewCategory?.icon }}</span>
             <span class="preview-name">{{ previewCategory?.name }}</span>
           </div>
-          <div class="preview-section">
-            <h4>知识列表</h4>
-            <div v-if="previewKnowledge.length === 0" class="empty-preview">
-              暂无知识
+          <div class="preview-details">
+            <div class="preview-detail-item" v-if="previewCategory?.description">
+              <span class="preview-label">描述</span>
+              <span class="preview-value">{{ previewCategory?.description }}</span>
             </div>
-            <div v-else class="preview-list">
-              <div
-                v-for="knowledge in previewKnowledge"
-                :key="knowledge.id"
-                class="preview-item"
-              >
-                {{ knowledge.title }}
-              </div>
+            <div class="preview-detail-item">
+              <span class="preview-label">知识数量</span>
+              <span class="preview-value">{{ previewCategory?.knowledgeCount || 0 }} 条</span>
+            </div>
+            <div class="preview-detail-item">
+              <span class="preview-label">子分类</span>
+              <span class="preview-value">{{ previewCategory?.children?.length || 0 }} 个</span>
+            </div>
+            <div class="preview-detail-item" v-if="previewCategory && getParentPath(previewCategory)">
+              <span class="preview-label">父分类</span>
+              <span class="preview-value">{{ getParentPath(previewCategory!) }}</span>
+            </div>
+            <div class="preview-detail-item">
+              <span class="preview-label">创建时间</span>
+              <span class="preview-value">{{ previewCategory?.createdAt || '-' }}</span>
+            </div>
+            <div class="preview-detail-item">
+              <span class="preview-label">最后更新</span>
+              <span class="preview-value">{{ previewCategory?.updatedAt || '-' }}</span>
             </div>
           </div>
         </div>
@@ -3130,6 +3141,41 @@ defineExpose({ loadTree })
 
 .preview-name {
   font-weight: 500;
+}
+
+.dialog-preview {
+  width: 480px;
+}
+
+.preview-details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preview-detail-item {
+  display: flex;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.preview-detail-item:last-child {
+  border-bottom: none;
+}
+
+.preview-label {
+  width: 80px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.preview-value {
+  flex: 1;
+  color: var(--text-primary);
+  font-size: 13px;
+  word-break: break-all;
 }
 
 .preview-section h4 {
