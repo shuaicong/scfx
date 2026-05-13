@@ -1147,19 +1147,18 @@ const showContextMenu = (event: MouseEvent, category: Category) => {
   let x = event.clientX
   let y = event.clientY
   const menuWidth = 160
-  const menuItemHeight = 36
-  const menuItemCount = 16 // approximate number of items
+  const menuItemHeight = 40
+  const menuItemCount = 9 // menu has 9 items
   const menuHeight = menuItemHeight * menuItemCount
 
-  // Adjust if menu would overflow right edge
+  // Adjust if menu will overflow right edge
   if (x + menuWidth > window.innerWidth) {
     x = window.innerWidth - menuWidth - 10
   }
-  // Adjust if menu would overflow bottom edge - flip up
+  // Adjust if menu will overflow bottom edge - flip up
   if (y + menuHeight > window.innerHeight) {
-    y = y - menuHeight - 20 // show above click point
+    y = y - menuHeight - 10 // show above click point
     if (y < 10) {
-      // If still off screen top, cap at 10
       y = 10
     }
   }
