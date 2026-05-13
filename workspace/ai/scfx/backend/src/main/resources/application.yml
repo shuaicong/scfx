@@ -2,27 +2,19 @@ spring:
   application:
     name: grain-platform
 
-  # 开发环境使用H2内存数据库
+  # MySQL数据库
   datasource:
-    driver-class-name: org.h2.Driver
-    url: jdbc:h2:file:./data/grain_platform;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;DATABASE_TO_UPPER=false
-    username: sa
-    password:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/grain_platform?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    username: root
+    password: Scfx@2024
     hikari:
-      maximum-pool-size: 5
-
-  # H2 Console（开发时启用）
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+      maximum-pool-size: 10
 
   # 初始化SQL
   sql:
     init:
-      mode: always
-      schema-locations: classpath:schema.sql
-      encoding: UTF-8
+      mode: never
 
   # Redis配置（可选，开发时可注释掉）
   # data:
@@ -88,3 +80,13 @@ app:
         report-url: https://www.chinagrain.cn/report/
     cookie-dir: data/sessions
     data-dir: data/raw
+
+# 向量库配置
+vector:
+  enabled: false  # true: 使用真实向量库, false: 使用 Mock
+  openai:
+    api-url: https://api.openai.com/v1/embeddings
+    api-key: your-api-key-here
+    model: text-embedding-ada-002
+    dimensions: 1536
+    timeout: 30000
