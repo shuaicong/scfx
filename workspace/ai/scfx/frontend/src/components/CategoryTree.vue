@@ -608,10 +608,13 @@ const searchCategories = async (query: string) => {
 
 const debouncedSearch = debounce(searchCategories, 300)
 
+// 转义正则特殊字符
+const escapeRegex = (str: string): string => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
 // 关键词高亮函数
 const highlightText = (text: string, query: string): string => {
   if (!query) return text
-  const regex = new RegExp(`(${query})`, 'gi')
+  const regex = new RegExp(`(${escapeRegex(query)})`, 'gi')
   return text.replace(regex, '<mark>$1</mark>')
 }
 
