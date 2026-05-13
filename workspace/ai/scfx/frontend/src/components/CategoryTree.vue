@@ -282,6 +282,16 @@ const autoTagging = async (knowledgeId: number) => {
 }
 
 // ============================================
+// 向量化操作
+// ============================================
+const handleVectorize = async (category: Category) => {
+  contextMenuVisible.value = false
+  ElMessage.info(`开始对分类「${category.name}」下的知识进行向量化...`)
+  // TODO: 调用后端 API 发起向量化任务
+  // POST /api/collection/vectorize-category
+}
+
+// ============================================
 // 11. 分类模板市场
 // ============================================
 // 12. 分类间知识移动历史
@@ -528,13 +538,6 @@ const toggleSubscription = async (categoryId: number) => {
 const checkNotifications = async () => {
   // 检查订阅的分类是否有新知识
   notifyCount.value = 0 // 重置
-}
-
-// Import file input ref
-const importInput = ref<HTMLInputElement | null>(null)
-
-const triggerImport = () => {
-  importInput.value?.click()
 }
 
 const openPreview = async (category: Category) => {
@@ -903,31 +906,6 @@ const loadTree = async () => {
   }
 }
 
-// Export categories
-const exportCategories = async () => {
-  const res = await categoryApi.export()
-  const data = res.data.data.data
-  const blob = new Blob([data], { type: 'application/json' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'categories.json'
-  a.click()
-  URL.revokeObjectURL(url)
-}
-
-// Import categories
-const importCategories = async (event: Event) => {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-
-  const text = await file.text()
-  await categoryApi.import(text)
-  await loadTree()
-  input.value = '' // Reset input
-}
-
 // Duplicate name check
 const checkDuplicateNames = async () => {
   const res = await categoryApi.mergeSuggestions()
@@ -1292,23 +1270,6 @@ defineExpose({ loadTree })
             批量创建
           </button>
           <div class="more-menu-divider"></div>
-          <button class="more-menu-item" @click="triggerImport(); moreDropdownOpen = false">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="17,8 12,3 7,8"/>
-              <line x1="12" y1="3" x2="12" y2="15"/>
-            </svg>
-            导入
-          </button>
-          <button class="more-menu-item" @click="exportCategories(); moreDropdownOpen = false">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7,10 12,15 17,10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            导出
-          </button>
-          <div class="more-menu-divider"></div>
           <button class="more-menu-item" @click="checkDuplicateNames(); moreDropdownOpen = false">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
@@ -1342,13 +1303,6 @@ defineExpose({ loadTree })
           </button>
         </div>
       </div>
-      <input
-        ref="importInput"
-        type="file"
-        accept=".json"
-        style="display: none"
-        @change="importCategories"
-      />
     </div>
 
     <!-- Pinned categories -->
@@ -1495,6 +1449,9 @@ defineExpose({ loadTree })
       </div>
       <div class="context-menu-item" @click="addToFavorites([contextMenuCategory!.id])">
         添加到收藏夹
+      </div>
+      <div class="context-menu-item" @click="handleVectorize(contextMenuCategory!)">
+        向量化
       </div>
       <div class="context-menu-item danger" @click="deleteCategory(contextMenuCategory!.id)">
         删除

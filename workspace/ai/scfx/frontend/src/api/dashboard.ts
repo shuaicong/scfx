@@ -33,3 +33,9 @@ export const getRecentReports = (limit: number) => request.get('/reports/recent'
 export const collectLiangxinwang = () => request.post('/collection/liangxinwang')
 
 export const getCollectionStatus = () => request.get('/collection/status')
+
+export const getExecution = (id: string) => request.get(`/collection/execution/${id}`)
+
+export const getExecutionLogs = (id: string) => request.get(`/collection/execution/${id}/logs`)
+
+export const cancelExecution = (id: string) => request.post(`/collection/execution/${id}/cancel`)
