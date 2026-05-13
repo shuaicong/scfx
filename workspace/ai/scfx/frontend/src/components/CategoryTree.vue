@@ -932,7 +932,7 @@ const nameValidationResult = computed(() => {
 
 const loadTrash = async () => {
   const res = await categoryApi.trash()
-  trashCategories.value = res.data.data || []
+  trashCategories.value = (res as any).data || []
   showTrash.value = true
 }
 
