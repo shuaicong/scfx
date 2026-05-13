@@ -823,10 +823,8 @@ const validateCategoryName = (name: string): { valid: boolean; message: string }
 }
 
 const formatName = (name: string): string => {
-  // 自动格式化名称 - 如果没有类型前缀，添加【未分类】
-  if (!name.trim()) return name
-  if (name.startsWith('【') || name.startsWith('[')) return name
-  return `【未分类】${name}`
+  // 不自动添加前缀，保持用户输入的原样
+  return name
 }
 
 // Add validation feedback when editing
@@ -1000,9 +998,6 @@ const saveCategory = async () => {
     ElMessage.warning(validation.message)
     return
   }
-
-  // Auto-format name if valid
-  editingCategory.value.name = formatName(editingCategory.value.name || '')
 
   if (dialogMode.value === 'create') {
     const res = await categoryApi.create(editingCategory.value)
