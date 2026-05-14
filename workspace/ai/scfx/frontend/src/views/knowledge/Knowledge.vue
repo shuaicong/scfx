@@ -2903,6 +2903,10 @@ onMounted(() => {
 /* Category Tree Section */
 .category-tree-section {
   padding: 8px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 /* Folder Hierarchy Styles */
