@@ -1343,9 +1343,7 @@ document.addEventListener('click', (e) => {
 })
 
 onMounted(() => {
-  // For testing without backend, use mock data
-  // loadData()
-  loadMockData()
+  loadData()
 })
 </script>
 
