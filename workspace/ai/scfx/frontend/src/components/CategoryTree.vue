@@ -3088,14 +3088,15 @@ defineExpose({ loadTree })
 .uncategorized-label {
   flex: 1;
   font-weight: 400;
-  color: var(--text-secondary);
+  font-size: 14px;
+  color: var(--text-primary);
 }
 
 .uncategorized-count {
   font-size: 11px;
   color: var(--text-muted);
   background: var(--bg-tertiary);
-  padding: 2px 8px;
+  padding: 2px 6px;
   border-radius: 10px;
 }
 
