@@ -3209,7 +3209,7 @@ defineExpose({ loadTree })
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 80px;
+  max-width: 120px;
 }
 
 .favorite-item:hover {
