@@ -3069,18 +3069,16 @@ defineExpose({ loadTree })
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   margin: 4px 8px;
-  background: rgba(220, 53, 69, 0.1);
-  border: 1px solid rgba(220, 53, 69, 0.3);
+  background: var(--bg-tertiary);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .uncategorized-section:hover {
-  background: rgba(220, 53, 69, 0.2);
-  border-color: rgba(220, 53, 69, 0.5);
+  background: var(--bg-hover);
 }
 
 .uncategorized-icon {
@@ -3089,14 +3087,14 @@ defineExpose({ loadTree })
 
 .uncategorized-label {
   flex: 1;
-  font-weight: 500;
-  color: #dc3545;
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 
 .uncategorized-count {
   font-size: 11px;
-  color: #dc3545;
-  background: rgba(220, 53, 69, 0.2);
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
   padding: 2px 8px;
   border-radius: 10px;
 }
