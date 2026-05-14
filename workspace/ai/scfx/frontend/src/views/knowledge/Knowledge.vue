@@ -6,7 +6,6 @@
 
       <div class="sidebar-tabs">
         <button class="sidebar-tab" :class="{ active: sidebarTab === 'tree' }" @click="sidebarTab = 'tree'">分类</button>
-        <button class="sidebar-tab" :class="{ active: sidebarTab === 'tag' }" @click="sidebarTab = 'tag'">标签</button>
         <button class="sidebar-collapse-btn" @click="toggleSidebar" title="折叠侧边栏">◀</button>
       </div>
 
@@ -81,36 +80,6 @@
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="sidebar-content" id="sidebarTags" style="display: none;">
-        <div class="sidebar-section">
-          <div class="sidebar-header">
-            标签
-            <button class="sidebar-header-btn" title="新建标签">+</button>
-          </div>
-          <div
-            class="sidebar-item"
-            :class="{ active: selectedTag === 'all' }"
-            @click="selectTag('all')"
-          >
-            <span class="icon">🏷️</span>
-            <span class="name">全部标签</span>
-            <span class="count">{{ totalTags }}</span>
-          </div>
-          <div
-            v-for="tag in tags"
-            :key="tag.key"
-            class="sidebar-item"
-            :class="{ active: selectedTag === tag.key }"
-            @click="selectTag(tag.key)"
-            style="padding-left: 20px;"
-          >
-            <span class="tag-dot" :style="{ background: tag.color }"></span>
-            <span class="name">{{ tag.name }}</span>
-            <span class="count">{{ tag.count }}</span>
           </div>
         </div>
       </div>
@@ -667,14 +636,6 @@ const sources = ref([
   { key: 'manual', name: '人工录入', abbr: 'R', count: 0 }
 ])
 
-// Tags
-const tags = ref([
-  { key: 'price', name: '价格', color: '#f5c87a', count: 0 },
-  { key: 'supply', name: '供需', color: '#58a6ff', count: 0 },
-  { key: 'policy', name: '政策', color: '#a371f7', count: 0 },
-  { key: 'international', name: '国际', color: '#3fb950', count: 0 }
-])
-
 // Folders (with nested structure)
 interface Folder {
   id: number
@@ -873,7 +834,6 @@ const stopResize = () => {
 
 // Filters
 const selectedSource = ref('all')
-const selectedTag = ref('all')
 
 const filters = reactive({
   sourceType: '',
@@ -996,14 +956,9 @@ const statusOptions = [
   { value: 'failed', label: '失败', color: '#f85149' }
 ]
 
-const totalTags = computed(() => tags.value.reduce((sum, t) => sum + t.count, 0))
-
 const currentListTitle = computed(() => {
   if (selectedSource.value !== 'all') {
     return sources.value.find(s => s.key === selectedSource.value)?.name || '知识列表'
-  }
-  if (selectedTag.value !== 'all') {
-    return tags.value.find(t => t.key === selectedTag.value)?.name || '知识列表'
   }
   return '知识列表'
 })
@@ -1011,10 +966,8 @@ const currentListTitle = computed(() => {
 // Watch sidebar tab
 watch(sidebarTab, (val) => {
   const tree = document.getElementById('sidebarTree')
-  const tagsEl = document.getElementById('sidebarTags')
-  if (tree && tagsEl) {
+  if (tree) {
     tree.style.display = val === 'tree' ? 'block' : 'none'
-    tagsEl.style.display = val === 'tag' ? 'block' : 'none'
   }
 })
 
@@ -1038,12 +991,6 @@ function selectSource(key: string) {
   } else {
     filters.sourceType = key
   }
-  pagination.page = 1
-  loadData()
-}
-
-function selectTag(key: string) {
-  selectedTag.value = key
   pagination.page = 1
   loadData()
 }
