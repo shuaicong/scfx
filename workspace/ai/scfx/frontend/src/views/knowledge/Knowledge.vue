@@ -1624,27 +1624,6 @@ onMounted(() => {
   min-width: 0;
 }
 
-.list-area.list-sidebar-mode {
-  width: 240px;
-  flex: none;
-  border-right: 1px solid var(--border-color);
-}
-
-.list-area.list-sidebar-mode .list-header,
-.list-area.list-sidebar-mode .filters-bar,
-.list-area.list-sidebar-mode .batch-bar,
-.list-area.list-sidebar-mode .card-grid,
-.list-area.list-sidebar-mode .table-view,
-.list-area.list-sidebar-mode .pagination-wrapper {
-  display: none !important;
-}
-
-.list-area.list-sidebar-mode .list-items {
-  flex: 1;
-  overflow-y: auto;
-  padding: 8px;
-}
-
 .list-area.list-collapsed {
   width: 0;
   min-width: 0;
