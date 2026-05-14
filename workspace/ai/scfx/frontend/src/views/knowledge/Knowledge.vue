@@ -2979,9 +2979,14 @@ onMounted(() => {
 
 /* Sidebar Mode List */
 .sidebar-mode-list {
+  display: none;
   flex-direction: column;
   gap: 4px;
   padding: 8px;
+}
+
+.sidebar-mode-list.visible {
+  display: flex;
 }
 
 .sidebar-mode-list.visible {
