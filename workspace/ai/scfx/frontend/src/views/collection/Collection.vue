@@ -34,7 +34,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>采集任务</span>
+              <span>采集任务 <span class="shortcut-hint">Ctrl+R 刷新</span></span>
               <el-button type="primary" @click="handleCollect" :loading="collecting">
                 <el-icon><Refresh /></el-icon>
                 立即采集
@@ -69,9 +69,9 @@
                 <span style="color: #f56c6c;">{{ row.failedCount }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" fixed="right">
+            <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="executeTask(row)">执行</el-button>
+                <el-button type="primary" link size="small" @click="executeTask(row)">执行 <span class="btn-shortcut">Ctrl+Enter</span></el-button>
                 <el-button type="info" link size="small" @click="viewDetail(row)">详情</el-button>
               </template>
             </el-table-column>
@@ -116,7 +116,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>采集脚本管理</span>
+              <span>采集脚本管理 <span class="shortcut-hint">Ctrl+R 刷新</span></span>
               <div class="header-buttons">
                 <el-button type="primary" @click="showUploadDialog">
                   <el-icon><Upload /></el-icon>
@@ -204,7 +204,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>向量化任务</span>
+              <span>向量化任务 <span class="shortcut-hint">Ctrl+R 刷新</span></span>
               <div class="header-buttons">
                 <el-button type="primary" @click="triggerAllPending" :loading="vectorLoading">
                   <el-icon><Refresh /></el-icon>
@@ -255,7 +255,7 @@
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>执行记录</span>
+              <span>执行记录 <span class="shortcut-hint">Ctrl+R 刷新</span></span>
             </div>
           </template>
 
@@ -318,6 +318,7 @@ import { vectorizationApi } from '@/api/vectorization'
 import CollectionProgress from '@/components/CollectionProgress.vue'
 import TriggerBadge from '@/components/TriggerBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
+import { useShortcut } from '@/composables/useShortcut'
 
 interface TaskStats {
   total: number
@@ -423,6 +424,7 @@ const loadTasks = async () => {
     }
   } catch (error) {
     console.error('加载任务列表失败', error)
+    ElMessage.error('加载任务列表失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -451,7 +453,7 @@ const loadScripts = async () => {
     const res: any = await scriptApi.list({
       page: scriptPagination.page,
       size: scriptPagination.size
-    }, { signal: loadScriptsController.signal })
+    })
     if (res.code === 200) {
       scriptList.value = res.data.records || []
       scriptPagination.total = res.data.total || 0
@@ -476,7 +478,7 @@ const loadExecutions = async () => {
     const res: any = await executionApi.list(0, {
       page: executionPagination.page,
       size: executionPagination.size
-    }, { signal: loadExecutionsController.signal })
+    })
     if (res.code === 200) {
       executionList.value = res.data.records || []
       executionPagination.total = res.data.total || 0
@@ -607,7 +609,7 @@ const viewExecutionLogs = (row: TaskExecution) => {
 }
 
 const cancelExecution = (row: TaskExecution) => {
-  ElMessageBox.confirm(`确定取消执行"${row.scriptName}"吗？`, '提示', {
+  ElMessageBox.confirm(`确定取消执行 #${row.scriptId} 吗？`, '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'warning'
@@ -635,13 +637,18 @@ const handleExecutionPageChange = (page: number) => {
 }
 
 async function executeScript(row: CollectionScript) {
+  const scriptId = row.id
+  if (!scriptId) {
+    ElMessage.error('脚本ID无效')
+    return
+  }
   ElMessageBox.confirm(`确定执行脚本"${row.scriptName}"吗？`, '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
     type: 'info'
   }).then(async () => {
     try {
-      const res: any = await scriptApi.execute(row.id)
+      const res: any = await scriptApi.execute(scriptId)
       if (res.code === 200) {
         ElMessage.success('脚本执行已触发')
         loadScripts()
@@ -775,6 +782,32 @@ watch(activeTab, (newTab) => {
     loadVectorTasks()
   }
 })
+
+// Keyboard shortcuts
+const refreshCurrentTab = () => {
+  if (activeTab.value === 'tasks') {
+    loadTasks()
+    loadTaskStats()
+  } else if (activeTab.value === 'scripts') {
+    loadScripts()
+    loadScriptStats()
+  } else if (activeTab.value === 'executions') {
+    loadExecutions()
+  } else if (activeTab.value === 'vectorization') {
+    loadVectorStats()
+    loadVectorTasks()
+  }
+  ElMessage.info('已刷新')
+}
+
+const executeSelectedTask = () => {
+  if (tasks.value.length > 0 && activeTab.value === 'tasks') {
+    executeTask(tasks.value[0])
+  }
+}
+
+useShortcut('Enter', executeSelectedTask, { ctrl: true })
+useShortcut('r', refreshCurrentTab, { ctrl: true })
 </script>
 
 <style scoped>
@@ -842,5 +875,18 @@ watch(activeTab, (newTab) => {
 .stat-label {
   font-size: 14px;
   opacity: 0.9;
+}
+
+.shortcut-hint {
+  font-size: 12px;
+  color: #909399;
+  margin-left: 8px;
+  font-weight: normal;
+}
+
+.btn-shortcut {
+  font-size: 10px;
+  color: #909399;
+  margin-left: 2px;
 }
 </style>
