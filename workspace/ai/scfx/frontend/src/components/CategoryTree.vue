@@ -3068,13 +3068,14 @@ defineExpose({ loadTree })
 .uncategorized-section {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: 6px;
+  padding: 6px 8px;
   margin: 4px 8px;
   background: var(--bg-tertiary);
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.15s;
+  font-size: 12px;
 }
 
 .uncategorized-section:hover {
@@ -3088,15 +3089,14 @@ defineExpose({ loadTree })
 .uncategorized-label {
   flex: 1;
   font-weight: 400;
-  font-size: 14px;
   color: var(--text-primary);
 }
 
 .uncategorized-count {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--text-muted);
   background: var(--bg-tertiary);
-  padding: 2px 6px;
+  padding: 1px 6px;
   border-radius: 10px;
 }
 
