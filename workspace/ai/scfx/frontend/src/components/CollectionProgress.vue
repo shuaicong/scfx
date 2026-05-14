@@ -1,107 +1,112 @@
 <!-- frontend/src/components/CollectionProgress.vue -->
 <template>
-  <el-drawer v-model="visible" title="采集详情" size="500px">
+  <el-drawer v-model="drawerVisible" title="执行进度" size="500px" direction="rtl">
     <div class="progress-info">
       <div class="execution-id">执行ID: {{ executionId }}</div>
-      <div class="status">
+      <div class="status-row">
         <el-tag :type="statusType">{{ statusText }}</el-tag>
+        <el-progress :percentage="progressPercent" style="flex: 1; margin-left: 16px;" />
       </div>
-
-      <el-progress :percentage="progressPercent" style="margin: 20px 0;" />
 
       <div class="stats">
         <div class="stat-item">
-          <span class="label">已采集</span>
-          <span class="value">{{ collectedCount }}</span>
+          <span class="label">已处理</span>
+          <span class="value">{{ processedCount }}</span>
         </div>
         <div class="stat-item">
-          <span class="label">已提交</span>
-          <span class="value">{{ submittedCount }}</span>
-        </div>
-        <div class="stat-item">
-          <span class="label">失败</span>
-          <span class="value error">{{ failedCount }}</span>
+          <span class="label">总数</span>
+          <span class="value">{{ totalCount }}</span>
         </div>
       </div>
     </div>
 
     <div class="log-section">
-      <div class="log-header">
-        <span>实时日志</span>
-        <el-button link @click="downloadLog">下载日志</el-button>
-      </div>
-      <div class="log-list" ref="logListRef">
-        <div v-for="(log, idx) in logs" :key="idx" class="log-item" :class="log.level">
-          <span class="time">{{ log.time }}</span>
-          <span class="message">{{ log.message }}</span>
-        </div>
-      </div>
+      <ExecutionLogViewer :executionId="executionId" :logs="logs" />
     </div>
 
     <template #footer>
-      <el-button @click="visible = false">关闭</el-button>
-      <el-button type="danger" @click="handleCancel">取消执行</el-button>
+      <el-button @click="drawerVisible = false">关闭</el-button>
+      <el-button type="danger" @click="handleCancel" :disabled="execution?.status === 'success' || execution?.status === 'failed'">取消执行</el-button>
     </template>
   </el-drawer>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
-import { getExecution, getExecutionLogs, cancelExecution } from '@/api/dashboard'
+import { executionApi, type ExecutionLog } from '@/api'
+import ExecutionLogViewer from './ExecutionLogViewer.vue'
 
-const props = defineProps<{ modelValue: boolean; executionId: string }>()
-const emit = defineEmits(['update:modelValue'])
-
-const visible = computed({
-  get: () => props.modelValue,
-  set: (val) => emit('update:modelValue', val)
-})
-
+const drawerVisible = ref(false)
+const executionId = ref('')
 const execution = ref<any>({})
-const logs = ref<any[]>([])
+const logs = ref<ExecutionLog[]>([])
 
-const collectedCount = computed(() => execution.value.collectedCount || 0)
-const submittedCount = computed(() => execution.value.submittedCount || 0)
-const failedCount = computed(() => execution.value.failedCount || 0)
+const processedCount = computed(() => execution.value.processedCount || 0)
+const totalCount = computed(() => execution.value.totalCount || 0)
+
 const progressPercent = computed(() => {
-  const total = collectedCount.value
+  const total = totalCount.value
   if (!total) return 0
-  return Math.round((submittedCount.value / total) * 100)
+  return Math.round((processedCount.value / total) * 100)
 })
 
 const statusType = computed(() => {
-  const map: Record<string, string> = { running: 'primary', success: 'success', failed: 'danger' }
+  const map: Record<string, string> = {
+    pending: 'info',
+    running: 'primary',
+    success: 'success',
+    failed: 'danger',
+    cancelled: 'warning'
+  }
   return map[execution.value.status] || 'info'
 })
 
 const statusText = computed(() => {
-  const map: Record<string, string> = { running: '运行中', success: '成功', failed: '失败' }
-  return map[execution.value.status] || execution.value.status
+  const map: Record<string, string> = {
+    pending: '等待中',
+    running: '执行中',
+    success: '已完成',
+    failed: '失败',
+    cancelled: '已取消'
+  }
+  return map[execution.value.status] || execution.value.status || '等待中'
 })
 
 async function loadExecution() {
-  const res: any = await getExecution(props.executionId)
-  if (res.code === 200) execution.value = res.data
+  if (!executionId.value) return
+  try {
+    const res: any = await executionApi.get(executionId.value)
+    execution.value = res.data || {}
+  } catch (error) {
+    console.error('加载执行状态失败', error)
+  }
 }
 
 async function loadLogs() {
-  const res: any = await getExecutionLogs(props.executionId)
-  if (res.code === 200) logs.value = res.data
+  if (!executionId.value) return
+  try {
+    const res: any = await executionApi.logs(executionId.value)
+    logs.value = res.data || []
+  } catch (error) {
+    console.error('加载执行日志失败', error)
+  }
 }
 
 async function handleCancel() {
-  await cancelExecution(props.executionId)
-  visible.value = false
-}
-
-function downloadLog() {
-  // TODO: 下载日志文件
+  try {
+    await executionApi.cancel(executionId.value)
+    drawerVisible.value = false
+  } catch (error) {
+    console.error('取消执行失败', error)
+  }
 }
 
 // 定时刷新
 let timer: number | null = null
 
 function startPolling() {
+  loadExecution()
+  loadLogs()
   timer = window.setInterval(() => {
     loadExecution()
     loadLogs()
@@ -109,18 +114,27 @@ function startPolling() {
 }
 
 function stopPolling() {
-  if (timer) clearInterval(timer)
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
 }
 
-watch(visible, (val) => {
+watch(drawerVisible, (val) => {
   if (val) {
-    loadExecution()
-    loadLogs()
     startPolling()
   } else {
     stopPolling()
   }
 })
+
+// 暴露 open 方法供外部调用
+function open(id: string) {
+  executionId.value = id
+  drawerVisible.value = true
+}
+
+defineExpose({ open })
 </script>
 
 <style scoped>
@@ -129,14 +143,17 @@ watch(visible, (val) => {
 }
 .execution-id {
   color: #666;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  font-size: 13px;
 }
-.status {
-  margin-bottom: 12px;
+.status-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
 }
 .stats {
   display: flex;
-  gap: 24px;
+  gap: 32px;
 }
 .stat-item {
   display: flex;
@@ -150,33 +167,8 @@ watch(visible, (val) => {
   font-size: 24px;
   font-weight: bold;
 }
-.stat-item .value.error {
-  color: #f56c6c;
-}
 .log-section {
   padding: 16px;
   border-top: 1px solid #eee;
-}
-.log-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-.log-list {
-  max-height: 300px;
-  overflow-y: auto;
-  font-family: monospace;
-  font-size: 12px;
-}
-.log-item {
-  padding: 4px 0;
-}
-.log-item .time {
-  color: #999;
-  margin-right: 8px;
-}
-.log-item.error .message {
-  color: #f56c6c;
 }
 </style>

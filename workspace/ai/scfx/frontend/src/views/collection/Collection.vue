@@ -1,5 +1,6 @@
 <template>
   <div class="collection">
+    <CollectionProgress ref="progressDrawer" />
     <el-tabs v-model="activeTab" class="collection-tabs">
       <el-tab-pane label="采集任务" name="tasks">
         <!-- 统计卡片 -->
@@ -110,7 +111,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { getTasks, collectLiangxinwang } from '@/api/dashboard'
-import { scriptApi } from '@/api'
+import { scriptApi, executionApi } from '@/api'
+import CollectionProgress from '@/components/CollectionProgress.vue'
 
 interface TaskStats {
   total: number
@@ -122,6 +124,7 @@ interface TaskStats {
 const loading = ref(false)
 const collecting = ref(false)
 const tasks = ref<any[]>([])
+const progressDrawer = ref<InstanceType<typeof CollectionProgress>>()
 
 const activeTab = ref('tasks')
 
@@ -188,7 +191,15 @@ const executeTask = (row: any) => {
     cancelButtonText: '取消',
     type: 'info'
   }).then(async () => {
-    ElMessage.success('任务已触发执行')
+    try {
+      const res: any = await scriptApi.execute(row.id)
+      if (res.code === 200 && res.data?.executionId) {
+        ElMessage.success('任务已触发执行')
+        progressDrawer.value?.open(res.data.executionId)
+      }
+    } catch (error) {
+      ElMessage.error('触发执行失败')
+    }
   }).catch(() => {})
 }
 
