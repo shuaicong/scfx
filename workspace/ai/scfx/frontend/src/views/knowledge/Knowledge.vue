@@ -1093,16 +1093,6 @@ async function viewDetail(item: KnowledgeItem) {
     currentPreview.value = res.data || item
     previewVisible.value = true
 
-    // Switch list to sidebar mode
-    const listArea = document.getElementById('listArea')
-    const sidebar = document.getElementById('sidebar')
-    if (listArea) {
-      listArea.classList.add('list-sidebar-mode')
-    }
-    if (sidebar) {
-      sidebar.classList.add('collapsed')
-    }
-
     // Load related items
     relatedItems.value = list.value
       .filter(i => i.id !== item.id)
@@ -1117,16 +1107,6 @@ async function viewDetail(item: KnowledgeItem) {
 function closePreview() {
   previewVisible.value = false
   currentPreview.value = null
-
-  // Restore list
-  const listArea = document.getElementById('listArea')
-  const sidebar = document.getElementById('sidebar')
-  if (listArea) {
-    listArea.classList.remove('list-sidebar-mode')
-  }
-  if (sidebar) {
-    sidebar.classList.remove('collapsed')
-  }
 }
 
 function togglePreviewList() {
