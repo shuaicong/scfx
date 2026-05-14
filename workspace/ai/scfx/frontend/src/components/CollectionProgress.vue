@@ -32,13 +32,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { executionApi, type ExecutionLog } from '@/api'
+import { ref, computed, watch, onUnmounted } from 'vue'
+import { executionApi, type ExecutionLog, type TaskExecution } from '@/api'
 import ExecutionLogViewer from './ExecutionLogViewer.vue'
 
 const drawerVisible = ref(false)
 const executionId = ref('')
-const execution = ref<any>({})
+const execution = ref<TaskExecution | null>(null)
 const logs = ref<ExecutionLog[]>([])
 
 const processedCount = computed(() => execution.value.processedCount || 0)
@@ -126,6 +126,10 @@ watch(drawerVisible, (val) => {
   } else {
     stopPolling()
   }
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 
 // 暴露 open 方法供外部调用

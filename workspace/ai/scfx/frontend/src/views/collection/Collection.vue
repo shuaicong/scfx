@@ -185,7 +185,13 @@ const handleCollect = async () => {
   }
 }
 
-const executeTask = (row: any) => {
+interface TaskRow {
+  id: number
+  taskName: string
+  executionId?: string
+}
+
+async function executeTask(row: TaskRow) {
   ElMessageBox.confirm(`确定执行任务"${row.taskName}"吗？`, '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
