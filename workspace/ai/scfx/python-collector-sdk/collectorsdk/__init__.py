@@ -38,7 +38,7 @@ from .dimensions import (
     Dimensions,
 )
 from .reporter import CollectorReporter
-from .collectors import BaseCollector
+from .base import BaseCollector
 from .utils import (
     parse_publish_time,
     extract_report_type,
