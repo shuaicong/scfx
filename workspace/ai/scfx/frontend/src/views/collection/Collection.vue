@@ -112,6 +112,13 @@ import { Refresh } from '@element-plus/icons-vue'
 import { getTasks, collectLiangxinwang } from '@/api/dashboard'
 import { scriptApi } from '@/api'
 
+interface TaskStats {
+  total: number
+  enabled: number
+  todayExec: number
+  failed: number
+}
+
 const loading = ref(false)
 const collecting = ref(false)
 const tasks = ref<any[]>([])
@@ -124,7 +131,7 @@ const pagination = reactive({
   total: 0
 })
 
-const taskStats = reactive({
+const taskStats = reactive<TaskStats>({
   total: 0,
   enabled: 0,
   todayExec: 0,
