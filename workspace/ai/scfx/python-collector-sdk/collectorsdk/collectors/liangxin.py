@@ -7,7 +7,8 @@ from typing import List, Dict, Optional
 from playwright.sync_api import sync_playwright, Page
 
 from ..config import ReporterConfig
-from ..collectors import BaseCollector
+from ..base import BaseCollector
+from .knowledge_api import KnowledgeAPIClient
 from ..dimensions import Source, Subject, CollectType, CollectObject
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,9 @@ class LiangxinCollector(BaseCollector):
         self.report_type = report_type
         self._page: Optional[Page] = None
         self._logged_in = False
+        self._knowledge_api = KnowledgeAPIClient(
+            base_url=config.api_base or "http://localhost:5002"
+        )
 
     def _create_browser(self):
         """创建浏览器"""
@@ -192,29 +196,33 @@ class LiangxinCollector(BaseCollector):
                 raise Exception("登录失败")
 
             # 获取报告列表
-            reports = self._get_report_list(today)
-            logger.info(f"今日找到 {len(reports)} 篇报告")
+            reports_meta = self._get_report_list(today)
+            logger.info(f"今日找到 {len(reports_meta)} 篇报告")
 
-            # 遍历每个报告，采集正文
-            for report in reports:
+            # 收集所有报告数据
+            reports = []
+            for report in reports_meta:
                 self.log_info(f"采集报告: {report['title']}")
 
                 content = self._get_report_content(report["url"])
                 if content:
-                    # 提交到知识库
-                    self.submit_report(
-                        title=report["title"],
-                        source=Source.LIANGXIN.value,
-                        url=report["url"],
-                        variety="玉米",
-                        report_type="晨报" if self.report_type == "morning" else "日报",
-                        content=content,
-                        publish_time=report["publish_time"],
-                    )
-                    count += 1
-                    self.report_progress(count)
+                    reports.append({
+                        "title": report["title"],
+                        "content": content,
+                        "source": "liangxin",
+                        "url": report["url"],
+                        "variety": "玉米",
+                        "report_type": "晨报" if self.report_type == "morning" else "日报",
+                        "publish_time": report["publish_time"],
+                    })
                 else:
                     self.log_warn(f"报告内容为空: {report['title']}")
+
+            # 批量提交到知识库
+            if reports:
+                result = self._knowledge_api.ingest_reports(reports)
+                count = result["ingested"]
+                logger.info(f"成功提交 {count} 条报告到知识库")
 
         except Exception as e:
             self.log_error(f"采集异常: {e}")
