@@ -368,7 +368,7 @@
     <aside class="preview-panel" id="previewPanel" :class="{ hidden: !previewVisible, fullscreen: previewFullscreen }">
       <div class="preview-header">
         <div class="preview-title">
-          <span class="preview-title-icon">{{ currentPreview?.sourceIcon || '📄' }}</span>
+          <span class="preview-title-icon">{{ currentPreview?.sourceIcon || getSourceIcon(currentPreview?.sourceType) }}</span>
           <span id="previewTitleText">{{ currentPreview?.title || '知识详情' }}</span>
         </div>
         <div class="preview-header-actions">
@@ -1170,9 +1170,22 @@ function getSourceTypeText(type?: string) {
     mysteel: '我的钢铁',
     chinagrain: '中华粮网',
     usda: 'USDA',
-    manual: '人工录入'
+    manual: '人工录入',
+    collection: '采集'
   }
   return map[type || ''] || type || '-'
+}
+
+function getSourceIcon(type?: string): string {
+  const map: Record<string, string> = {
+    liangxin: '🌐',
+    mysteel: '📺',
+    chinagrain: '🌾',
+    usda: '🦃',
+    manual: '✏️',
+    collection: '📡'
+  }
+  return map[type || ''] || '📄'
 }
 
 function handleFileChange(e: Event) {
