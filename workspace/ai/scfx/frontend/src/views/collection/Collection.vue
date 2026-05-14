@@ -184,6 +184,60 @@
           </div>
         </el-card>
       </el-tab-pane>
+
+      <el-tab-pane label="执行记录" name="executions">
+        <el-card>
+          <template #header>
+            <div class="card-header">
+              <span>执行记录</span>
+            </div>
+          </template>
+
+          <el-table :data="executionList" v-loading="executionLoading" stripe>
+            <el-table-column prop="scriptName" label="脚本名称" min-width="150" />
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="{ row }">
+                <StatusBadge :status="row.status" />
+              </template>
+            </el-table-column>
+            <el-table-column prop="startTime" label="开始时间" width="180">
+              <template #default="{ row }">
+                {{ row.startTime ? formatTime(row.startTime) : '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="durationMs" label="耗时" width="120">
+              <template #default="{ row }">
+                {{ row.durationMs ? `${row.durationMs}ms` : '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="150" fixed="right">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="viewExecutionLogs(row)">查看日志</el-button>
+                <el-button
+                  v-if="row.status === 'running' || row.status === 'pending'"
+                  type="danger"
+                  link
+                  size="small"
+                  @click="cancelExecution(row)"
+                >
+                  取消
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-pagination
+            v-model:current-page="executionPagination.page"
+            v-model:page-size="executionPagination.size"
+            :total="executionPagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleExecutionSizeChange"
+            @current-change="handleExecutionPageChange"
+            style="margin-top: 20px; justify-content: flex-end;"
+          />
+        </el-card>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -196,6 +250,7 @@ import { getTasks, collectLiangxinwang } from '@/api/dashboard'
 import { scriptApi, executionApi, CollectionScript } from '@/api'
 import CollectionProgress from '@/components/CollectionProgress.vue'
 import TriggerBadge from '@/components/TriggerBadge.vue'
+import StatusBadge from '@/components/StatusBadge.vue'
 
 interface TaskStats {
   total: number
@@ -239,6 +294,15 @@ const scriptStats = reactive<ScriptStats>({
   disabled: 0
 })
 const scriptPagination = reactive({
+  page: 1,
+  size: 10,
+  total: 0
+})
+
+// 执行记录相关
+const executionLoading = ref(false)
+const executionList = ref<any[]>([])
+const executionPagination = reactive({
   page: 1,
   size: 10,
   total: 0
@@ -312,6 +376,62 @@ const loadScripts = async () => {
   } finally {
     scriptLoading.value = false
   }
+}
+
+const loadExecutions = async () => {
+  executionLoading.value = true
+  try {
+    const res: any = await executionApi.list(0, {
+      page: executionPagination.page,
+      size: executionPagination.size
+    })
+    if (res.code === 200) {
+      executionList.value = res.data.records || []
+      executionPagination.total = res.data.total || 0
+    }
+  } catch (error) {
+    console.error('加载执行记录失败', error)
+    ElMessage.error('加载执行记录失败')
+  } finally {
+    executionLoading.value = false
+  }
+}
+
+const formatTime = (time: string) => {
+  if (!time) return '-'
+  return time.substring(0, 19)
+}
+
+const viewExecutionLogs = (row: any) => {
+  ElMessage.info(`查看执行日志: ${row.executionId}`)
+}
+
+const cancelExecution = (row: any) => {
+  ElMessageBox.confirm(`确定取消执行"${row.scriptName}"吗？`, '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  }).then(async () => {
+    try {
+      const res: any = await executionApi.cancel(row.executionId)
+      if (res.code === 200) {
+        ElMessage.success('已取消执行')
+        loadExecutions()
+      }
+    } catch (error) {
+      ElMessage.error('取消执行失败')
+    }
+  }).catch(() => {})
+}
+
+const handleExecutionSizeChange = (size: number) => {
+  executionPagination.size = size
+  loadExecutions()
+}
+
+const handleExecutionPageChange = (page: number) => {
+  executionPagination.page = page
+  loadExecutions()
 }
 
 async function executeScript(row: CollectionScript) {
@@ -448,6 +568,8 @@ watch(activeTab, (newTab) => {
   if (newTab === 'scripts') {
     loadScripts()
     loadScriptStats()
+  } else if (newTab === 'executions') {
+    loadExecutions()
   }
 })
 </script>

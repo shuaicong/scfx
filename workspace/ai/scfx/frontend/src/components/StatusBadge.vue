@@ -1,16 +1,23 @@
 <template>
-  <span class="status-badge" :class="status">
+  <span class="status-badge" :class="status || 'disabled'">
     <span class="dot"></span>
-    <span>{{ labelMap[status] }}</span>
+    <span>{{ labelMap[status || 'disabled'] }}</span>
   </span>
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  status: 'enabled' | 'disabled'
+const props = defineProps<{
+  status?: 'enabled' | 'disabled' | 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
 }>()
-
-const labelMap = { enabled: '启用', disabled: '禁用' }
+const labelMap: Record<string, string> = {
+  enabled: '启用',
+  disabled: '禁用',
+  pending: '等待',
+  running: '运行中',
+  success: '成功',
+  failed: '失败',
+  cancelled: '已取消'
+}
 </script>
 
 <style scoped>
