@@ -35,10 +35,16 @@
           <template #header>
             <div class="card-header">
               <span>采集任务 <span class="shortcut-hint">Ctrl+R 刷新</span></span>
-              <el-button type="primary" @click="handleCollect" :loading="collecting">
-                <el-icon><Refresh /></el-icon>
-                立即采集
-              </el-button>
+              <div style="display: flex; gap: 8px;">
+                <el-button type="success" @click="showCreateTaskDialog">
+                  <el-icon><Plus /></el-icon>
+                  新建任务
+                </el-button>
+                <el-button type="primary" @click="handleCollect" :loading="collecting">
+                  <el-icon><Refresh /></el-icon>
+                  立即采集
+                </el-button>
+              </div>
             </div>
           </template>
 
@@ -305,6 +311,36 @@
         </el-card>
       </el-tab-pane>
     </el-tabs>
+
+    <!-- 新建任务弹窗 -->
+    <el-dialog v-model="createTaskDialogVisible" title="新建采集任务" width="500px">
+      <el-form :model="createTaskForm" label-width="100px">
+        <el-form-item label="任务名称" required>
+          <el-input v-model="createTaskForm.taskName" placeholder="请输入任务名称" />
+        </el-form-item>
+        <el-form-item label="数据源" required>
+          <el-select v-model="createTaskForm.sourceName" placeholder="请选择数据源" style="width: 100%;">
+            <el-option label="粮信网" value="liangxinwang" />
+            <el-option label="我的钢铁网" value="mysteel" />
+            <el-option label="中华粮网" value="china_grain" />
+            <el-option label="USDA" value="usda" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="数据源URL">
+          <el-input v-model="createTaskForm.sourceUrl" placeholder="请输入采集URL" />
+        </el-form-item>
+        <el-form-item label="任务类型" required>
+          <el-select v-model="createTaskForm.taskType" placeholder="请选择任务类型" style="width: 100%;">
+            <el-option label="定时任务" value="scheduled" />
+            <el-option label="手动任务" value="manual" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createTaskDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleCreateTask" :loading="creatingTask">创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -312,7 +348,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload, Plus } from '@element-plus/icons-vue'
-import { getTasks, collectLiangxinwang } from '@/api/dashboard'
+import { getTasks, collectLiangxinwang, createTask } from '@/api/dashboard'
 import { scriptApi, executionApi, CollectionScript, type TaskExecution } from '@/api'
 import { vectorizationApi } from '@/api/vectorization'
 import CollectionProgress from '@/components/CollectionProgress.vue'
@@ -335,6 +371,14 @@ interface ScriptStats {
 
 const loading = ref(false)
 const collecting = ref(false)
+const creatingTask = ref(false)
+const createTaskDialogVisible = ref(false)
+const createTaskForm = reactive({
+  taskName: '',
+  sourceName: '',
+  sourceUrl: '',
+  taskType: 'scheduled'
+})
 const tasks = ref<any[]>([])
 const progressDrawer = ref<InstanceType<typeof CollectionProgress>>()
 
@@ -665,6 +709,38 @@ const showUploadDialog = () => {
 
 const showCreateDialog = () => {
   ElMessage.info('创建功能开发中')
+}
+
+const showCreateTaskDialog = () => {
+  createTaskForm.taskName = ''
+  createTaskForm.sourceName = ''
+  createTaskForm.sourceUrl = ''
+  createTaskForm.taskType = 'scheduled'
+  createTaskDialogVisible.value = true
+}
+
+const handleCreateTask = async () => {
+  if (!createTaskForm.taskName || !createTaskForm.sourceName) {
+    ElMessage.warning('请填写必填项')
+    return
+  }
+  try {
+    creatingTask.value = true
+    await createTask({
+      taskName: createTaskForm.taskName,
+      sourceName: createTaskForm.sourceName,
+      sourceUrl: createTaskForm.sourceUrl,
+      taskType: createTaskForm.taskType
+    })
+    ElMessage.success('任务创建成功')
+    createTaskDialogVisible.value = false
+    loadTasks()
+    loadTaskStats()
+  } catch (error) {
+    ElMessage.error('创建失败')
+  } finally {
+    creatingTask.value = false
+  }
 }
 
 const editScript = (row: any) => {
