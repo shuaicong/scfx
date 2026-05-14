@@ -97,7 +97,7 @@
     </aside>
 
     <!-- List Area -->
-    <section class="list-area" id="listArea" :class="{ 'list-sidebar-mode': previewVisible }">
+    <section class="list-area" id="listArea">
       <!-- Expand button (shown when sidebar is collapsed) -->
       <button v-if="sidebarCollapsed" class="sidebar-expand-btn" @click="toggleSidebar" title="展开侧边栏">
         <span class="expand-icon">▶</span>
@@ -3000,7 +3000,6 @@ onMounted(() => {
 
 /* Sidebar Mode List */
 .sidebar-mode-list {
-  display: none;
   flex-direction: column;
   gap: 4px;
   padding: 8px;
