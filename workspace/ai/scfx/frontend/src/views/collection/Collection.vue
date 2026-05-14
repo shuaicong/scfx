@@ -384,7 +384,17 @@ const vectorStats = reactive({
   failed: 0,
   total: 0
 })
-const vectorTasks = ref<any[]>([])
+const vectorTasks = ref<VectorTask[]>([])
+
+interface VectorTask {
+  id?: number
+  categoryId: number
+  status: string
+  totalCount?: number
+  processedCount?: number
+  failedCount?: number
+  createdAt?: string
+}
 
 const loadTaskStats = async () => {
   try {
@@ -545,28 +555,34 @@ const retryAllFailed = async () => {
   }
 }
 
-const triggerVectorization = async (row: any) => {
+const triggerVectorization = async (row: VectorTask) => {
   try {
     const res: any = await vectorizationApi.trigger(row.categoryId)
     if (res.code === 200) {
       ElMessage.success('已触发向量化')
       loadVectorStats()
       loadVectorTasks()
+    } else {
+      ElMessage.error(res.message || '触发失败')
     }
   } catch (error) {
+    console.error('触发向量化失败', error)
     ElMessage.error('触发失败')
   }
 }
 
-const retryVectorization = async (row: any) => {
+const retryVectorization = async (row: VectorTask) => {
   try {
     const res: any = await vectorizationApi.retry(row.id!)
     if (res.code === 200) {
       ElMessage.success('已重试')
       loadVectorStats()
       loadVectorTasks()
+    } else {
+      ElMessage.error(res.message || '重试失败')
     }
   } catch (error) {
+    console.error('重试向量化失败', error)
     ElMessage.error('重试失败')
   }
 }
