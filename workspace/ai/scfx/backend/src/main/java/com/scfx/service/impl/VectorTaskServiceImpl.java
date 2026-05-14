@@ -179,7 +179,7 @@ public class VectorTaskServiceImpl implements VectorTaskService {
     public List<VectorizationTask> getTasks(int page, int size) {
         LambdaQueryWrapper<VectorizationTask> wrapper = new LambdaQueryWrapper<>();
         wrapper.orderByDesc(VectorizationTask::getCreatedAt)
-               .last((page - 1) * size + ", " + size);
+               .last("LIMIT " + (page - 1) * size + ", " + size);
         return taskMapper.selectList(wrapper);
     }
 
