@@ -41,8 +41,8 @@ const executionId = ref('')
 const execution = ref<TaskExecution | null>(null)
 const logs = ref<ExecutionLog[]>([])
 
-const processedCount = computed(() => execution.value.processedCount || 0)
-const totalCount = computed(() => execution.value.totalCount || 0)
+const processedCount = computed(() => (execution.value as any)?.processedCount || 0)
+const totalCount = computed(() => (execution.value as any)?.totalCount || 0)
 
 const progressPercent = computed(() => {
   const total = totalCount.value
@@ -58,7 +58,8 @@ const statusType = computed(() => {
     failed: 'danger',
     cancelled: 'warning'
   }
-  return map[execution.value.status] || 'info'
+  const status = (execution.value as any)?.status || 'pending'
+  return map[status] || 'info'
 })
 
 const statusText = computed(() => {
@@ -69,7 +70,8 @@ const statusText = computed(() => {
     failed: '失败',
     cancelled: '已取消'
   }
-  return map[execution.value.status] || execution.value.status || '等待中'
+  const status = (execution.value as any)?.status || 'pending'
+  return map[status] || status || '等待中'
 })
 
 async function loadExecution() {
