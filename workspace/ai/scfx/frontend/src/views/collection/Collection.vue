@@ -90,6 +90,88 @@
         </el-card>
       </el-tab-pane>
 
+      <el-tab-pane label="脚本管理" name="scripts">
+        <!-- 统计卡片 -->
+        <el-row :gutter="20" class="stats-cards">
+          <el-col :span="8">
+            <div class="stat-card stat-card-purple">
+              <div class="stat-value">{{ scriptStats.total }}</div>
+              <div class="stat-label">脚本总数</div>
+            </div>
+          </el-col>
+          <el-col :span="8">
+            <div class="stat-card stat-card-green">
+              <div class="stat-value">{{ scriptStats.enabled }}</div>
+              <div class="stat-label">启用中</div>
+            </div>
+          </el-col>
+          <el-col :span="8">
+            <div class="stat-card stat-card-red">
+              <div class="stat-value">{{ scriptStats.disabled }}</div>
+              <div class="stat-label">已禁用</div>
+            </div>
+          </el-col>
+        </el-row>
+
+        <el-card>
+          <template #header>
+            <div class="card-header">
+              <span>采集脚本管理</span>
+              <div class="header-buttons">
+                <el-button type="primary" @click="showUploadDialog">
+                  <el-icon><Upload /></el-icon>
+                  上传文件
+                </el-button>
+                <el-button type="success" @click="showCreateDialog">
+                  <el-icon><Plus /></el-icon>
+                  新建脚本
+                </el-button>
+              </div>
+            </div>
+          </template>
+
+          <el-table :data="scriptList" v-loading="scriptLoading" stripe>
+            <el-table-column prop="id" label="ID" width="80" />
+            <el-table-column prop="scriptName" label="脚本名称" min-width="150" />
+            <el-table-column prop="triggerType" label="触发方式" width="120">
+              <template #default="{ row }">
+                <TriggerBadge :type="row.triggerType" />
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'enabled' ? 'success' : 'info'">
+                  {{ row.status === 'enabled' ? '启用' : '禁用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="executionCount" label="执行次数" width="100">
+              <template #default="{ row }">
+                {{ row.executionCount || 0 }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="executeScript(row)">执行</el-button>
+                <el-button type="warning" link size="small" @click="editScript(row)">编辑</el-button>
+                <el-button type="info" link size="small" @click="showScriptDetail(row)">详情</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+
+          <el-pagination
+            v-model:current-page="scriptPagination.page"
+            v-model:page-size="scriptPagination.size"
+            :total="scriptPagination.total"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="handleScriptSizeChange"
+            @current-change="handleScriptPageChange"
+            style="margin-top: 20px; justify-content: flex-end;"
+          />
+        </el-card>
+      </el-tab-pane>
+
       <el-tab-pane label="向量化监控" name="vectorization">
         <el-card>
           <template #header>
@@ -107,18 +189,25 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
+import { Refresh, Upload, Plus } from '@element-plus/icons-vue'
 import { getTasks, collectLiangxinwang } from '@/api/dashboard'
 import { scriptApi, executionApi } from '@/api'
 import CollectionProgress from '@/components/CollectionProgress.vue'
+import TriggerBadge from '@/components/TriggerBadge.vue'
 
 interface TaskStats {
   total: number
   enabled: number
   todayExec: number
   failed: number
+}
+
+interface ScriptStats {
+  total: number
+  enabled: number
+  disabled: number
 }
 
 const loading = ref(false)
@@ -139,6 +228,20 @@ const taskStats = reactive<TaskStats>({
   enabled: 0,
   todayExec: 0,
   failed: 0
+})
+
+// 脚本管理相关
+const scriptLoading = ref(false)
+const scriptList = ref<any[]>([])
+const scriptStats = reactive<ScriptStats>({
+  total: 0,
+  enabled: 0,
+  disabled: 0
+})
+const scriptPagination = reactive({
+  page: 1,
+  size: 10,
+  total: 0
 })
 
 const loadTaskStats = async () => {
@@ -171,6 +274,81 @@ const loadTasks = async () => {
   } finally {
     loading.value = false
   }
+}
+
+const loadScriptStats = async () => {
+  try {
+    const res: any = await scriptApi.stats()
+    if (res.code === 200 && res.data) {
+      scriptStats.total = res.data.total || 0
+      scriptStats.enabled = res.data.enabled || 0
+      scriptStats.disabled = res.data.disabled || 0
+    }
+  } catch (error) {
+    console.error('加载脚本统计失败', error)
+  }
+}
+
+const loadScripts = async () => {
+  try {
+    scriptLoading.value = true
+    const res: any = await scriptApi.list({
+      page: scriptPagination.page,
+      size: scriptPagination.size
+    })
+    if (res.code === 200) {
+      scriptList.value = res.data.records || []
+      scriptPagination.total = res.data.total || 0
+    }
+  } catch (error) {
+    console.error('加载脚本列表失败', error)
+  } finally {
+    scriptLoading.value = false
+  }
+}
+
+async function executeScript(row: any) {
+  ElMessageBox.confirm(`确定执行脚本"${row.scriptName}"吗？`, '提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'info'
+  }).then(async () => {
+    try {
+      const res: any = await scriptApi.execute(row.id)
+      if (res.code === 200) {
+        ElMessage.success('脚本执行已触发')
+        loadScripts()
+      }
+    } catch (error) {
+      ElMessage.error('执行失败')
+    }
+  }).catch(() => {})
+}
+
+const showUploadDialog = () => {
+  ElMessage.info('上传功能开发中')
+}
+
+const showCreateDialog = () => {
+  ElMessage.info('创建功能开发中')
+}
+
+const editScript = (row: any) => {
+  ElMessage.info('编辑功能开发中')
+}
+
+const showScriptDetail = (row: any) => {
+  ElMessage.info('详情功能开发中')
+}
+
+const handleScriptSizeChange = (size: number) => {
+  scriptPagination.size = size
+  loadScripts()
+}
+
+const handleScriptPageChange = (page: number) => {
+  scriptPagination.page = page
+  loadScripts()
 }
 
 const handleCollect = async () => {
@@ -258,6 +436,13 @@ onMounted(() => {
   loadTasks()
   loadTaskStats()
 })
+
+watch(activeTab, (newTab) => {
+  if (newTab === 'scripts') {
+    loadScripts()
+    loadScriptStats()
+  }
+})
 </script>
 
 <style scoped>
@@ -273,6 +458,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 10px;
 }
 
 .vectorization-placeholder {
