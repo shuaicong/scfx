@@ -1,0 +1,28 @@
+liangxin:
+  username: "33022"
+  password: "qlp707"
+  login_url: "https://my.chinagrain.cn/jinnong/a/login"
+  report_list_url: "https://my.chinagrain.cn/jinnong/liangyou_news.htm"
+  report_detail_url: "https://my.chinagrain.cn/jinnong/liangyou_vipController.htm"
+
+corn:
+  variety: "玉米"
+  product_type: 1061  # 玉米在粮信网的品种代码
+  report_types:
+    morning:
+      name: "晨报"
+      collect_times: ["09:30", "10:00", "10:30"]
+    evening:
+      name: "日报"
+      collect_times: ["18:30", "19:00", "19:30"]
+
+knowledge_api:
+  base_url: "http://localhost:5002"
+  ingest_endpoint: "/api/knowledge/ingest"
+
+collection:
+  retry_times: 3
+  retry_delay: 30  # 秒
+  content_selector: ".article-conte-infor"
+  title_selector: ".article-title"
+  meta_selector: ".article-time"
