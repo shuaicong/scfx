@@ -82,6 +82,14 @@ public class CollectionTaskService {
     }
 
     /**
+     * 删除任务
+     */
+    public Result<Void> deleteTask(Long id) {
+        taskMapper.deleteById(id);
+        return Result.success();
+    }
+
+    /**
      * 获取所有任务
      */
     public List<CollectionTask> getAllTasks() {

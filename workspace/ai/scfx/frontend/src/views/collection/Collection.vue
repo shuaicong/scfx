@@ -75,10 +75,12 @@
                 <span style="color: #f56c6c;">{{ row.failedCount }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="180" fixed="right">
+            <el-table-column label="操作" width="220" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="executeTask(row)">执行 <span class="btn-shortcut">Ctrl+Enter</span></el-button>
+                <el-button type="primary" link size="small" @click="executeTask(row)">执行</el-button>
                 <el-button type="info" link size="small" @click="viewDetail(row)">详情</el-button>
+                <el-button type="warning" link size="small" @click="editTask(row)">编辑</el-button>
+                <el-button type="danger" link size="small" @click="deleteTask(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -341,6 +343,68 @@
         <el-button type="primary" @click="handleCreateTask" :loading="creatingTask">创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 任务详情弹窗 -->
+    <el-dialog v-model="detailDialogVisible" title="任务详情" width="600px">
+      <el-descriptions :column="2" border v-if="currentTask">
+        <el-descriptions-item label="任务ID">{{ currentTask.id }}</el-descriptions-item>
+        <el-descriptions-item label="任务名称">{{ currentTask.taskName }}</el-descriptions-item>
+        <el-descriptions-item label="数据源">{{ getSourceName(currentTask.sourceName) }}</el-descriptions-item>
+        <el-descriptions-item label="数据源URL">{{ currentTask.sourceUrl || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="任务类型">{{ currentTask.taskType === 'scheduled' ? '定时任务' : '手动任务' }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="getStatusType(currentTask.status)">{{ getStatusText(currentTask.status) }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="成功次数">{{ currentTask.successCount || 0 }}</el-descriptions-item>
+        <el-descriptions-item label="失败次数">{{ currentTask.failedCount || 0 }}</el-descriptions-item>
+        <el-descriptions-item label="最后执行">{{ currentTask.lastExecutionTime ? currentTask.lastExecutionTime.substring(0, 19) : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="下次执行">{{ currentTask.nextExecutionTime ? currentTask.nextExecutionTime.substring(0, 19) : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{ currentTask.createdAt ? currentTask.createdAt.substring(0, 19) : '-' }}</el-descriptions-item>
+      </el-descriptions>
+      <template #footer>
+        <el-button @click="detailDialogVisible = false">关闭</el-button>
+        <el-button type="warning" @click="startEditFromDetail">编辑</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 编辑任务弹窗 -->
+    <el-dialog v-model="editDialogVisible" :title="isEditing ? '编辑任务' : '新建任务'" width="500px">
+      <el-form :model="editTaskForm" label-width="100px">
+        <el-form-item label="任务名称" required>
+          <el-input v-model="editTaskForm.taskName" placeholder="请输入任务名称" />
+        </el-form-item>
+        <el-form-item label="数据源" required>
+          <el-select v-model="editTaskForm.sourceName" placeholder="请选择数据源" style="width: 100%;">
+            <el-option label="粮信网" value="liangxinwang" />
+            <el-option label="我的钢铁网" value="mysteel" />
+            <el-option label="中华粮网" value="china_grain" />
+            <el-option label="USDA" value="usda" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="数据源URL">
+          <el-input v-model="editTaskForm.sourceUrl" placeholder="请输入采集URL" />
+        </el-form-item>
+        <el-form-item label="任务类型" required>
+          <el-select v-model="editTaskForm.taskType" placeholder="请选择任务类型" style="width: 100%;">
+            <el-option label="定时任务" value="scheduled" />
+            <el-option label="手动任务" value="manual" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="状态">
+          <el-switch
+            v-model="editTaskForm.status"
+            active-value="enabled"
+            inactive-value="disabled"
+            active-text="启用"
+            inactive-text="禁用"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="editDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleSaveTask" :loading="savingTask">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -348,7 +412,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload, Plus } from '@element-plus/icons-vue'
-import { getTasks, collectLiangxinwang, createTask } from '@/api/dashboard'
+import { getTasks, collectLiangxinwang, createTask, updateTaskStatus, deleteTask as removeTask } from '@/api/dashboard'
 import { scriptApi, executionApi, CollectionScript, type TaskExecution } from '@/api'
 import { vectorizationApi } from '@/api/vectorization'
 import CollectionProgress from '@/components/CollectionProgress.vue'
@@ -372,12 +436,25 @@ interface ScriptStats {
 const loading = ref(false)
 const collecting = ref(false)
 const creatingTask = ref(false)
+const savingTask = ref(false)
 const createTaskDialogVisible = ref(false)
+const detailDialogVisible = ref(false)
+const editDialogVisible = ref(false)
+const isEditing = ref(false)
+const currentTask = ref<any>(null)
 const createTaskForm = reactive({
   taskName: '',
   sourceName: '',
   sourceUrl: '',
   taskType: 'scheduled'
+})
+const editTaskForm = reactive({
+  id: null as number | null,
+  taskName: '',
+  sourceName: '',
+  sourceUrl: '',
+  taskType: 'scheduled',
+  status: 'enabled'
 })
 const tasks = ref<any[]>([])
 const progressDrawer = ref<InstanceType<typeof CollectionProgress>>()
@@ -719,6 +796,66 @@ const showCreateTaskDialog = () => {
   createTaskDialogVisible.value = true
 }
 
+const viewDetail = (row: any) => {
+  currentTask.value = row
+  detailDialogVisible.value = true
+}
+
+const editTask = (row: any) => {
+  isEditing.value = true
+  editTaskForm.id = row.id
+  editTaskForm.taskName = row.taskName
+  editTaskForm.sourceName = row.sourceName
+  editTaskForm.sourceUrl = row.sourceUrl || ''
+  editTaskForm.taskType = row.taskType || 'scheduled'
+  editTaskForm.status = row.status || 'enabled'
+  editDialogVisible.value = true
+}
+
+const startEditFromDetail = () => {
+  if (!currentTask.value) return
+  detailDialogVisible.value = false
+  editTask(currentTask.value)
+}
+
+const handleSaveTask = async () => {
+  if (!editTaskForm.taskName || !editTaskForm.sourceName) {
+    ElMessage.warning('请填写必填项')
+    return
+  }
+  try {
+    savingTask.value = true
+    // 更新任务状态
+    await updateTaskStatus(editTaskForm.id!, editTaskForm.status)
+    ElMessage.success('保存成功')
+    editDialogVisible.value = false
+    loadTasks()
+    loadTaskStats()
+  } catch (error) {
+    ElMessage.error('保存失败')
+  } finally {
+    savingTask.value = false
+  }
+}
+
+const deleteTask = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确定删除任务"${row.taskName}"吗？`, '警告', {
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await removeTask(row.id)
+    ElMessage.success('删除成功')
+    loadTasks()
+    loadTaskStats()
+  } catch (error: any) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
+}
+
 const handleCreateTask = async () => {
   if (!createTaskForm.taskName || !createTaskForm.sourceName) {
     ElMessage.warning('请填写必填项')
@@ -740,6 +877,7 @@ const handleCreateTask = async () => {
     ElMessage.error('创建失败')
   } finally {
     creatingTask.value = false
+  }
   }
 }
 
@@ -795,10 +933,6 @@ async function executeTask(row: TaskRow) {
       ElMessage.error('触发执行失败')
     }
   }).catch(() => {})
-}
-
-const viewDetail = (row: any) => {
-  ElMessage.info('详情功能开发中')
 }
 
 const getSourceName = (source: string) => {

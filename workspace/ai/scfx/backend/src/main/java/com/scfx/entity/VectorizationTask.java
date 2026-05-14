@@ -13,18 +13,11 @@ public class VectorizationTask {
     private Long id;
 
     private Long categoryId;
-    private Integer batchSize;
     private String status;            // pending/processing/completed
     private Integer totalCount;
     private Integer processedCount;
     private Integer failedCount;
-
-    // 扩展字段
-    private Integer priority;         // 优先级 0-10
     private String triggerType;        // auto/cron/manual
-    private String triggerSource;      // 触发来源详情
-    private String failedSample;      // 失败样本(JSON)
-
     private LocalDateTime createdAt;
     private LocalDateTime completedAt;
 }

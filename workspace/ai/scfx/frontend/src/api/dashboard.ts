@@ -14,6 +14,8 @@ export const createTask = (data: any) => request.post('/tasks', data)
 
 export const updateTaskStatus = (id: number, status: string) => request.put(`/tasks/${id}/status`, null, { params: { status } })
 
+export const deleteTask = (id: number) => request.delete(`/tasks/${id}`)
+
 export const getLogs = (params: any) => request.get('/logs', { params })
 
 export const getLogStats = () => request.get('/logs/stats')
