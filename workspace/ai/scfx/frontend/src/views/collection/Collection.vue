@@ -247,7 +247,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload, Plus } from '@element-plus/icons-vue'
 import { getTasks, collectLiangxinwang } from '@/api/dashboard'
-import { scriptApi, executionApi, CollectionScript } from '@/api'
+import { scriptApi, executionApi, CollectionScript, type TaskExecution } from '@/api'
 import CollectionProgress from '@/components/CollectionProgress.vue'
 import TriggerBadge from '@/components/TriggerBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -301,7 +301,7 @@ const scriptPagination = reactive({
 
 // 执行记录相关
 const executionLoading = ref(false)
-const executionList = ref<any[]>([])
+const executionList = ref<TaskExecution[]>([])
 const executionPagination = reactive({
   page: 1,
   size: 10,
@@ -378,20 +378,25 @@ const loadScripts = async () => {
   }
 }
 
+let loadExecutionsController: AbortController | null = null
+
 const loadExecutions = async () => {
+  loadExecutionsController?.abort()
+  loadExecutionsController = new AbortController()
   executionLoading.value = true
   try {
     const res: any = await executionApi.list(0, {
       page: executionPagination.page,
       size: executionPagination.size
-    })
+    }, { signal: loadExecutionsController.signal })
     if (res.code === 200) {
       executionList.value = res.data.records || []
       executionPagination.total = res.data.total || 0
     }
-  } catch (error) {
-    console.error('加载执行记录失败', error)
-    ElMessage.error('加载执行记录失败')
+  } catch (e: any) {
+    if (e?.message?.includes('Cancel')) return
+    console.error('加载执行记录失败', e)
+    ElMessage.error('加载执行记录失败，请稍后重试')
   } finally {
     executionLoading.value = false
   }
@@ -402,11 +407,11 @@ const formatTime = (time: string) => {
   return time.substring(0, 19)
 }
 
-const viewExecutionLogs = (row: any) => {
+const viewExecutionLogs = (row: TaskExecution) => {
   ElMessage.info(`查看执行日志: ${row.executionId}`)
 }
 
-const cancelExecution = (row: any) => {
+const cancelExecution = (row: TaskExecution) => {
   ElMessageBox.confirm(`确定取消执行"${row.scriptName}"吗？`, '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
