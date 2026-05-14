@@ -71,7 +71,7 @@
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
-                <el-button type="primary" link size="small" @click="executeTask(row)">执行 <span class="btn-shortcut">Ctrl+Enter</span></el-button>
+                <el-button type="primary" link size="small" @click="executeTask(row)">执行 <span class="btn-shortcut">执行首条</span></el-button>
                 <el-button type="info" link size="small" @click="viewDetail(row)">详情</el-button>
               </template>
             </el-table-column>
@@ -800,13 +800,13 @@ const refreshCurrentTab = () => {
   ElMessage.info('已刷新')
 }
 
-const executeSelectedTask = () => {
+const executeFirstTask = () => {
   if (tasks.value.length > 0 && activeTab.value === 'tasks') {
     executeTask(tasks.value[0])
   }
 }
 
-useShortcut('Enter', executeSelectedTask, { ctrl: true })
+useShortcut('Enter', executeFirstTask, { ctrl: true })
 useShortcut('r', refreshCurrentTab, { ctrl: true })
 </script>
 
