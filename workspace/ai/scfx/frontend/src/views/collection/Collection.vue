@@ -173,15 +173,81 @@
       </el-tab-pane>
 
       <el-tab-pane label="向量化监控" name="vectorization">
+        <!-- 统计卡片 -->
+        <el-row :gutter="20" class="stats-cards">
+          <el-col :span="6">
+            <div class="stat-card stat-card-purple">
+              <div class="stat-value">{{ vectorStats.pending }}</div>
+              <div class="stat-label">待处理</div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="stat-card stat-card-blue">
+              <div class="stat-value">{{ vectorStats.processing }}</div>
+              <div class="stat-label">处理中</div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="stat-card stat-card-green">
+              <div class="stat-value">{{ vectorStats.vectorized }}</div>
+              <div class="stat-label">已完成</div>
+            </div>
+          </el-col>
+          <el-col :span="6">
+            <div class="stat-card stat-card-red">
+              <div class="stat-value">{{ vectorStats.failed }}</div>
+              <div class="stat-label">失败</div>
+            </div>
+          </el-col>
+        </el-row>
+
         <el-card>
           <template #header>
             <div class="card-header">
-              <span>向量化监控</span>
+              <span>向量化任务</span>
+              <div class="header-buttons">
+                <el-button type="primary" @click="triggerAllPending" :loading="vectorLoading">
+                  <el-icon><Refresh /></el-icon>
+                  触发全部待处理
+                </el-button>
+                <el-button type="warning" @click="retryAllFailed" :loading="vectorLoading">
+                  <el-icon><Refresh /></el-icon>
+                  重试全部失败
+                </el-button>
+              </div>
             </div>
           </template>
-          <div class="vectorization-placeholder">
-            <el-empty description="向量化监控功能开发中" />
-          </div>
+
+          <el-table :data="vectorTasks" v-loading="vectorLoading" stripe>
+            <el-table-column prop="categoryId" label="分类" width="100" />
+            <el-table-column prop="totalCount" label="总数" width="80" />
+            <el-table-column prop="processedCount" label="已处理" width="80">
+              <template #default="{ row }">
+                <span style="color: #67c23a;">{{ row.processedCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="failedCount" label="失败" width="80">
+              <template #default="{ row }">
+                <span style="color: #f56c6c;">{{ row.failedCount }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100">
+              <template #default="{ row }">
+                <el-tag :type="getVectorStatusType(row.status)">{{ row.status }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="createdAt" label="创建时间" width="160">
+              <template #default="{ row }">
+                {{ row.createdAt ? row.createdAt.substring(0, 19) : '-' }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="triggerVectorization(row)">触发</el-button>
+                <el-button type="warning" link size="small" @click="retryVectorization(row)">重试</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
         </el-card>
       </el-tab-pane>
 
@@ -248,6 +314,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload, Plus } from '@element-plus/icons-vue'
 import { getTasks, collectLiangxinwang } from '@/api/dashboard'
 import { scriptApi, executionApi, CollectionScript, type TaskExecution } from '@/api'
+import { vectorizationApi } from '@/api/vectorization'
 import CollectionProgress from '@/components/CollectionProgress.vue'
 import TriggerBadge from '@/components/TriggerBadge.vue'
 import StatusBadge from '@/components/StatusBadge.vue'
@@ -307,6 +374,17 @@ const executionPagination = reactive({
   size: 10,
   total: 0
 })
+
+// 向量化监控相关
+const vectorLoading = ref(false)
+const vectorStats = reactive({
+  pending: 0,
+  processing: 0,
+  vectorized: 0,
+  failed: 0,
+  total: 0
+})
+const vectorTasks = ref<any[]>([])
 
 const loadTaskStats = async () => {
   try {
@@ -400,6 +478,107 @@ const loadExecutions = async () => {
   } finally {
     executionLoading.value = false
   }
+}
+
+// 向量化监控
+const loadVectorStats = async () => {
+  try {
+    const res: any = await vectorizationApi.getStats()
+    if (res.code === 200 && res.data) {
+      vectorStats.pending = res.data.pending || 0
+      vectorStats.processing = res.data.processing || 0
+      vectorStats.vectorized = res.data.vectorized || 0
+      vectorStats.failed = res.data.failed || 0
+      vectorStats.total = res.data.total || 0
+    }
+  } catch (error) {
+    console.error('加载向量化统计失败', error)
+  }
+}
+
+const loadVectorTasks = async () => {
+  try {
+    vectorLoading.value = true
+    const res: any = await vectorizationApi.getTasks(1, 100)
+    if (res.code === 200) {
+      vectorTasks.value = res.data || []
+    }
+  } catch (error) {
+    console.error('加载向量化任务失败', error)
+    ElMessage.error('加载向量化任务失败')
+  } finally {
+    vectorLoading.value = false
+  }
+}
+
+const triggerAllPending = async () => {
+  try {
+    vectorLoading.value = true
+    const res: any = await vectorizationApi.triggerBatch([])
+    if (res.code === 200) {
+      ElMessage.success('已触发全部待处理任务')
+      loadVectorStats()
+      loadVectorTasks()
+    }
+  } catch (error) {
+    ElMessage.error('触发失败')
+  } finally {
+    vectorLoading.value = false
+  }
+}
+
+const retryAllFailed = async () => {
+  try {
+    vectorLoading.value = true
+    // Retry failed tasks by triggering their category
+    const failedTasks = vectorTasks.value.filter(t => t.status === 'failed')
+    for (const task of failedTasks) {
+      await vectorizationApi.retry(task.id!)
+    }
+    ElMessage.success('已重试全部失败任务')
+    loadVectorStats()
+    loadVectorTasks()
+  } catch (error) {
+    ElMessage.error('重试失败')
+  } finally {
+    vectorLoading.value = false
+  }
+}
+
+const triggerVectorization = async (row: any) => {
+  try {
+    const res: any = await vectorizationApi.trigger(row.categoryId)
+    if (res.code === 200) {
+      ElMessage.success('已触发向量化')
+      loadVectorStats()
+      loadVectorTasks()
+    }
+  } catch (error) {
+    ElMessage.error('触发失败')
+  }
+}
+
+const retryVectorization = async (row: any) => {
+  try {
+    const res: any = await vectorizationApi.retry(row.id!)
+    if (res.code === 200) {
+      ElMessage.success('已重试')
+      loadVectorStats()
+      loadVectorTasks()
+    }
+  } catch (error) {
+    ElMessage.error('重试失败')
+  }
+}
+
+const getVectorStatusType = (status: string) => {
+  const map: Record<string, string> = {
+    pending: 'info',
+    processing: 'primary',
+    completed: 'success',
+    failed: 'danger'
+  }
+  return map[status] || 'info'
 }
 
 const formatTime = (time: string) => {
@@ -575,6 +754,9 @@ watch(activeTab, (newTab) => {
     loadScriptStats()
   } else if (newTab === 'executions') {
     loadExecutions()
+  } else if (newTab === 'vectorization') {
+    loadVectorStats()
+    loadVectorTasks()
   }
 })
 </script>
@@ -625,6 +807,10 @@ watch(activeTab, (newTab) => {
 
 .stat-card-orange {
   background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+}
+
+.stat-card-blue {
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
 }
 
 .stat-card-red {
