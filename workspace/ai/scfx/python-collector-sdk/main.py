@@ -188,47 +188,113 @@ def disabled_reporter_example():
 
 # ==================== 主入口 ====================
 
+def schedule_mode_example():
+    """调度模式示例"""
+    from scheduler import CornScheduler
+
+    print("=" * 50)
+    print("调度模式：定时采集玉米晨报/日报")
+    print("=" * 50)
+
+    scheduler = CornScheduler(config_path="config.yaml")
+    scheduler.start()
+
+
+def collect_mode(args):
+    """执行单次采集"""
+    from collectorsdk.collectors.liangxin import LiangxinCollector
+
+    report_type = args.report_type  # morning / evening
+    task_id = 1 if report_type == "morning" else 2
+
+    print(f"=" * 50)
+    print(f"执行 {report_type} 采集")
+    print("=" * 50)
+
+    config = ReporterConfig(
+        enabled=True,
+        api_base=args.api_base,
+        async_mode=False,
+    )
+
+    collector = LiangxinCollector(
+        config=config,
+        task_id=task_id,
+        username=args.username,
+        password=args.password,
+        report_type=report_type,
+    )
+
+    result = collector.run()
+    print(f"\n采集结果: {result}")
+    return result
+
+
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="采集SDK示例")
-    parser.add_argument("--mode", choices=["collector", "manual", "disabled"], default="collector", help="运行模式")
-    parser.add_argument("--task-id", type=int, default=1, help="任务ID")
-    parser.add_argument("--username", default=os.getenv("LXW_USERNAME", "33022"), help="粮信网用户名")
-    parser.add_argument("--password", default=os.getenv("LXW_PASSWORD", "qlp707"), help="粮信网密码")
-    parser.add_argument("--api-base", default=os.getenv("API_BASE", "http://localhost:8080/api"), help="API地址")
+    subparsers = parser.add_subparsers(dest="command", help="子命令")
+
+    # collector 子命令
+    parser_collector = subparsers.add_parser("collector", help="完全解耦模式（推荐）")
+    parser_collector.add_argument("--mode", choices=["collector", "manual", "disabled"], default="collector", help="运行模式")
+    parser_collector.add_argument("--task-id", type=int, default=1, help="任务ID")
+    parser_collector.add_argument("--username", default=os.getenv("LXW_USERNAME", "33022"), help="粮信网用户名")
+    parser_collector.add_argument("--password", default=os.getenv("LXW_PASSWORD", "qlp707"), help="粮信网密码")
+    parser_collector.add_argument("--api-base", default=os.getenv("API_BASE", "http://localhost:8080/api"), help="API地址")
+
+    # collect 子命令 - 执行单次采集
+    parser_collect = subparsers.add_parser("collect", help="执行单次采集")
+    parser_collect.add_argument("--report-type", choices=["morning", "evening"], default="morning", help="报告类型")
+    parser_collect.add_argument("--username", default=os.getenv("LXW_USERNAME", "33022"), help="粮信网用户名")
+    parser_collect.add_argument("--password", default=os.getenv("LXW_PASSWORD", "qlp707"), help="粮信网密码")
+    parser_collect.add_argument("--api-base", default=os.getenv("API_BASE", "http://localhost:8080/api"), help="API地址")
+
+    # schedule 子命令 - 启动调度器
+    subparsers.add_parser("schedule", help="启动调度器")
 
     args = parser.parse_args()
 
-    if args.mode == "collector":
-        print("=" * 50)
-        print("模式1：完全解耦模式（推荐）")
-        print("=" * 50)
+    if args.command == "collector":
+        if args.mode == "collector":
+            print("=" * 50)
+            print("模式1：完全解耦模式（推荐）")
+            print("=" * 50)
 
-        config = ReporterConfig(
-            api_base=args.api_base,
-            enabled=True,
-            async_mode=True,
-        )
+            config = ReporterConfig(
+                api_base=args.api_base,
+                enabled=True,
+                async_mode=True,
+            )
 
-        collector = LiangxinwangCollector(
-            config=config,
-            task_id=args.task_id,
-            username=args.username,
-            password=args.password,
-        )
+            collector = LiangxinwangCollector(
+                config=config,
+                task_id=args.task_id,
+                username=args.username,
+                password=args.password,
+            )
 
-        result = collector.run()
-        print(f"\n采集结果: {result}")
+            result = collector.run()
+            print(f"\n采集结果: {result}")
 
-    elif args.mode == "manual":
-        print("=" * 50)
-        print("模式2：手动模式")
-        print("=" * 50)
-        manual_mode_example()
+        elif args.mode == "manual":
+            print("=" * 50)
+            print("模式2：手动模式")
+            print("=" * 50)
+            manual_mode_example()
 
-    elif args.mode == "disabled":
-        print("=" * 50)
-        print("模式3：关闭上报模式")
-        print("=" * 50)
-        disabled_reporter_example()
+        elif args.mode == "disabled":
+            print("=" * 50)
+            print("模式3：关闭上报模式")
+            print("=" * 50)
+            disabled_reporter_example()
+
+    elif args.command == "collect":
+        collect_mode(args)
+
+    elif args.command == "schedule":
+        schedule_mode_example()
+
+    else:
+        parser.print_help()
