@@ -193,7 +193,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload, Plus } from '@element-plus/icons-vue'
 import { getTasks, collectLiangxinwang } from '@/api/dashboard'
-import { scriptApi, executionApi } from '@/api'
+import { scriptApi, executionApi, CollectionScript } from '@/api'
 import CollectionProgress from '@/components/CollectionProgress.vue'
 import TriggerBadge from '@/components/TriggerBadge.vue'
 
@@ -232,7 +232,7 @@ const taskStats = reactive<TaskStats>({
 
 // 脚本管理相关
 const scriptLoading = ref(false)
-const scriptList = ref<any[]>([])
+const scriptList = ref<CollectionScript[]>([])
 const scriptStats = reactive<ScriptStats>({
   total: 0,
   enabled: 0,
@@ -289,25 +289,32 @@ const loadScriptStats = async () => {
   }
 }
 
+let loadScriptsController: AbortController | null = null
+
 const loadScripts = async () => {
+  loadScriptsController?.abort()
+  loadScriptsController = new AbortController()
+  scriptLoading.value = true
   try {
-    scriptLoading.value = true
     const res: any = await scriptApi.list({
       page: scriptPagination.page,
       size: scriptPagination.size
-    })
+    }, { signal: loadScriptsController.signal })
     if (res.code === 200) {
       scriptList.value = res.data.records || []
       scriptPagination.total = res.data.total || 0
     }
   } catch (error) {
-    console.error('加载脚本列表失败', error)
+    if ((error as Error).name !== 'CanceledError') {
+      console.error('加载脚本列表失败', error)
+      ElMessage.error('加载脚本列表失败，请稍后重试')
+    }
   } finally {
     scriptLoading.value = false
   }
 }
 
-async function executeScript(row: any) {
+async function executeScript(row: CollectionScript) {
   ElMessageBox.confirm(`确定执行脚本"${row.scriptName}"吗？`, '提示', {
     confirmButtonText: '确定',
     cancelButtonText: '取消',
