@@ -3,6 +3,7 @@ package com.scfx.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
 import com.scfx.entity.AlertRecord;
+import com.scfx.entity.AlertRule;
 import com.scfx.service.AlertService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -55,5 +56,52 @@ public class AlertController {
             @RequestParam String title,
             @RequestParam String content) {
         return alertService.createAlert(type, level, title, content, null);
+    }
+
+    // ========== 规则管理接口 ==========
+
+    /**
+     * 获取告警规则列表
+     */
+    @GetMapping("/rules")
+    public Result<Page<AlertRule>> getRules(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String ruleType,
+            @RequestParam(required = false) Integer enabled) {
+        return alertService.getRules(page, size, ruleType, enabled);
+    }
+
+    /**
+     * 获取单个告警规则
+     */
+    @GetMapping("/rules/{id}")
+    public Result<AlertRule> getRule(@PathVariable Long id) {
+        return alertService.getRule(id);
+    }
+
+    /**
+     * 创建告警规则
+     */
+    @PostMapping("/rules")
+    public Result<AlertRule> createRule(@RequestBody AlertRule rule) {
+        return alertService.createRule(rule);
+    }
+
+    /**
+     * 更新告警规则
+     */
+    @PutMapping("/rules/{id}")
+    public Result<Void> updateRule(@PathVariable Long id, @RequestBody AlertRule rule) {
+        rule.setId(id);
+        return alertService.updateRule(rule);
+    }
+
+    /**
+     * 删除告警规则
+     */
+    @DeleteMapping("/rules/{id}")
+    public Result<Void> deleteRule(@PathVariable Long id) {
+        return alertService.deleteRule(id);
     }
 }
