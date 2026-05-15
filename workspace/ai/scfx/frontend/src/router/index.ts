@@ -41,6 +41,12 @@ const routes = [
         meta: { title: '版本历史', hideSidebar: true }
       },
       {
+        path: 'scripts/:scriptId/executions/:executionId',
+        name: 'ExecutionDetail',
+        component: () => import('../views/scripts/ExecutionDetail.vue'),
+        meta: { title: '执行详情', hideSidebar: true }
+      },
+      {
         path: 'logs',
         name: 'Logs',
         component: () => import('../views/logs/Logs.vue'),
