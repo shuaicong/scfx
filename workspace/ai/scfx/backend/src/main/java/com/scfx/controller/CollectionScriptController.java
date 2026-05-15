@@ -7,11 +7,13 @@ import com.scfx.entity.TaskExecution;
 import com.scfx.entity.TaskExecutionLog;
 import com.scfx.service.CollectionScriptService;
 import com.scfx.service.TaskExecutionService;
+import com.scfx.util.CronDescriptionUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -217,15 +219,23 @@ public class CollectionScriptController {
      * POST /scripts/validate-cron
      */
     @PostMapping("/validate-cron")
-    public Result<Map<String, Boolean>> validateCron(@RequestBody Map<String, String> request) {
+    public Result<Map<String, Object>> validateCron(@RequestBody Map<String, String> request) {
         String cron = request.get("cron");
-        boolean valid = isValidCronExpression(cron);
-        return Result.success(Map.of("valid", valid));
-    }
+        Map<String, Object> result = new HashMap<>();
 
-    private boolean isValidCronExpression(String cron) {
-        if (cron == null || cron.isEmpty()) return false;
-        String[] parts = cron.trim().split("\\s+");
-        return parts.length >= 5 && parts.length <= 6;
+        try {
+            org.springframework.scheduling.support.CronExpression.parse(cron);
+            result.put("valid", true);
+            result.put("description", CronDescriptionUtil.describe(cron));
+
+            List<String> nextExecutions = CronDescriptionUtil.calculateNextExecutions(cron, 5);
+            result.put("nextExecutions", nextExecutions);
+
+        } catch (Exception e) {
+            result.put("valid", false);
+            result.put("error", e.getMessage());
+        }
+
+        return Result.success(result);
     }
 }
