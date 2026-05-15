@@ -83,6 +83,66 @@ class CollectObject(Enum):
         return [e.value for e in cls]
 
 
+class DimensionDict:
+    """
+    维度字典构建器 - 方便构建标准维度字典
+
+    提供链式调用方式构建维度字典，并进行校验
+    """
+
+    def __init__(
+        self,
+        source: str | Source = "",
+        subject: str | Subject = "",
+        coll_type: str | CollectType = "",
+        obj: str | CollectObject = "",
+        remark: str = "",
+    ):
+        self._source = source.value if isinstance(source, Source) else source
+        self._subject = subject.value if isinstance(subject, Subject) else subject
+        self._coll_type = coll_type.value if isinstance(coll_type, CollectType) else coll_type
+        self._obj = obj.value if isinstance(obj, CollectObject) else obj
+        self._remark = remark
+
+    def source(self, value: str | Source) -> "DimensionDict":
+        """设置采集来源"""
+        self._source = value.value if isinstance(value, Source) else value
+        return self
+
+    def subject(self, value: str | Subject) -> "DimensionDict":
+        """设置采集主体"""
+        self._subject = value.value if isinstance(value, Subject) else value
+        return self
+
+    def coll_type(self, value: str | CollectType) -> "DimensionDict":
+        """设置采集类型"""
+        self._coll_type = value.value if isinstance(value, CollectType) else value
+        return self
+
+    def obj(self, value: str | CollectObject) -> "DimensionDict":
+        """设置采集对象"""
+        self._obj = value.value if isinstance(value, CollectObject) else value
+        return self
+
+    def remark(self, value: str) -> "DimensionDict":
+        """设置采集描述"""
+        self._remark = value
+        return self
+
+    def build(self) -> dict:
+        """构建维度字典"""
+        return {
+            "source": self._source,
+            "subject": self._subject,
+            "type": self._coll_type,
+            "object": self._obj,
+            "remark": self._remark,
+        }
+
+    def __repr__(self):
+        return f"DimensionDict({self._source}, {self._subject}, {self._coll_type}, {self._obj})"
+
+
 class Dimensions:
     """
     维度容器 - 封装5个核心维度
