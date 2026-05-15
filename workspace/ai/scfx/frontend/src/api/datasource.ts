@@ -6,12 +6,16 @@ export interface DataSource {
   name: string
   description?: string
   logoUrl?: string
+  loginUrl?: string
+  authType?: string
   enabled: number
   sortOrder?: number
   config?: string
   lastHeartbeat?: string
   createdAt?: string
   updatedAt?: string
+  // 前端扩展字段
+  hasScript?: boolean
 }
 
 export interface ScriptVersion {

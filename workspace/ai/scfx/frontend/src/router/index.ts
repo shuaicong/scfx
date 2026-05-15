@@ -81,6 +81,12 @@ const routes = [
             name: 'DataSource',
             component: () => import('../views/system/DataSource.vue'),
             meta: { title: '数据源管理' }
+          },
+          {
+            path: 'datasource/:code',
+            name: 'DataSourceDetail',
+            component: () => import('../views/system/DataSourceDetail.vue'),
+            meta: { title: '数据源详情', hideSidebar: true }
           }
         ]
       }

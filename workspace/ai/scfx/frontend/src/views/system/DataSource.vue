@@ -52,9 +52,10 @@
           <el-tag v-else type="info" size="small">无</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="280" fixed="right">
+      <el-table-column label="操作" width="320" fixed="right">
         <template #default="{ row }">
           <el-button link type="primary" size="small" @click="openEditDialog(row)">编辑</el-button>
+          <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
           <el-button link type="primary" size="small" @click="openUploadDialog(row)">上传脚本</el-button>
           <el-button link type="primary" size="small" @click="viewScript(row)" :disabled="!row.hasScript">查看脚本</el-button>
           <el-button link :type="row.enabled === 1 ? 'warning' : 'success'" size="small" @click="toggleEnabled(row)">
@@ -167,10 +168,13 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance, FormRules, UploadInstance } from 'element-plus'
 import { Plus, Search, UploadFilled } from '@element-plus/icons-vue'
 import { datasourceApi, type DataSource } from '@/api/datasource'
+
+const router = useRouter()
 
 // List state
 const list = ref<DataSource[]>([])
@@ -411,6 +415,11 @@ async function viewScript(row: DataSource) {
     console.error('加载脚本失败', e)
     scriptContent.value = '加载失败'
   }
+}
+
+// View detail
+function viewDetail(row: DataSource) {
+  router.push(`/system/datasource/${row.code}`)
 }
 
 // Handle delete
