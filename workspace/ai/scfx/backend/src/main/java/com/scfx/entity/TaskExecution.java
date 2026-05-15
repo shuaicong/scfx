@@ -43,4 +43,7 @@ public class TaskExecution {
 
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
+
+    /** 采集数量 */
+    private Integer collectedCount;
 }
