@@ -2,16 +2,24 @@
 """
 采集SDK入口示例
 
-展示如何使用 SDK 的两种模式：
-1. 完全解耦模式（推荐）：继承 BaseCollector
-2. 手动模式：直接使用 CollectorReporter
+展示如何使用 SDK：
+1. 从环境变量或配置文件加载配置
+2. 创建采集器实例
+3. 运行采集
+
+Usage:
+    python main.py                    # 运行示例采集器
+    python main.py --help             # 查看帮助
+    python main.py collect --help      # 查看 collect 子命令帮助
 """
 
+import argparse
 import os
 import sys
+from typing import Optional
 
 # 添加项目路径
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from collectorsdk import (
     ReporterConfig,
@@ -22,279 +30,372 @@ from collectorsdk import (
     CollectObject,
     parse_publish_time,
     extract_report_type,
+    extract_variety,
+    clean_html,
+    calculate_md5,
+    get_data_dir,
+    get_cache_dir,
+    to_json,
+    from_json,
+    get_current_datetime,
+    get_current_date_str,
 )
+from collectorsdk.config import load_config
+from collectorsdk.collectors.liangxin import LiangxinCollector
 
 
-# ==================== 示例1：完全解耦模式 ====================
+# ==================== 示例采集器实现 ====================
 
-class LiangxinwangCollector(BaseCollector):
+class ExampleCollector(BaseCollector):
     """
-    粮信网采集器
+    示例采集器 - 展示SDK基本用法
 
-    特点：
-    - 采集代码完全不调用任何 HTTP/上报
-    - 只需实现 collect() 方法
-    - 自动获得上报能力
+    继承 BaseCollector 自动获得：
+    - 生命周期管理（start → collect → complete/error）
+    - 日志上报（log_info, log_error 等）
+    - 进度上报（report_progress）
+    - 数据上报（submit_report）
     """
 
-    LOGIN_URL = "https://my.chinagrain.cn/jinnong/a/login"
-    REPORT_URL = "https://www.chinagrain.cn/report/"
-
-    def __init__(self, config: ReporterConfig, task_id: int, username: str, password: str):
-        super().__init__(
-            config=config,
-            task_id=task_id,
-            source=Source.LIANGXIN.value,
-            subject=Subject.CORN.value,
-            coll_type=CollectType.LOGIN_CRAWL.value,
-            obj=CollectObject.DAILY_REPORT.value,
-            remark="粮信网玉米晨报采集",
+    def __init__(
+        self,
+        config: ReporterConfig,
+        task_id: int,
+        source: str,
+        subject: str,
+        coll_type: str,
+        obj: str,
+        remark: str,
+    ):
+        super().__init__(config=config, task_id=task_id)
+        self.set_dimensions(
+            source=source,
+            subject=subject,
+            coll_type=coll_type,
+            obj=obj,
+            remark=remark,
         )
-        self.username = username
-        self.password = password
 
     def collect(self) -> int:
-        """
-        执行粮信网数据采集
+        """执行采集逻辑 - 子类实现"""
+        # 示例：模拟采集
+        self.log_info("开始示例采集...")
 
-        注意：此方法内完全不调用任何 HTTP/上报
-        所有日志使用 self.log_* 方法
-        所有数据提交使用 self.submit_report 方法
-        """
-        count = 0
+        # 模拟数据
+        reports = [
+            {
+                "title": "（2026年5月15日）玉米晨报",
+                "url": "https://example.com/corn-morning-20260515",
+                "content": "今日玉米市场报价稳定...",
+                "publish_time": "2026-05-15T08:00:00",
+            },
+            {
+                "title": "玉米日度行情报告",
+                "url": "https://example.com/corn-daily-20260515",
+                "content": "东北地区玉米价格...",
+                "publish_time": "2026-05-15T09:30:00",
+            },
+        ]
 
-        try:
-            # 模拟采集逻辑
-            self.log_info("开始登录粮信网...")
+        for i, report in enumerate(reports, 1):
+            # 使用SDK工具函数
+            content_hash = calculate_md5(report["content"])
 
-            # 模拟登录
-            self.log_info("访问登录页面...")
-            # page.goto(self.LOGIN_URL)
+            self.submit_report(
+                title=report["title"],
+                source=self.dimensions.source if self.dimensions else "unknown",
+                url=report["url"],
+                variety=extract_variety(report["title"]),
+                report_type=extract_report_type(report["title"]),
+                content=clean_html(report["content"]),
+                publish_time=report["publish_time"],
+            )
 
-            self.log_info("提交登录表单...")
-            # page.fill('#username', self.username)
-            # page.fill('#password', self.password)
-            # page.click('input[type="submit"]')
+            self.log_info(f"已上报第 {i}/{len(reports)} 条: {report['title']}")
+            self.report_progress(i)
 
-            self.log_info("登录成功")
-
-            # 模拟访问报告页面
-            self.log_info(f"访问报告页面: {self.REPORT_URL}")
-            # page.goto(self.REPORT_URL)
-
-            # 模拟解析报告
-            self.log_info("发现 5 篇报告")
-            reports = [
-                {"title": "（2026年4月29日）玉米晨报", "url": "https://www.chinagrain.cn/report/1"},
-                {"title": "（2026年4月28日）玉米日报", "url": "https://www.chinagrain.cn/report/2"},
-                {"title": "玉米市场周报", "url": "https://www.chinagrain.cn/report/3"},
-                {"title": "（2026年4月27日）玉米晨报", "url": "https://www.chinagrain.cn/report/4"},
-                {"title": "玉米专题报告", "url": "https://www.chinagrain.cn/report/5"},
-            ]
-
-            for i, report in enumerate(reports, 1):
-                self.log_info(f"采集第 {i}/{len(reports)} 篇: {report['title']}")
-
-                # 提交数据
-                self.submit_report(
-                    title=report["title"],
-                    source=Source.LIANGXIN.value,
-                    url=report["url"],
-                    variety="玉米",
-                    report_type=extract_report_type(report["title"]),
-                    content=f"【模拟数据】{report['title']}的内容...",
-                    publish_time="2026-04-29T08:00:00",
-                )
-
-                count += 1
-                self.report_progress(count)
-
-            self.log_info(f"采集完成，共 {count} 篇报告")
-
-        except Exception as e:
-            self.log_error(f"采集过程发生错误: {e}")
-            raise
-
-        return count
+        self.log_info(f"采集完成，共 {len(reports)} 条")
+        return len(reports)
 
 
-# ==================== 示例2：手动模式 ====================
+# ==================== 配置加载 ====================
 
-def manual_mode_example():
+def load_reporter_config(
+    api_base: Optional[str] = None,
+    enabled: bool = True,
+    config_file: Optional[str] = None,
+) -> ReporterConfig:
     """
-    手动模式示例
+    加载上报配置
 
-    直接使用 CollectorReporter，灵活控制上报时机
+    优先级（从高到低）：
+    1. 传入的 api_base 参数
+    2. 环境变量 COLLECTOR_API_BASE
+    3. 配置文件中的值
+
+    Args:
+        api_base: API基础地址（可选）
+        enabled: 是否启用上报（默认 True）
+        config_file: 配置文件路径（可选）
+
+    Returns:
+        ReporterConfig 实例
     """
-    from collectorsdk import CollectorReporter
+    if config_file is None:
+        config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
 
-    config = ReporterConfig.from_env()
-    reporter = CollectorReporter(config)
+    config = load_config(config_file)
 
-    # 启动执行
-    result = reporter.report_start(task_id=1)
-    execution_id = result.get("executionId")
-    print(f"执行ID: {execution_id}")
+    # 允许覆盖 api_base
+    if api_base:
+        config.api_base = api_base
 
-    # 上报日志
-    reporter.log_info("开始采集...")
+    # 允许覆盖 enabled
+    config.enabled = enabled
 
-    # 模拟采集
-    for i in range(5):
-        reporter.report_progress(i + 1)
-        reporter.log_info(f"已完成 {i + 1} 条")
+    return config
 
-    # 提交数据
-    reporter.submit_report(
-        title="测试报告",
-        source=Source.LIANGXIN.value,
-        url="https://example.com/1",
-        variety="玉米",
-        report_type="晨报",
-        content="测试内容",
-        publish_time="2026-04-29T08:00:00",
+
+# ==================== 运行模式 ====================
+
+def run_example_collector(args):
+    """运行示例采集器"""
+    print("=" * 60)
+    print("采集SDK示例 - 运行示例采集器")
+    print("=" * 60)
+
+    config = load_reporter_config(
+        api_base=args.api_base,
+        enabled=not args.no_report,
+        config_file=args.config,
     )
 
-    # 完成
-    reporter.report_complete("success", 5)
-    print("手动模式示例完成")
+    print(f"配置信息:")
+    print(f"  - API地址: {config.api_base}")
+    print(f"  - 上报启用: {config.enabled}")
+    print(f"  - 异步模式: {config.async_mode}")
+    print()
 
-
-# ==================== 示例3：关闭上报模式 ====================
-
-def disabled_reporter_example():
-    """
-    关闭上报示例
-
-    设置 enabled=False，上报完全关闭
-    采集代码正常运行，不受影响
-    """
-    config = ReporterConfig(
-        enabled=False,  # 关闭上报
-        api_base="http://localhost:8080/api",
-    )
-
-    collector = LiangxinwangCollector(
+    # 创建采集器实例
+    collector = ExampleCollector(
         config=config,
-        task_id=1,
-        username="33022",
-        password="qlp707",
+        task_id=args.task_id,
+        source=Source.LIANGXIN.value,
+        subject=Subject.CORN.value,
+        coll_type=CollectType.LOGIN_CRAWL.value,
+        obj=CollectObject.DAILY_REPORT.value,
+        remark="示例玉米晨报采集",
     )
 
-    result = collector.run()
-    print(f"采集结果: {result}")
-    # 采集正常完成，但不上报到 Java 后端
+    # 运行采集
+    try:
+        collector.run()
+        print("\n采集器运行完成")
+        return True
+    except Exception as e:
+        print(f"\n采集器运行失败: {e}")
+        return False
+
+
+def run_liangxin_collector(args):
+    """运行粮信网采集器"""
+    print("=" * 60)
+    print("粮信网采集器")
+    print("=" * 60)
+
+    config = load_reporter_config(
+        api_base=args.api_base,
+        enabled=not args.no_report,
+        config_file=args.config,
+    )
+
+    print(f"配置信息:")
+    print(f"  - API地址: {config.api_base}")
+    print(f"  - 上报启用: {config.enabled}")
+    print(f"  - 异步模式: {config.async_mode}")
+    print()
+
+    # 创建粮信网采集器
+    collector = LiangxinCollector(
+        config=config,
+        task_id=args.task_id,
+        username=args.username or os.getenv("LXW_USERNAME", ""),
+        password=args.password or os.getenv("LXW_PASSWORD", ""),
+        report_type=args.report_type,
+    )
+
+    # 运行采集
+    try:
+        collector.run()
+        print("\n采集完成")
+        return True
+    except Exception as e:
+        print(f"\n采集失败: {e}")
+        return False
+
+
+def show_config_info(args):
+    """显示配置信息"""
+    config = load_reporter_config(
+        api_base=args.api_base,
+        config_file=args.config,
+    )
+
+    print("当前配置:")
+    print(f"  api_base: {config.api_base}")
+    print(f"  enabled: {config.enabled}")
+    print(f"  retry_times: {config.retry_times}")
+    print(f"  retry_delay: {config.retry_delay}")
+    print(f"  timeout: {config.timeout}")
+    print(f"  cache_size: {config.cache_size}")
+    print(f"  async_mode: {config.async_mode}")
+
+    # 显示数据目录
+    print(f"\n目录:")
+    print(f"  数据目录: {get_data_dir()}")
+    print(f"  缓存目录: {get_cache_dir()}")
+
+
+def test_utils(args):
+    """测试工具函数"""
+    print("=" * 60)
+    print("测试SDK工具函数")
+    print("=" * 60)
+
+    test_content = "Hello, World! 你好，世界！"
+
+    print(f"\nMD5计算:")
+    print(f"  输入: {test_content}")
+    print(f"  MD5: {calculate_md5(test_content)}")
+
+    print(f"\n报告类型提取:")
+    titles = [
+        "（2026年5月15日）玉米晨报",
+        "玉米日度行情报告",
+        "玉米市场周报",
+        "玉米专题分析",
+        "普通资讯",
+    ]
+    for title in titles:
+        print(f"  {title} -> {extract_report_type(title)}")
+
+    print(f"\n品种提取:")
+    titles = [
+        "玉米价格周报",
+        "小麦市场日评",
+        "大豆期货行情",
+        "稻米市场分析",
+        "其他商品",
+    ]
+    for title in titles:
+        print(f"  {title} -> {extract_variety(title)}")
+
+    print(f"\n时间解析:")
+    times = [
+        "2026-05-15",
+        "2026-05-15 10:30:00",
+        "2026年5月15日",
+        "2026/05/15",
+    ]
+    for t in times:
+        result = parse_publish_time(t)
+        print(f"  {t} -> {result}")
+
+    print(f"\nHTML清理:")
+    html = "<script>alert('xss')</script><p>Hello <b>World</b>!</p>"
+    print(f"  输入: {html}")
+    print(f"  输出: {clean_html(html)}")
+
+    print(f"\n当前时间:")
+    print(f"  日期: {get_current_date_str()}")
+    print(f"  时间: {get_current_datetime().isoformat()}")
+
+    print(f"\nJSON序列化:")
+    data = {"name": "测试", "value": 123, "items": ["a", "b", "c"]}
+    print(f"  输入: {data}")
+    print(f"  JSON: {to_json(data, indent=2)}")
 
 
 # ==================== 主入口 ====================
 
-def schedule_mode_example():
-    """调度模式示例"""
-    from scheduler import CornScheduler
+def main():
+    """主入口函数"""
+    parser = argparse.ArgumentParser(
+        description="采集SDK示例",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例用法:
+  # 运行示例采集器
+  python main.py example
 
-    print("=" * 50)
-    print("调度模式：定时采集玉米晨报/日报")
-    print("=" * 50)
+  # 运行粮信网采集器
+  python main.py liangxin --username 33022 --password qlp707
 
-    scheduler = CornScheduler(config_path="config.yaml")
-    scheduler.start()
+  # 禁用上报（本地测试）
+  python main.py example --no-report
 
+  # 指定API地址
+  python main.py example --api-base http://localhost:8080/api
 
-def collect_mode(args):
-    """执行单次采集"""
-    from collectorsdk.collectors.liangxin import LiangxinCollector
+  # 显示配置信息
+  python main.py config
 
-    report_type = args.report_type  # morning / evening
-    task_id = 1 if report_type == "morning" else 2
-
-    print(f"=" * 50)
-    print(f"执行 {report_type} 采集")
-    print("=" * 50)
-
-    config = ReporterConfig(
-        enabled=True,
-        api_base=args.api_base,
-        async_mode=False,
+  # 测试工具函数
+  python main.py test
+        """,
     )
 
-    collector = LiangxinCollector(
-        config=config,
-        task_id=task_id,
-        username=args.username,
-        password=args.password,
-        report_type=report_type,
-    )
-
-    result = collector.run()
-    print(f"\n采集结果: {result}")
-    return result
-
-
-if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser(description="采集SDK示例")
     subparsers = parser.add_subparsers(dest="command", help="子命令")
 
-    # collector 子命令
-    parser_collector = subparsers.add_parser("collector", help="完全解耦模式（推荐）")
-    parser_collector.add_argument("--mode", choices=["collector", "manual", "disabled"], default="collector", help="运行模式")
-    parser_collector.add_argument("--task-id", type=int, default=1, help="任务ID")
-    parser_collector.add_argument("--username", default=os.getenv("LXW_USERNAME", "33022"), help="粮信网用户名")
-    parser_collector.add_argument("--password", default=os.getenv("LXW_PASSWORD", "qlp707"), help="粮信网密码")
-    parser_collector.add_argument("--api-base", default=os.getenv("API_BASE", "http://localhost:8080/api"), help="API地址")
+    # example 子命令
+    parser_example = subparsers.add_parser(
+        "example",
+        help="运行示例采集器",
+    )
+    parser_example.add_argument("--task-id", type=int, default=1, help="任务ID")
+    parser_example.add_argument("--api-base", default=os.getenv("COLLECTOR_API_BASE", ""), help="API地址")
+    parser_example.add_argument("--config", default=None, help="配置文件路径")
+    parser_example.add_argument("--no-report", action="store_true", help="禁用上报")
 
-    # collect 子命令 - 执行单次采集
-    parser_collect = subparsers.add_parser("collect", help="执行单次采集")
-    parser_collect.add_argument("--report-type", choices=["morning", "evening"], default="morning", help="报告类型")
-    parser_collect.add_argument("--username", default=os.getenv("LXW_USERNAME", "33022"), help="粮信网用户名")
-    parser_collect.add_argument("--password", default=os.getenv("LXW_PASSWORD", "qlp707"), help="粮信网密码")
-    parser_collect.add_argument("--api-base", default=os.getenv("API_BASE", "http://localhost:8080/api"), help="API地址")
+    # liangxin 子命令
+    parser_liangxin = subparsers.add_parser(
+        "liangxin",
+        help="运行粮信网采集器",
+    )
+    parser_liangxin.add_argument("--task-id", type=int, default=1, help="任务ID")
+    parser_liangxin.add_argument("--username", default=None, help="粮信网用户名")
+    parser_liangxin.add_argument("--password", default=None, help="粮信网密码")
+    parser_liangxin.add_argument("--report-type", choices=["morning", "evening"], default="morning", help="报告类型")
+    parser_liangxin.add_argument("--api-base", default=os.getenv("COLLECTOR_API_BASE", ""), help="API地址")
+    parser_liangxin.add_argument("--config", default=None, help="配置文件路径")
+    parser_liangxin.add_argument("--no-report", action="store_true", help="禁用上报")
 
-    # schedule 子命令 - 启动调度器
-    subparsers.add_parser("schedule", help="启动调度器")
+    # config 子命令
+    parser_config = subparsers.add_parser(
+        "config",
+        help="显示配置信息",
+    )
+    parser_config.add_argument("--api-base", default=os.getenv("COLLECTOR_API_BASE", ""), help="API地址")
+    parser_config.add_argument("--config", default=None, help="配置文件路径")
+
+    # test 子命令
+    subparsers.add_parser("test", help="测试工具函数")
 
     args = parser.parse_args()
 
-    if args.command == "collector":
-        if args.mode == "collector":
-            print("=" * 50)
-            print("模式1：完全解耦模式（推荐）")
-            print("=" * 50)
-
-            config = ReporterConfig(
-                api_base=args.api_base,
-                enabled=True,
-                async_mode=True,
-            )
-
-            collector = LiangxinwangCollector(
-                config=config,
-                task_id=args.task_id,
-                username=args.username,
-                password=args.password,
-            )
-
-            result = collector.run()
-            print(f"\n采集结果: {result}")
-
-        elif args.mode == "manual":
-            print("=" * 50)
-            print("模式2：手动模式")
-            print("=" * 50)
-            manual_mode_example()
-
-        elif args.mode == "disabled":
-            print("=" * 50)
-            print("模式3：关闭上报模式")
-            print("=" * 50)
-            disabled_reporter_example()
-
-    elif args.command == "collect":
-        collect_mode(args)
-
-    elif args.command == "schedule":
-        schedule_mode_example()
-
+    if args.command == "example":
+        success = run_example_collector(args)
+        sys.exit(0 if success else 1)
+    elif args.command == "liangxin":
+        success = run_liangxin_collector(args)
+        sys.exit(0 if success else 1)
+    elif args.command == "config":
+        show_config_info(args)
+    elif args.command == "test":
+        test_utils(args)
     else:
         parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
