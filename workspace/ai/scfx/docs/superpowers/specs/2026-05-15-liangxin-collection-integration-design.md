@@ -307,15 +307,99 @@ class BrowserPool:
 5. 返回 {executionId, status: "pending"}
 ```
 
-#### 补偿机制
-Python 服务挂了时：
-- 保存执行记录 status=pending
-- 返回前端"任务已排队，等待调度服务响应"
-- 后台每分钟重试 pending 状态的任务
+#### 补偿机制（后端补偿线程 + 前端提示）
+
+**故障程度不同，处理方式不同：**
+
+| 故障程度 | 场景 | 处理方式 |
+|---------|------|---------|
+| 轻度 | 网络瞬断 | 自动重试（5秒后） |
+| 中度 | Python 服务需要几分钟恢复 | 指数退避重试 (5s, 10s, 20s, 40s, 80s) |
+| 重度 | Python 服务长时间不可用 | 保持 pending，前端提示用户 |
+
+**TaskExecution 新增字段：**
+```java
+Integer retryCount = 0;     // 当前重试次数
+Long nextRetryTime;        // 下次重试时间戳
+```
+
+**补偿线程逻辑：**
+```java
+@Scheduled(fixedRate = 10000)  // 每10秒
+public void retryPendingExecutions() {
+    List<TaskExecution> pending = executionService.getPendingForRetry();
+    for (TaskExecution exec : pending) {
+        if (exec.getNextRetryTime() > now) continue;  // 未到重试时间
+        if (exec.getRetryCount() >= MAX_RETRIES) continue;  // 超过最大次数
+        forwardToPythonService(exec);  // 重新转发
+        exec.setRetryCount(exec.getRetryCount() + 1);
+        exec.setNextRetryTime(now + RETRY_INTERVALS[exec.getRetryCount()] * 1000);
+    }
+}
+```
+
+**服务重启恢复：**
+```java
+@PostConstruct
+public void onStartup() {
+    // 重启时重置 pending 任务的重试计数
+    List<TaskExecution> pendingTasks = executionService.getAllPending();
+    for (TaskExecution task : pendingTasks) {
+        task.setRetryCount(0);
+        task.setNextRetryTime(null);
+    }
+}
+```
+
+**前端提示（重度故障）：**
+```
+pending 状态超过 1 分钟
+    ↓
+显示警告图标 + "等待执行中..."
+    ↓
+用户可选择:
+  - "重新触发" → 手动重试
+  - "取消任务" → 设为 cancelled
+```
 
 ---
 
-### 9.2 执行状态管理
+### 9.2 用户可见性设计
+
+**用户视角 vs 系统视角：**
+
+| 用户可见 | 用户不可见 |
+|---------|-----------|
+| 状态：pending / running / success / failed | 重试次数 |
+| 采集数量 | 下次重试时间 |
+| 错误信息（失败时） | 指数退避算法 |
+| 执行日志（简化版） | 补偿线程 |
+| 可以取消 | |
+
+**前端只显示关键信息：**
+```javascript
+const statusText = {
+  'pending': '等待执行',
+  'running': '执行中',
+  'success': '执行成功',
+  'failed': '执行失败',
+  'cancelled': '已取消'
+};
+```
+
+**用户可见日志示例：**
+- "登录成功"
+- "找到 3 篇报告"
+- "正在采集第 2 篇..."
+- "提交知识库成功"
+
+**用户不可见的技术日志：**
+- "INFO:root:Starting collection..."
+- 重试相关日志
+
+---
+
+### 9.3 执行状态管理
 
 #### 状态定义
 ```
@@ -347,7 +431,7 @@ cancelled  → 已取消
 
 ---
 
-### 9.3 Python 服务架构
+### 9.4 Python 服务架构
 
 #### 核心模块
 ```
@@ -388,7 +472,7 @@ class ExecutionManager:
 
 ---
 
-### 9.4 日志系统
+### 9.5 日志系统
 
 #### 日志流向
 ```
@@ -450,7 +534,7 @@ window.onbeforeunload = () => polling = false
 
 ---
 
-### 9.5 执行结果回传
+### 9.6 执行结果回传
 
 #### Python → 后端
 采集完成后发送：
@@ -474,7 +558,7 @@ execution.setDurationMs(durationMs);
 
 ---
 
-### 9.6 定时调度
+### 9.7 定时调度
 
 #### 配置位置决策
 
@@ -546,7 +630,7 @@ TriggerScheduleService (Spring @Scheduled 每分钟)
 
 ---
 
-### 9.7 取消执行
+### 9.8 取消执行
 
 #### 流程
 ```
@@ -575,7 +659,7 @@ for report in reports:
 
 ---
 
-### 9.8 错误处理
+### 9.9 错误处理
 
 #### 错误分类
 | 错误类型 | 示例 | 处理 |
@@ -605,7 +689,7 @@ def execute_with_retry(ctx):
 
 ---
 
-### 9.9 数据清理
+### 9.10 数据清理
 
 #### 日志保留策略
 ```sql
@@ -620,7 +704,7 @@ WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
 
 ---
 
-### 9.10 监控告警
+### 9.11 监控告警
 
 #### 监控指标
 | 指标 | 阈值 | 动作 |
@@ -637,14 +721,14 @@ WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY);
 
 ## 十、部署说明
 
-### 9.1 Python 服务启动
+### 10.1 Python 服务启动
 
 ```bash
 cd python-collector-sdk
 python -m scheduler.collector_server --port 5001
 ```
 
-### 9.2 配置后端地址
+### 10.2 配置后端地址
 
 ```yaml
 # config.yaml
@@ -652,7 +736,7 @@ collector_service:
   url: "http://localhost:5001"
 ```
 
-### 9.3 环境变量
+### 10.3 环境变量
 
 | 变量 | 说明 | 默认值 |
 |------|------|-------|
