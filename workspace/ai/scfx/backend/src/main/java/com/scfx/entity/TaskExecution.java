@@ -46,4 +46,10 @@ public class TaskExecution {
 
     /** 采集数量 */
     private Integer collectedCount;
+
+    /** 脚本版本号 */
+    private Integer scriptVersion;
+
+    /** 脚本MD5 */
+    private String scriptMd5;
 }

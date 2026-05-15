@@ -99,6 +99,14 @@ public class TaskExecutionService {
      * 完成执行（被采集器调用）
      */
     public void completeExecution(String executionId, String status, int collectedCount) {
+        TaskExecution execution = findByExecutionId(executionId);
+        if (execution != null) {
+            // 获取当前脚本版本
+            Integer currentVersionNum = scriptVersionService.getCurrentVersionNum(execution.getScriptId());
+            if (currentVersionNum != null && currentVersionNum > 0) {
+                execution.setScriptVersion(currentVersionNum);
+            }
+        }
         updateStatus(executionId, status, null);
         String logMsg = "Execution completed with status: " + status + ", collected: " + collectedCount;
         addLog(executionId, null, "INFO", logMsg);
