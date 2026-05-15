@@ -476,6 +476,42 @@ execution.setDurationMs(durationMs);
 
 ### 9.6 定时调度
 
+#### 配置位置决策
+
+**定时配置存储在 CollectionScript.triggerConfig（前端配置），不在 Python 代码中硬编码**
+
+**理由：**
+1. 定时是业务管理需求，不是采集逻辑
+2. 晨报发布时间可能调整（如改成 10:00、10:15），应可由运营人员配置
+3. 符合"采集管理系统"定位：采集脚本只负责"怎么采"，调度由系统决定"什么时候采"
+4. 新增数据源时，直接在界面配置时间，不需要改 Python 代码
+
+#### CollectionScript 数据模型
+
+```java
+public class CollectionScript {
+    // ... existing fields
+
+    // 定时配置（JSON格式）
+    String triggerConfig;
+    // 如: {"type": "fixed_times", "times": ["09:30", "10:00", "10:30"]}
+    // 或: {"type": "cron", "expression": "0 30 9 * * ?"}
+
+    // 报告类型（晨报/日报）
+    String reportType;  // morning / evening
+}
+```
+
+#### 前端配置 UI
+
+```
+脚本名称: 粮信网玉米晨报
+报告类型: [晨报 ▼]
+定时配置:
+  ○ Cron表达式    ○ 固定时间点
+  [09:30] [10:00] [10:30] [+ 添加]
+```
+
 #### 触发链路
 ```
 TriggerScheduleService (Spring @Scheduled 每分钟)
