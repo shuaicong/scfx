@@ -14,15 +14,13 @@ const routes = [
       },
       {
         path: 'collection',
-        name: 'Collection',
-        component: () => import('../views/collection/Collection.vue'),
-        meta: { title: '采集管理' }
+        redirect: '/scripts'
       },
       {
         path: 'scripts',
         name: 'Scripts',
-        component: () => import('../views/scripts/Scripts.vue'),
-        meta: { title: '脚本管理' }
+        component: () => import('../views/scripts/TaskList.vue'),
+        meta: { title: '采集任务管理' }
       },
       {
         path: 'scripts/create',
@@ -65,6 +63,20 @@ const routes = [
         name: 'Knowledge',
         component: () => import('../views/knowledge/Knowledge.vue'),
         meta: { title: '知识库管理' }
+      },
+      {
+        path: 'system',
+        name: 'System',
+        component: () => import('../views/layout/Layout.vue'),
+        meta: { title: '系统管理' },
+        children: [
+          {
+            path: 'datasource',
+            name: 'DataSource',
+            component: () => import('../views/system/DataSource.vue'),
+            meta: { title: '数据源管理' }
+          }
+        ]
       }
     ]
   }
