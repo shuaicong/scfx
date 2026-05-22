@@ -663,7 +663,7 @@ async function loadKnowledgeByCategory(categoryId: number) {
 const sidebarCollapsed = ref(false)
 const sidebarWidth = ref(280)
 const listCollapsed = ref(false)
-const viewMode = ref('card')
+const viewMode = ref('table')
 const previewVisible = ref(false)
 const previewFullscreen = ref(false)
 const sourceDropdownOpen = ref(false)
