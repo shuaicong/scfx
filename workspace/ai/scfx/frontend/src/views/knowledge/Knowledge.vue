@@ -1,7 +1,8 @@
 <template>
-  <div class="knowledge-container">
-    <!-- Left Sidebar -->
-    <aside class="sidebar" id="sidebar" :class="{ collapsed: sidebarCollapsed }" :style="sidebarCollapsed ? {} : { width: sidebarWidth + 'px' }">
+  <div class="knowledge-wrapper">
+    <div class="knowledge-container">
+      <!-- Left Sidebar -->
+      <aside class="sidebar" id="sidebar" :class="{ collapsed: sidebarCollapsed }" :style="sidebarCollapsed ? {} : { width: sidebarWidth + 'px' }">
       <div class="sidebar-resize-handle" @mousedown="startResize" v-if="!sidebarCollapsed"></div>
 
       <div class="sidebar-tabs">
@@ -579,8 +580,8 @@
     <!-- Category Mapping Dialog -->
     <CategoryMappingDialog v-model="showMappingDialog" />
   </div>
+</div>
 </template>
-
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'

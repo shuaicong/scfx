@@ -15,7 +15,7 @@ public class KnowledgeViz {
 
     private Long knowledgeId;
 
-    @TableField(typeHandler = FloatArrayTypeHandler.class)
+    @TableField(value = "vector_768", typeHandler = FloatArrayTypeHandler.class)
     private float[] vector768;
 
     /** 可视化状态：normal / failed / pending */

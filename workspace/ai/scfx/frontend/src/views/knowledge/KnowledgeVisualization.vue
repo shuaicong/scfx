@@ -253,7 +253,7 @@ onMounted(async () => {
       }
       return result
     }
-    categories.value = flatten(res.data || [])
+    categories.value = flatten(res.data?.data || [])
   } catch {
     // ignore
   }
@@ -278,12 +278,12 @@ async function loadData() {
     points.value = (data.points || []) as VizPoint[]
     total.value = data.total || 0
     similarities.value = data.similarities || {}
-    await nextTick()
-    renderChart()
   } catch {
     ElMessage.error('加载可视化数据失败')
   } finally {
     loading.value = false
+    await nextTick()
+    renderChart()
   }
 }
 
