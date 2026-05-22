@@ -3,15 +3,16 @@ package com.scfx.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
 import com.scfx.entity.CollectionScript;
+import com.scfx.entity.ExecutionItem;
 import com.scfx.entity.TaskExecution;
 import com.scfx.entity.TaskExecutionLog;
 import com.scfx.service.CollectionScriptService;
 import com.scfx.service.TaskExecutionService;
 import com.scfx.util.CronDescriptionUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,6 +21,7 @@ import java.util.Map;
 /**
  * 采集脚本管理控制器
  */
+@Slf4j
 @RestController
 @RequestMapping("/scripts")
 @RequiredArgsConstructor
@@ -53,71 +55,51 @@ public class CollectionScriptController {
     }
 
     /**
-     * 获取脚本内容（从文件读取）
-     * GET /scripts/{id}/content
-     */
-    @GetMapping("/{id}/content")
-    public Result<String> getScriptContent(@PathVariable Long id) {
-        return scriptService.getScriptContent(id);
-    }
-
-    /**
-     * 创建脚本（简化版：只需名称、描述、内容）
+     * 创建脚本
      * POST /scripts
      */
     @PostMapping
-    public Result<CollectionScript> createScript(@RequestBody Map<String, String> request) {
-        String scriptName = request.get("scriptName");
-        String description = request.get("description");
-        String scriptContent = request.get("scriptContent");
-
-        if (scriptName == null || scriptName.isBlank()) {
+    public Result<CollectionScript> createScript(@RequestBody CollectionScript script) {
+        if (script.getScriptName() == null || script.getScriptName().isBlank()) {
             return Result.error("脚本名称不能为空");
         }
-        if (scriptContent == null || scriptContent.isBlank()) {
-            return Result.error("脚本内容不能为空");
+        if (script.getSyncToKnowledgeBase() == null || Boolean.TRUE.equals(script.getSyncToKnowledgeBase())) {
+            if (script.getCategoryId() == null) {
+                return Result.error("关联分类不能为空");
+            }
         }
-
-        return scriptService.createScript(scriptName, description, scriptContent);
+        try {
+            return scriptService.createScript(script);
+        } catch (Exception e) {
+            log.error("创建脚本失败: scriptName={}, triggerType={}, error={}",
+                script.getScriptName(), script.getTriggerType(), e.getMessage(), e);
+            return Result.error("创建失败: " + e.getMessage());
+        }
     }
 
     /**
-     * 上传脚本文件
-     * POST /scripts/upload
-     */
-    @PostMapping("/upload")
-    public Result<CollectionScript> uploadScript(
-            @RequestParam("scriptName") String scriptName,
-            @RequestParam(value = "description", required = false) String description,
-            @RequestParam("file") MultipartFile file) {
-        return scriptService.uploadScript(scriptName, description, file);
-    }
-
-    /**
-     * 更新脚本（元数据）
+     * 更新脚本
      * PUT /scripts/{id}
      */
     @PutMapping("/{id}")
     public Result<CollectionScript> updateScript(@PathVariable Long id, @RequestBody CollectionScript script) {
         script.setId(id);
-        return scriptService.updateScript(script);
-    }
-
-    /**
-     * 更新脚本内容（同时更新文件）
-     * PUT /scripts/{id}/content
-     */
-    @PutMapping("/{id}/content")
-    public Result<CollectionScript> updateScriptContent(@PathVariable Long id, @RequestBody Map<String, String> request) {
-        String content = request.get("scriptContent");
-        if (content == null || content.isBlank()) {
-            return Result.error("脚本内容不能为空");
+        if (script.getSyncToKnowledgeBase() == null || Boolean.TRUE.equals(script.getSyncToKnowledgeBase())) {
+            if (script.getCategoryId() == null) {
+                return Result.error("关联分类不能为空");
+            }
         }
-        return scriptService.updateScriptContent(id, content);
+        try {
+            return scriptService.updateScript(script);
+        } catch (Exception e) {
+            log.error("更新脚本失败: id={}, scriptName={}, triggerType={}, cron={}, error={}",
+                id, script.getScriptName(), script.getTriggerType(), script.getCronExpression(), e.getMessage(), e);
+            return Result.error("保存失败: " + e.getMessage());
+        }
     }
 
     /**
-     * 删除脚本（同时删除文件）
+     * 删除脚本
      * DELETE /scripts/{id}
      */
     @DeleteMapping("/{id}")
@@ -144,19 +126,12 @@ public class CollectionScriptController {
     }
 
     /**
-     * 执行脚本（通过文件路径）
+     * 立即执行脚本
      * POST /scripts/{id}/execute
+     * 创建执行记录，由 CollectorAgentService 异步执行
      */
     @PostMapping("/{id}/execute")
     public Result<Map<String, Object>> executeScript(@PathVariable Long id) {
-        return scriptService.executeScriptByPath(id);
-    }
-
-    /**
-     * 立即执行脚本
-     */
-    @PostMapping("/{id}/execute-now")
-    public Result<Map<String, Object>> executeScriptNow(@PathVariable Long id) {
         return scriptService.executeScriptNow(id);
     }
 
@@ -170,22 +145,66 @@ public class CollectionScriptController {
     }
 
     /**
-     * 获取执行记录列表
+     * 获取执行记录列表（支持筛选）
      */
     @GetMapping("/{scriptId}/executions")
     public Result<Page<TaskExecution>> getExecutions(
         @PathVariable Long scriptId,
         @RequestParam(defaultValue = "1") int page,
-        @RequestParam(defaultValue = "10") int size) {
-        return Result.success(executionService.getExecutions(scriptId, page, size));
+        @RequestParam(defaultValue = "10") int size,
+        @RequestParam(required = false) String status,
+        @RequestParam(required = false) String triggerType) {
+        return Result.success(executionService.getExecutions(scriptId, page, size, status, triggerType));
     }
 
     /**
      * 获取执行详情
      */
     @GetMapping("/executions/{executionId}")
-    public Result<TaskExecution> getExecution(@PathVariable String executionId) {
-        return Result.success(executionService.getExecution(executionId));
+    public Result<Map<String, Object>> getExecution(@PathVariable String executionId) {
+        TaskExecution execution = executionService.getExecution(executionId);
+        if (execution == null) {
+            return Result.error("执行记录不存在");
+        }
+        // 关联脚本信息
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", execution.getId());
+        result.put("executionId", execution.getExecutionId());
+        result.put("scriptId", execution.getScriptId());
+        result.put("versionId", execution.getVersionId());
+        result.put("versionNum", execution.getVersionNum());
+        result.put("triggerType", execution.getTriggerType());
+        result.put("status", execution.getStatus());
+        result.put("startTime", execution.getStartTime());
+        result.put("endTime", execution.getEndTime());
+        result.put("durationMs", execution.getDurationMs());
+        result.put("errorMessage", execution.getErrorMessage());
+        result.put("createdAt", execution.getCreatedAt());
+        result.put("collectedCount", execution.getCollectedCount());
+
+        // 执行统计
+        result.put("totalCount", execution.getTotalCount());
+        result.put("successCount", execution.getSuccessCount());
+        result.put("skipCount", execution.getSkipCount());
+        result.put("errorCount", execution.getErrorCount());
+        result.put("dataSizeMb", execution.getDataSizeMb());
+
+        // 阶段耗时
+        result.put("phaseLoginMs", execution.getPhaseLoginMs());
+        result.put("phaseCrawlMs", execution.getPhaseCrawlMs());
+        result.put("phaseParseMs", execution.getPhaseParseMs());
+        result.put("phaseReportMs", execution.getPhaseReportMs());
+
+        // 获取脚本信息
+        if (execution.getScriptId() != null) {
+            CollectionScript script = scriptService.getScriptById(execution.getScriptId()).getData();
+            if (script != null) {
+                result.put("scriptName", script.getScriptName());
+                result.put("source", script.getSource());
+            }
+        }
+
+        return Result.success(result);
     }
 
     /**
@@ -194,6 +213,15 @@ public class CollectionScriptController {
     @GetMapping("/executions/{executionId}/logs")
     public Result<List<TaskExecutionLog>> getExecutionLogs(@PathVariable String executionId) {
         return Result.success(executionService.getLogs(executionId));
+    }
+
+    /**
+     * 获取执行采集数据项
+     * GET /scripts/executions/{executionId}/items
+     */
+    @GetMapping("/executions/{executionId}/items")
+    public Result<List<ExecutionItem>> getExecutionItems(@PathVariable String executionId) {
+        return Result.success(executionService.getItems(executionId));
     }
 
     /**
@@ -224,7 +252,9 @@ public class CollectionScriptController {
         Map<String, Object> result = new HashMap<>();
 
         try {
-            org.springframework.scheduling.support.CronExpression.parse(cron);
+            // Normalize 5-field Unix cron to 6-field Spring cron before parsing
+            String normalizedCron = CronDescriptionUtil.normalizeToSixFields(cron);
+            org.springframework.scheduling.support.CronExpression.parse(normalizedCron);
             result.put("valid", true);
             result.put("description", CronDescriptionUtil.describe(cron));
 

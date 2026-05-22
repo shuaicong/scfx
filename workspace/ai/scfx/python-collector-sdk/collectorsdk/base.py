@@ -5,12 +5,16 @@
 采集代码只需继承此类，自动获得上报能力
 """
 
+import logging
 from abc import ABC, abstractmethod
+import time
 from typing import Optional
 
 from .config import ReporterConfig
 from .dimensions import Dimensions, Source, Subject, CollectType, CollectObject
 from .reporter import CollectorReporter
+
+logger = logging.getLogger(__name__)
 
 
 class BaseCollector(ABC):
@@ -33,6 +37,7 @@ class BaseCollector(ABC):
         self,
         config: ReporterConfig,
         task_id: int,
+        execution_id: Optional[str] = None,
         source: Optional[str] = None,
         subject: Optional[str] = None,
         coll_type: Optional[str] = None,
@@ -45,6 +50,7 @@ class BaseCollector(ABC):
         Args:
             config: 上报配置
             task_id: 任务ID
+            execution_id: 执行ID（从Java传来，避免重复创建）
             source: 采集来源（如 liangxin）
             subject: 采集主体（如 corn）
             coll_type: 采集类型（如 login_crawl）
@@ -54,8 +60,21 @@ class BaseCollector(ABC):
         self.config = config
         self.task_id = task_id
         self._reporter = CollectorReporter(config)
-        self._execution_id: Optional[str] = None
+        self._execution_id: Optional[str] = execution_id
         self._collected_count = 0
+
+        # 阶段耗时（ms），供子类在 collect() 中设置
+        self._phase_times = {
+            "login_ms": 0,
+            "crawl_ms": 0,
+            "parse_ms": 0,
+            "report_ms": 0,
+        }
+
+        # 采集统计
+        self._success_count = 0
+        self._skip_count = 0
+        self._error_count = 0
 
         # 设置维度
         if source and subject and coll_type and obj:
@@ -123,6 +142,17 @@ class BaseCollector(ABC):
             remark=remark,
         )
 
+    def set_phase_time(self, phase: str, ms: int):
+        """设置阶段耗时
+
+        Args:
+            phase: login/crawl/parse/report
+            ms: 耗时毫秒
+        """
+        key = f"{phase}_ms"
+        if key in self._phase_times:
+            self._phase_times[key] = ms
+
     @abstractmethod
     def collect(self) -> int:
         """
@@ -153,26 +183,52 @@ class BaseCollector(ABC):
         """
         result = {
             "success": False,
-            "execution_id": None,
+            "execution_id": self._execution_id,
             "collected_count": 0,
             "error": None,
         }
 
         try:
-            # 1. 启动执行
-            self._reporter.log_info(f"任务开始，任务ID: {self.task_id}")
-            start_result = self._reporter.report_start(self.task_id)
-            self._execution_id = start_result.get("executionId")
+            t0 = time.time()
+
+            # 如果已有 execution_id，直接使用；否则调用 report_start 获取新的
+            if self._execution_id:
+                self._reporter.set_execution_id(self._execution_id)
+                self._reporter._started = True
+                self._started = True
+                self._reporter.log_info(f"任务开始，任务ID: {self.task_id}，执行ID: {self._execution_id}")
+                start_result = {"executionId": self._execution_id, "taskId": self.task_id}
+            else:
+                # 1. 启动执行
+                self._reporter.log_info(f"任务开始，任务ID: {self.task_id}")
+                start_result = self._reporter.report_start(self.task_id)
+                self._execution_id = start_result.get("executionId")
+                self._reporter.log_info(f"执行ID: {self._execution_id}")
+
             result["execution_id"] = self._execution_id
-            self._reporter.log_info(f"执行ID: {self._execution_id}")
 
             # 2. 执行采集
             self._reporter.log_info("开始执行采集...")
             self._collected_count = self.collect()
             self._reporter.log_info(f"采集完成，共 {self._collected_count} 条数据")
 
-            # 3. 完成执行
-            self._reporter.report_complete("success", self._collected_count)
+            # 3. 计算上报阶段耗时
+            report_ms = int((time.time() - t0) * 1000)
+            self._phase_times["report_ms"] = report_ms
+
+            # 4. 完成执行（带完整统计）
+            self._reporter.report_complete(
+                "success",
+                self._collected_count,
+                total_count=self._success_count + self._skip_count + self._error_count,
+                success_count=self._success_count,
+                skip_count=self._skip_count,
+                error_count=self._error_count,
+                phase_login_ms=self._phase_times["login_ms"],
+                phase_crawl_ms=self._phase_times["crawl_ms"],
+                phase_parse_ms=self._phase_times["parse_ms"],
+                phase_report_ms=report_ms,
+            )
             result["success"] = True
             result["collected_count"] = self._collected_count
 
@@ -180,7 +236,14 @@ class BaseCollector(ABC):
             error_msg = str(e)
             self._reporter.log_error(f"采集失败: {error_msg}")
             self._reporter.report_error(error_msg)
-            self._reporter.report_complete("failed", self._collected_count)
+            self._reporter.report_complete(
+                "failed",
+                self._collected_count,
+                total_count=self._success_count + self._skip_count + self._error_count,
+                success_count=self._success_count,
+                skip_count=self._skip_count,
+                error_count=self._error_count + 1,
+            )
             result["error"] = error_msg
             result["collected_count"] = self._collected_count
 
@@ -188,21 +251,21 @@ class BaseCollector(ABC):
 
     # ==================== 上报便捷方法 ====================
 
-    def log_debug(self, message: str):
+    def log_debug(self, message: str, phase: str = "", category: str = ""):
         """快捷方法：记录DEBUG日志"""
-        self._reporter.log_debug(message)
+        self._reporter.log_debug(message, phase=phase, category=category)
 
-    def log_info(self, message: str):
+    def log_info(self, message: str, phase: str = "", category: str = ""):
         """快捷方法：记录INFO日志"""
-        self._reporter.log_info(message)
+        self._reporter.log_info(message, phase=phase, category=category)
 
-    def log_warn(self, message: str):
+    def log_warn(self, message: str, phase: str = "", category: str = ""):
         """快捷方法：记录WARN日志"""
-        self._reporter.log_warn(message)
+        self._reporter.log_warn(message, phase=phase, category=category)
 
-    def log_error(self, message: str):
+    def log_error(self, message: str, phase: str = "", category: str = ""):
         """快捷方法：记录ERROR日志"""
-        self._reporter.log_error(message)
+        self._reporter.log_error(message, phase=phase, category=category)
 
     def report_progress(self, count: int):
         """快捷方法：上报进度"""
@@ -216,6 +279,7 @@ class BaseCollector(ABC):
         variety: str = "",
         report_type: str = "",
         content: str = "",
+        content_html: str = "",
         publish_time: str = "",
     ):
         """
@@ -228,8 +292,13 @@ class BaseCollector(ABC):
             variety: 品种
             report_type: 报告类型
             content: 正文内容
+            content_html: 正文HTML（保留格式）
             publish_time: 发布时间
         """
+        if not content or not content.strip():
+            logger.warning(f"报告内容为空，跳过提交: {title}")
+            self._error_count += 1
+            return
         self._reporter.submit_report(
             title=title,
             source=source,
@@ -237,6 +306,7 @@ class BaseCollector(ABC):
             variety=variety,
             report_type=report_type,
             content=content,
+            content_html=content_html,
             publish_time=publish_time,
         )
 

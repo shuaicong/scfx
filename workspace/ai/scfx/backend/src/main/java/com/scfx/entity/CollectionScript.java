@@ -23,9 +23,6 @@ public class CollectionScript {
     /** 脚本文件路径 */
     private String scriptPath;
 
-    /** 脚本内容（Python代码） */
-    private String scriptContent;
-
     /** 数据源标识 */
     private String source;
 
@@ -109,4 +106,14 @@ public class CollectionScript {
 
     /** 版本号 */
     private Integer currentVersion;
+
+    /** 是否同步到知识库 */
+    private Boolean syncToKnowledgeBase;
+
+    /** 关联分类ID（同步到知识库时使用） */
+    private Long categoryId;
+
+    /** 上次执行状态（非DB字段，查询时填充） */
+    @TableField(exist = false)
+    private String lastExecutionStatus;
 }

@@ -17,7 +17,7 @@ test.describe.serial('DataSource CRUD', () => {
   })
 
   test('should navigate to DataSource page', async ({ page }) => {
-    await expect(page.getByRole('heading', { name: '数据源管理' })).toBeVisible()
+    await expect(page.locator('.datasource-container .page-header .page-title').first()).toBeVisible()
     await expect(page.getByRole('button', { name: '新增数据源' })).toBeVisible()
   })
 

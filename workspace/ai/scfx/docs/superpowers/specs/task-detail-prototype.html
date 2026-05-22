@@ -701,60 +701,74 @@
       border-radius: 3px;
     }
 
-    .editor-container {
+    .config-form {
       flex: 1;
-      min-height: 400px;
-      background: #1e1e1e;
+      padding: 14px 16px;
+      overflow-y: auto;
     }
 
-    .editor-footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      background: var(--bg-secondary);
-      border-top: 1px solid var(--border-color);
+    .form-group {
+      margin-bottom: 18px;
     }
 
-    .editor-status {
-      font-size: 11px;
-      color: var(--text-muted);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .editor-status .modified {
-      color: var(--accent-orange);
-    }
-
-    .save-btn {
-      padding: 7px 14px;
-      border-radius: 6px;
-      border: none;
-      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-      color: #fff;
+    .form-label {
+      display: block;
       font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 6px;
       font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      display: flex;
-      align-items: center;
-      gap: 6px;
     }
 
-    .save-btn:hover:not(:disabled) {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
+    .form-input,
+    .form-select {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-size: 13px;
+      transition: border-color 0.2s;
     }
 
-    .save-btn:disabled {
-      opacity: 0.4;
+    .form-input:focus,
+    .form-select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .form-input[readonly] {
+      background: var(--bg-card);
+      color: var(--text-muted);
       cursor: not-allowed;
     }
 
-    .info-form {
-      padding: 14px 16px;
+    .form-hint {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .form-actions {
+      margin-top: 24px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .code-textarea {
+      width: 100%;
+      padding: 14px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      resize: none;
+    }
+
+    .script-view-dialog {
+      max-width: 900px;
     }
 
     .info-form .form-group {
@@ -1450,6 +1464,235 @@
         display: none;
       }
     }
+
+    /* 执行结果卡片 */
+    .result-card {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 20px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+
+    .result-card.success {
+      background: rgba(63, 185, 80, 0.1);
+      border: 1px solid rgba(63, 185, 80, 0.3);
+    }
+
+    .result-card.failed {
+      background: rgba(248, 81, 73, 0.1);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .result-card.cancelled {
+      background: rgba(240, 136, 62, 0.1);
+      border: 1px solid rgba(240, 136, 62, 0.3);
+    }
+
+    .result-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .result-card.success .result-icon {
+      background: linear-gradient(135deg, var(--accent-green), #2d9a5a);
+      color: #fff;
+    }
+
+    .result-card.failed .result-icon {
+      background: linear-gradient(135deg, var(--accent-red), #c53030);
+      color: #fff;
+    }
+
+    .result-card.cancelled .result-icon {
+      background: linear-gradient(135deg, var(--accent-orange), #d97706);
+      color: #fff;
+    }
+
+    .result-info {
+      flex: 1;
+    }
+
+    .result-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .result-meta {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-top: 4px;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .result-btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+    }
+
+    .result-btn:hover {
+      background: var(--bg-hover);
+    }
+
+    /* 实时日志面板 */
+    .log-container {
+      padding: 12px 16px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: var(--bg-primary);
+    }
+
+    .log-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .log-item:last-child {
+      border-bottom: none;
+    }
+
+    .log-time {
+      color: var(--text-muted);
+      min-width: 70px;
+    }
+
+    .log-level {
+      min-width: 40px;
+      font-weight: 600;
+    }
+
+    .log-level.info {
+      color: var(--text-primary);
+    }
+
+    .log-level.warn {
+      color: var(--accent-yellow);
+    }
+
+    .log-level.error {
+      color: var(--accent-red);
+    }
+
+    .log-message {
+      color: var(--text-secondary);
+      flex: 1;
+    }
+
+    .log-footer {
+      padding: 8px 16px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+    }
+
+    .log-auto-scroll {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .log-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .log-status.running {
+      background: rgba(240, 136, 62, 0.15);
+      color: var(--accent-orange);
+    }
+
+    .spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--accent-orange);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* 确认弹窗样式 */
+    .confirm-icon {
+      font-size: 48px;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .confirm-text {
+      font-size: 14px;
+      color: var(--text-primary);
+      text-align: center;
+      margin-bottom: 8px;
+    }
+
+    .confirm-subtext {
+      font-size: 13px;
+      color: var(--text-secondary);
+      text-align: center;
+    }
+
+    /* 执行中按钮状态 */
+    .btn-cancel {
+      background: rgba(240, 136, 62, 0.15);
+      color: var(--accent-orange);
+      border: 1px solid var(--accent-orange);
+    }
+
+    .btn-cancel:hover {
+      background: rgba(240, 136, 62, 0.25);
+    }
+
+    .btn-cancel:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* 执行中记录样式 */
+    .execution-item.running {
+      background: rgba(240, 136, 62, 0.1);
+      border: 1px solid rgba(240, 136, 62, 0.3);
+    }
+
+    .execution-status.running {
+      color: var(--accent-orange);
+    }
+
+    .execution-status .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-orange);
+      animation: pulse 1.5s ease-in-out infinite;
+    }
   </style>
 </head>
 <body>
@@ -1476,7 +1719,7 @@
         <span class="toggle-dot"></span>
         <span id="toggleStatusText">启用中</span>
       </button>
-      <button class="btn btn-primary" onclick="executeTask()">
+      <button class="btn btn-primary" id="executeBtn" onclick="executeTask()">
         <span>⚡</span> 立即执行
       </button>
       <button class="btn btn-primary" id="saveBtn" onclick="confirmSave()" disabled>
@@ -1522,6 +1765,45 @@
           <div class="stat-chip-label">下次执行</div>
           <div class="stat-chip-value" style="font-size: 14px;" id="nextExec">明天 08:00</div>
         </div>
+      </div>
+    </div>
+
+    <!-- 执行结果卡片 - 成功状态 -->
+    <div class="result-card success" id="resultCardSuccess" style="display: none;">
+      <div class="result-icon">✓</div>
+      <div class="result-info">
+        <div class="result-title">执行成功</div>
+        <div class="result-meta">采集时间：<span id="resultDuration">12.5s</span> · 采集数量：<span id="resultCount">3</span> 条</div>
+      </div>
+      <div class="result-actions">
+        <button class="result-btn" onclick="viewLogs()">查看日志</button>
+        <button class="result-btn" onclick="reExecute()">重新执行</button>
+      </div>
+    </div>
+
+    <!-- 执行结果卡片 - 失败状态 -->
+    <div class="result-card failed" id="resultCardFailed" style="display: none;">
+      <div class="result-icon">✗</div>
+      <div class="result-info">
+        <div class="result-title">执行失败</div>
+        <div class="result-meta">错误原因：<span id="resultError">登录超时，请检查网络连接</span></div>
+      </div>
+      <div class="result-actions">
+        <button class="result-btn" onclick="viewLogs()">查看日志</button>
+        <button class="result-btn" onclick="reExecute()">重试</button>
+      </div>
+    </div>
+
+    <!-- 执行结果卡片 - 取消状态 -->
+    <div class="result-card cancelled" id="resultCardCancelled" style="display: none;">
+      <div class="result-icon">⊘</div>
+      <div class="result-info">
+        <div class="result-title">已取消</div>
+        <div class="result-meta">用户主动取消，采集了 1 条后中断</div>
+      </div>
+      <div class="result-actions">
+        <button class="result-btn" onclick="viewLogs()">查看日志</button>
+        <button class="result-btn" onclick="reExecute()">重新执行</button>
       </div>
     </div>
 
@@ -1758,38 +2040,143 @@
             <a href="#" onclick="openExecutionHistory(event)">查看全部记录 →</a>
           </div>
         </div>
+
+        <!-- 实时日志面板 -->
+        <div class="section-card" id="realtimeLogPanel" style="display: none;">
+          <div class="section-header">
+            <div class="section-title">
+              <span class="icon">📋</span>
+              实时日志
+            </div>
+            <div class="section-actions">
+              <span class="log-status running" id="logStatusBadge">
+                <span class="spinner"></span> 执行中
+              </span>
+            </div>
+          </div>
+          <div class="log-container" id="logContainer">
+            <div class="log-item">
+              <span class="log-time">08:30:15</span>
+              <span class="log-level info">INFO</span>
+              <span class="log-message">开始采集任务</span>
+            </div>
+            <div class="log-item">
+              <span class="log-time">08:30:16</span>
+              <span class="log-level info">INFO</span>
+              <span class="log-message">登录粮信网...</span>
+            </div>
+            <div class="log-item">
+              <span class="log-time">08:30:18</span>
+              <span class="log-level info">INFO</span>
+              <span class="log-message">登录成功</span>
+            </div>
+            <div class="log-item">
+              <span class="log-time">08:30:20</span>
+              <span class="log-level warn">WARN</span>
+              <span class="log-message">第 2 篇报告格式异常，继续...</span>
+            </div>
+            <div class="log-item">
+              <span class="log-time">08:30:35</span>
+              <span class="log-level info">INFO</span>
+              <span class="log-message">采集完成，共 3 条</span>
+            </div>
+          </div>
+          <div class="log-footer">
+            <span class="log-auto-scroll">自动滚动已开启</span>
+          </div>
+        </div>
       </div>
 
-      <!-- Right: Main Content (Script Editor) -->
+      <!-- Right: Main Content (Script Config Form) -->
       <div class="main-content">
         <div class="section-card">
           <div class="section-header">
             <div class="section-title">
-              <span class="icon">📝</span>
+              <span class="icon">⚙️</span>
               脚本配置
             </div>
             <div class="section-actions">
-              <span class="shortcut-hint">Ctrl+S 保存</span>
+              <button class="btn btn-secondary" onclick="viewScript()">📄 查看脚本</button>
             </div>
           </div>
-          <div class="editor-toolbar">
-            <button class="toolbar-btn" onclick="formatCode()">格式化</button>
-            <button class="toolbar-btn" onclick="toggleWordWrap()">自动换行</button>
-            <button class="toolbar-btn" onclick="goToLine()">跳转到行</button>
-            <div class="toolbar-spacer"></div>
-            <span class="editor-status">
-              <span>Python</span>
-              <span class="modified" id="modifiedIndicator" style="display: none;">已修改</span>
-            </span>
-          </div>
-          <div class="editor-container" id="monacoEditor"></div>
-          <div class="editor-footer">
-            <div class="editor-status">
-              <span id="cursorPosition">行 45, 列 12</span>
-              <span class="modified" id="modifiedIndicatorFooter" style="display: none;">已修改</span>
+          <div class="config-form">
+            <!-- 数据源选择 -->
+            <div class="form-group">
+              <label class="form-label">数据源</label>
+              <select class="form-select" id="editDatasource" onchange="onDatasourceChange()">
+                <option value="liangxin" selected>粮信网</option>
+                <option value="mysteel">我的钢铁网</option>
+                <option value="chinagrain">中华粮网</option>
+                <option value="usda">USDA</option>
+              </select>
+              <div class="form-hint">选择数据源后，基础配置将自动填充</div>
+            </div>
+
+            <!-- 基础配置（从数据源获取，只读显示） -->
+            <div class="form-group">
+              <label class="form-label">登录地址</label>
+              <input type="text" class="form-input" id="editLoginUrl" value="https://my.chinagrain.cn/jinnong/a/login" readonly>
+              <div class="form-hint">来自数据源配置，不可修改</div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">认证方式</label>
+              <input type="text" class="form-input" id="editAuthType" value="cookie" readonly>
+              <div class="form-hint">来自数据源配置，不可修改</div>
+            </div>
+
+            <!-- 用户可覆盖的配置 -->
+            <div class="form-group">
+              <label class="form-label">用户名</label>
+              <input type="text" class="form-input" id="editUsername" value="33022">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">密码</label>
+              <input type="password" class="form-input" id="editPassword" value="qlp707">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">内容选择器</label>
+              <input type="text" class="form-input" id="editContentSelector" value=".article-conte-infor">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">报告类型</label>
+              <select class="form-select" id="editReportType">
+                <option value="morning" selected>晨报</option>
+                <option value="evening">日报</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">超时时间 (ms)</label>
+              <input type="number" class="form-input" id="editTimeout" value="30000">
+            </div>
+
+            <!-- 保存按钮 -->
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="saveScriptConfig()">保存配置</button>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 查看脚本弹窗 -->
+  <div class="dialog-overlay" id="scriptViewDialog">
+    <div class="dialog script-view-dialog">
+      <div class="dialog-header">
+        <h3 class="dialog-title" id="scriptViewTitle">liangxin.py</h3>
+        <button class="dialog-close" onclick="closeScriptView()">×</button>
+      </div>
+      <div class="dialog-body">
+        <textarea class="code-textarea" id="scriptViewContent" readonly rows="25"></textarea>
+      </div>
+      <div class="dialog-footer">
+        <span class="form-hint">脚本内容只读，如需修改请到数据源管理页面上传新版本</span>
+        <button class="btn btn-secondary" onclick="closeScriptView()">关闭</button>
       </div>
     </div>
   </div>
@@ -1826,6 +2213,25 @@
   <!-- Toast -->
   <div class="toast" id="toast"></div>
 
+  <!-- 执行确认弹窗 -->
+  <div class="dialog-overlay" id="executeConfirmDialog">
+    <div class="dialog">
+      <div class="dialog-header">
+        <h3 class="dialog-title">确认执行</h3>
+        <button class="dialog-close" onclick="closeExecuteConfirm()">×</button>
+      </div>
+      <div class="dialog-body">
+        <div class="confirm-icon">⚡</div>
+        <p class="confirm-text">该脚本今日已采集成功，采集了 <strong>3</strong> 条。</p>
+        <p class="confirm-subtext">确认要重新执行吗？</p>
+      </div>
+      <div class="dialog-footer">
+        <button class="btn btn-secondary" onclick="closeExecuteConfirm()">取消</button>
+        <button class="btn btn-primary" onclick="confirmExecute()">确认执行</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
   <script>
     let editor = null;
@@ -1841,10 +2247,13 @@
     // Current values
     let currentTaskInfo = { ...originalTaskInfo };
 
-    // Modified flags
-    let scriptModified = false;
+    // Modified flag
     let taskInfoModified = false;
     let isEnabled = true;
+
+    // 执行状态模拟
+    let isExecuting = false;
+    let executionCancelled = false;
 
     function showToast(message, isError = false) {
       const toast = document.getElementById('toast');
@@ -1858,144 +2267,97 @@
       window.location.href = 'task-list-prototype.html';
     }
 
-    // Monaco Editor initialization
-    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+    // 数据源配置数据（从数据源管理获取）
+const datasourceConfigs = {
+  'liangxin': {
+    loginUrl: 'https://my.chinagrain.cn/jinnong/a/login',
+    authType: 'cookie',
+    timeout: 30000,
+    contentSelector: '.article-conte-infor'
+  },
+  'mysteel': {
+    loginUrl: 'https://login.mysteel.com.cn',
+    authType: 'cookie',
+    timeout: 30000,
+    contentSelector: '.content-main'
+  },
+  'chinagrain': {
+    loginUrl: 'https://www.chinagrain.cn/login',
+    authType: 'cookie',
+    timeout: 30000,
+    contentSelector: '.article-box'
+  },
+  'usda': {
+    loginUrl: 'https://www.usda.gov',
+    authType: 'api',
+    timeout: 60000,
+    contentSelector: ''
+  }
+};
 
-    require(['vs/editor/editor.main'], function () {
-      const code = `# -*- coding: utf-8 -*-
-"""
-粮信网玉米晨报采集脚本
-采集粮信网玉米价格数据
-"""
+function onDatasourceChange() {
+  const datasource = document.getElementById('editDatasource').value;
+  const config = datasourceConfigs[datasource];
 
-import requests
-from bs4 import BeautifulSoup
-import json
-from datetime import datetime
-import logging
+  if (config) {
+    document.getElementById('editLoginUrl').value = config.loginUrl;
+    document.getElementById('editAuthType').value = config.authType;
+    document.getElementById('editTimeout').value = config.timeout;
+    document.getElementById('editContentSelector').value = config.contentSelector;
+  }
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-LIANGXIN_URL = "https://www.liangxin.net"
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+  taskInfoModified = true;
+  updateSaveButton();
 }
 
-class LiangxinCollector:
-    def __init__(self, username: str, password: str):
-        self.username = username
-        self.password = password
-        self.session = requests.Session()
+function viewScript() {
+  const datasource = document.getElementById('editDatasource').value;
+  document.getElementById('scriptViewTitle').textContent = datasource + '.py';
 
-    def login(self) -> bool:
-        login_url = f"{LIANGXIN_URL}/api/login"
-        data = {"username": self.username, "password": self.password}
-        try:
-            resp = self.session.post(login_url, json=data, timeout=30)
-            return resp.json().get("code") == 200
-        except Exception as e:
-            logger.error(f"登录失败: {e}")
-            return False
+  // 模拟从后端获取脚本内容
+  const scriptContent = `# -*- coding: utf-8 -*-
+"""数据源采集脚本: ${datasource}"""
+import logging
+from collectorsdk.base import BaseCollector
 
-    def crawl_daily_report(self) -> dict:
-        url = f"{LIANGXIN_URL}/api/daily/corn"
-        try:
-            resp = self.session.get(url, headers=HEADERS, timeout=60)
-            data = resp.json()
-            return {"status": "success", "data": data, "timestamp": datetime.now().isoformat()}
-        except Exception as e:
-            logger.error(f"采集失败: {e}")
-            return {"status": "error", "message": str(e)}
+class ${datasource.charAt(0).toUpperCase() + datasource.slice(1)}Collector(BaseCollector):
+    META = {
+        "code": "${datasource}",
+        "name": "${datasource}",
+    }
 
-    def run(self) -> dict:
-        if not self.login():
-            return {"status": "error", "message": "登录失败"}
-        result = self.crawl_daily_report()
-        logger.info(f"采集结果: {result}")
-        return result
-
-if __name__ == "__main__":
-    collector = LiangxinCollector("user", "pass")
-    result = collector.run()
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    def collect(self):
+        # 实现采集逻辑
+        pass
 `;
 
-      originalScriptContent = code;
+  document.getElementById('scriptViewContent').value = scriptContent;
+  document.getElementById('scriptViewDialog').style.display = 'flex';
+}
 
-      editor = monaco.editor.create(document.getElementById('monacoEditor'), {
-        value: code,
-        language: 'python',
-        theme: 'vs-dark',
-        fontSize: 13,
-        fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-        lineNumbers: 'on',
-        minimap: { enabled: true },
-        scrollBeyondLastLine: false,
-        automaticLayout: true,
-        tabSize: 4,
-        wordWrap: 'off',
-        padding: { top: 12, bottom: 12 },
-        renderLineHighlight: 'all',
-        cursorBlinking: 'smooth',
-        smoothScrolling: true,
-      });
+function closeScriptView() {
+  document.getElementById('scriptViewDialog').style.display = 'none';
+}
 
-      // Track modifications
-      editor.onDidChangeModelContent(() => {
-        const currentContent = editor.getValue();
-        scriptModified = currentContent !== originalScriptContent;
-        updateSaveButton();
-      });
+function saveScriptConfig() {
+  const datasource = document.getElementById('editDatasource').value;
+  const config = {
+    datasource: datasource,
+    loginUrl: document.getElementById('editLoginUrl').value,
+    authType: document.getElementById('editAuthType').value,
+    username: document.getElementById('editUsername').value,
+    password: document.getElementById('editPassword').value,
+    contentSelector: document.getElementById('editContentSelector').value,
+    reportType: document.getElementById('editReportType').value,
+    timeout: parseInt(document.getElementById('editTimeout').value)
+  };
 
-      // Track task info changes
-      document.getElementById('editName').addEventListener('input', trackTaskInfoChanges);
-      document.getElementById('editDesc').addEventListener('input', trackTaskInfoChanges);
-
-      function trackTaskInfoChanges() {
-        currentTaskInfo.name = document.getElementById('editName').value;
-        currentTaskInfo.source = document.getElementById('editSource').value;
-        currentTaskInfo.desc = document.getElementById('editDesc').value;
-        taskInfoModified = currentTaskInfo.name !== originalTaskInfo.name ||
-                          currentTaskInfo.source !== originalTaskInfo.source ||
-                          currentTaskInfo.desc !== originalTaskInfo.desc;
-        updateSaveButton();
-      }
-
-      function updateSaveButton() {
-        const hasChanges = taskInfoModified || scriptModified;
-        document.getElementById('modifiedIndicator').style.display = hasChanges ? 'inline' : 'none';
-        document.getElementById('modifiedIndicatorFooter').style.display = hasChanges ? 'inline' : 'none';
-        document.getElementById('saveBtn').disabled = !hasChanges;
-      }
-
-      // Track cursor position
-      editor.onDidChangeCursorPosition((e) => {
-        document.getElementById('cursorPosition').textContent = `行 ${e.position.lineNumber}, 列 ${e.position.column}`;
-      });
-    });
-
-    // Global keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-      // Ctrl+S or Cmd+S - Save
-      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-        e.preventDefault();
-        if (!document.getElementById('saveBtn').disabled) {
-          confirmSave();
-        }
-      }
-      // Ctrl+Enter - Execute task
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        executeTask();
-      }
-      // Escape - Close dialogs
-      if (e.key === 'Escape') {
-        closeGotoDialog();
-        closeVersionHistory();
-        closeExecutionHistory();
-      }
-    });
+  // 调用后端API保存
+  console.log('保存配置:', config);
+  showToast('配置已保存');
+  taskInfoModified = false;
+  updateSaveButton();
+}
 
     // Trigger Type Change
     function onTriggerChange() {
@@ -2060,20 +2422,13 @@ if __name__ == "__main__":
     }
 
     function confirmSave() {
-      // Save script if modified
-      if (scriptModified) {
-        originalScriptContent = editor.getValue();
-      }
-
       // Save task info if modified
       if (taskInfoModified) {
         originalTaskInfo.name = currentTaskInfo.name;
-        originalTaskInfo.source = currentTaskInfo.source;
         originalTaskInfo.desc = currentTaskInfo.desc;
       }
 
-      // Reset flags
-      scriptModified = false;
+      // Reset flag
       taskInfoModified = false;
 
       // Update UI
@@ -2161,7 +2516,7 @@ if __name__ == "__main__":
     }
 
     function viewLog() {
-      showToast('查看执行日志');
+      showRealtimeLogPanel();
     }
 
     function toggleStatus() {
@@ -2183,10 +2538,195 @@ if __name__ == "__main__":
     }
 
     function executeTask() {
-      showToast('任务已开始执行...');
-      setTimeout(() => {
-        showToast('执行完成，成功采集 23 条数据');
-      }, 2000);
+      if (isExecuting) {
+        // 取消执行
+        cancelExecution();
+      } else {
+        // 检查是否已采集
+        if (hasTodaySuccess()) {
+          showExecuteConfirm();
+        } else {
+          startExecution();
+        }
+      }
+    }
+
+    // 检查今日是否已成功执行
+    function hasTodaySuccess() {
+      // 模拟：假设今天已成功
+      return true;
+    }
+
+    // 显示执行确认弹窗
+    function showExecuteConfirm() {
+      document.getElementById('executeConfirmDialog').classList.add('show');
+    }
+
+    // 关闭执行确认弹窗
+    function closeExecuteConfirm() {
+      document.getElementById('executeConfirmDialog').classList.remove('show');
+    }
+
+    // 确认执行
+    function confirmExecute() {
+      closeExecuteConfirm();
+      startExecution();
+    }
+
+    // 开始执行
+    function startExecution() {
+      isExecuting = true;
+      updateExecuteButton();
+      showResultCard('running');
+      showRealtimeLogPanel();
+      addLogItem('INFO', '开始采集任务');
+
+      // 模拟执行过程
+      simulateExecution();
+    }
+
+    // 取消执行
+    function cancelExecution() {
+      executionCancelled = true;
+      isExecuting = false;
+      updateExecuteButton();
+      updateExecutionStatus('cancelled');
+      addLogItem('WARN', '用户取消执行');
+      hideRealtimeLogPanel();
+      showResultCard('cancelled');
+    }
+
+    // 更新执行按钮状态
+    function updateExecuteButton() {
+      const btn = document.getElementById('executeBtn');
+      if (isExecuting) {
+        btn.className = 'btn btn-cancel';
+        btn.innerHTML = '<span>✕</span> 取消执行';
+        btn.disabled = false;
+      } else {
+        btn.className = 'btn btn-success';
+        btn.innerHTML = '<span>⚡</span> 立即执行';
+        btn.disabled = false;
+      }
+    }
+
+    // 显示结果卡片
+    function showResultCard(status) {
+      hideAllResultCards();
+
+      if (status === 'running') {
+        // 执行中不显示卡片
+        return;
+      } else if (status === 'success') {
+        document.getElementById('resultCardSuccess').style.display = 'flex';
+      } else if (status === 'failed') {
+        document.getElementById('resultCardFailed').style.display = 'flex';
+      } else if (status === 'cancelled') {
+        document.getElementById('resultCardCancelled').style.display = 'flex';
+      }
+    }
+
+    // 隐藏所有结果卡片
+    function hideAllResultCards() {
+      document.getElementById('resultCardSuccess').style.display = 'none';
+      document.getElementById('resultCardFailed').style.display = 'none';
+      document.getElementById('resultCardCancelled').style.display = 'none';
+    }
+
+    // 显示实时日志面板
+    function showRealtimeLogPanel() {
+      document.getElementById('realtimeLogPanel').style.display = 'block';
+      document.getElementById('logStatusBadge').className = 'log-status running';
+      document.getElementById('logStatusBadge').innerHTML = '<span class="spinner"></span> 执行中';
+    }
+
+    // 隐藏实时日志面板
+    function hideRealtimeLogPanel() {
+      document.getElementById('realtimeLogPanel').style.display = 'none';
+    }
+
+    // 添加日志条目
+    function addLogItem(level, message) {
+      const container = document.getElementById('logContainer');
+      const now = new Date();
+      const time = now.toTimeString().slice(0, 8);
+
+      const logItem = document.createElement('div');
+      logItem.className = 'log-item';
+      logItem.innerHTML = `
+        <span class="log-time">${time}</span>
+        <span class="log-level ${level.toLowerCase()}">${level}</span>
+        <span class="log-message">${message}</span>
+      `;
+
+      container.appendChild(logItem);
+      container.scrollTop = container.scrollHeight;
+    }
+
+    // 模拟执行过程
+    function simulateExecution() {
+      const steps = [
+        { level: 'INFO', message: '登录粮信网...', delay: 800 },
+        { level: 'INFO', message: '登录成功', delay: 600 },
+        { level: 'INFO', message: '获取报告列表，找到 3 篇', delay: 1000 },
+        { level: 'INFO', message: '正在采集第 1 篇...', delay: 2000 },
+        { level: 'WARN', message: '第 2 篇报告格式异常，继续...', delay: 1500 },
+        { level: 'INFO', message: '正在采集第 3 篇...', delay: 2000 },
+        { level: 'INFO', message: '采集完成，共 3 条', delay: 500 },
+      ];
+
+      let index = 0;
+
+      function nextStep() {
+        if (executionCancelled || index >= steps.length) {
+          if (!executionCancelled) {
+            isExecuting = false;
+            updateExecuteButton();
+            updateExecutionStatus('success');
+            hideRealtimeLogPanel();
+            showResultCard('success');
+            document.getElementById('resultCount').textContent = '3';
+            document.getElementById('resultDuration').textContent = '12.5s';
+          }
+          executionCancelled = false;
+          return;
+        }
+
+        const step = steps[index];
+        addLogItem(step.level, step.message);
+        index++;
+        setTimeout(nextStep, step.delay);
+      }
+
+      setTimeout(nextStep, 500);
+    }
+
+    // 更新执行记录中的状态
+    function updateExecutionStatus(status) {
+      const firstItem = document.querySelector('.execution-item');
+      if (firstItem) {
+        const statusEl = firstItem.querySelector('.execution-status');
+        const statusDot = statusEl.querySelector('.status-dot') || firstItem.querySelector('.pulse-dot');
+
+        if (status === 'cancelled') {
+          statusEl.className = 'execution-status cancelled';
+          statusEl.innerHTML = '<span class="status-dot"></span><span>已取消</span>';
+        } else if (status === 'success') {
+          statusEl.className = 'execution-status success';
+          statusEl.innerHTML = '<span class="status-dot"></span><span>成功</span>';
+        }
+      }
+    }
+
+    // 查看日志
+    function viewLogs() {
+      showRealtimeLogPanel();
+    }
+
+    // 重新执行
+    function reExecute() {
+      hideAllResultCards();
+      startExecution();
     }
   </script>
 </body>

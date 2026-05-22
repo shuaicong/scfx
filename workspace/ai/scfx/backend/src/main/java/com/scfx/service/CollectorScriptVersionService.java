@@ -8,6 +8,8 @@ public interface CollectorScriptVersionService {
 
     CollectorScriptVersion getCurrentVersion(String datasourceCode);
 
+    CollectorScriptVersion getVersionById(Long id);
+
     CollectorScriptVersion createVersion(String datasourceCode, String filePath, String fileMd5, int fileSize, String operator);
 
     CollectorScriptVersion uploadScript(String datasourceCode, byte[] content, String originalFilename, String operator);

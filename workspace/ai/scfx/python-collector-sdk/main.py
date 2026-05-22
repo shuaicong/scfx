@@ -160,21 +160,11 @@ def load_reporter_config(
 
 def run_example_collector(args):
     """运行示例采集器"""
-    print("=" * 60)
-    print("采集SDK示例 - 运行示例采集器")
-    print("=" * 60)
-
     config = load_reporter_config(
-        api_base=args.api_base,
+        api_base=args.api_base or os.getenv("COLLECTOR_API_BASE", "http://localhost:8080/api"),
         enabled=not args.no_report,
         config_file=args.config,
     )
-
-    print(f"配置信息:")
-    print(f"  - API地址: {config.api_base}")
-    print(f"  - 上报启用: {config.enabled}")
-    print(f"  - 异步模式: {config.async_mode}")
-    print()
 
     # 创建采集器实例
     collector = ExampleCollector(
@@ -190,35 +180,24 @@ def run_example_collector(args):
     # 运行采集
     try:
         collector.run()
-        print("\n采集器运行完成")
         return True
     except Exception as e:
-        print(f"\n采集器运行失败: {e}")
         return False
 
 
 def run_liangxin_collector(args):
     """运行粮信网采集器"""
-    print("=" * 60)
-    print("粮信网采集器")
-    print("=" * 60)
-
     config = load_reporter_config(
         api_base=args.api_base,
         enabled=not args.no_report,
         config_file=args.config,
     )
 
-    print(f"配置信息:")
-    print(f"  - API地址: {config.api_base}")
-    print(f"  - 上报启用: {config.enabled}")
-    print(f"  - 异步模式: {config.async_mode}")
-    print()
-
     # 创建粮信网采集器
     collector = LiangxinCollector(
         config=config,
         task_id=args.task_id,
+        execution_id=args.execution_id,
         username=args.username or os.getenv("LXW_USERNAME", ""),
         password=args.password or os.getenv("LXW_PASSWORD", ""),
         report_type=args.report_type,
@@ -227,10 +206,9 @@ def run_liangxin_collector(args):
     # 运行采集
     try:
         collector.run()
-        print("\n采集完成")
         return True
     except Exception as e:
-        print(f"\n采集失败: {e}")
+        sys.stderr.write(f"采集失败: {e}\n")
         return False
 
 
@@ -352,8 +330,10 @@ def main():
         "example",
         help="运行示例采集器",
     )
+    parser_example.add_argument("--execution-id", default=None, help="执行ID")
     parser_example.add_argument("--task-id", type=int, default=1, help="任务ID")
-    parser_example.add_argument("--api-base", default=os.getenv("COLLECTOR_API_BASE", ""), help="API地址")
+    parser_example.add_argument("--source", default=None, help="数据源")
+    parser_example.add_argument("--api-base", default=None, help="API地址")
     parser_example.add_argument("--config", default=None, help="配置文件路径")
     parser_example.add_argument("--no-report", action="store_true", help="禁用上报")
 
@@ -362,11 +342,28 @@ def main():
         "liangxin",
         help="运行粮信网采集器",
     )
+
+    # liangxinwang 别名（与数据源编码一致）
+    parser_liangxin_wang = subparsers.add_parser(
+        "liangxinwang",
+        help="运行粮信网采集器（liangxin 别名）",
+    )
+    parser_liangxin_wang.add_argument("--execution-id", default=None, help="执行ID")
+    parser_liangxin_wang.add_argument("--task-id", type=int, default=1, help="任务ID")
+    parser_liangxin_wang.add_argument("--source", default=None, help="数据源")
+    parser_liangxin_wang.add_argument("--api-base", default=None, help="API地址")
+    parser_liangxin_wang.add_argument("--username", default=None, help="粮信网用户名")
+    parser_liangxin_wang.add_argument("--password", default=None, help="粮信网密码")
+    parser_liangxin_wang.add_argument("--report-type", choices=["morning", "evening"], default="morning", help="报告类型")
+    parser_liangxin_wang.add_argument("--config", default=None, help="配置文件路径")
+    parser_liangxin_wang.add_argument("--no-report", action="store_true", help="禁用上报")
+    parser_liangxin.add_argument("--execution-id", default=None, help="执行ID")
     parser_liangxin.add_argument("--task-id", type=int, default=1, help="任务ID")
+    parser_liangxin.add_argument("--source", default=None, help="数据源")
+    parser_liangxin.add_argument("--api-base", default=None, help="API地址")
     parser_liangxin.add_argument("--username", default=None, help="粮信网用户名")
     parser_liangxin.add_argument("--password", default=None, help="粮信网密码")
     parser_liangxin.add_argument("--report-type", choices=["morning", "evening"], default="morning", help="报告类型")
-    parser_liangxin.add_argument("--api-base", default=os.getenv("COLLECTOR_API_BASE", ""), help="API地址")
     parser_liangxin.add_argument("--config", default=None, help="配置文件路径")
     parser_liangxin.add_argument("--no-report", action="store_true", help="禁用上报")
 
@@ -386,7 +383,7 @@ def main():
     if args.command == "example":
         success = run_example_collector(args)
         sys.exit(0 if success else 1)
-    elif args.command == "liangxin":
+    elif args.command in ("liangxin", "liangxinwang"):
         success = run_liangxin_collector(args)
         sys.exit(0 if success else 1)
     elif args.command == "config":

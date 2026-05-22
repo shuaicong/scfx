@@ -6,8 +6,6 @@ export interface DataSource {
   name: string
   description?: string
   logoUrl?: string
-  loginUrl?: string
-  authType?: string
   enabled: number
   sortOrder?: number
   config?: string
@@ -51,10 +49,10 @@ export const datasourceApi = {
     formData.append('file', file)
     formData.append('code', code)
     if (operator) formData.append('operator', operator)
-    return request.post<{ code: string; version: number; md5: string }>(
+    // Note: Don't set Content-Type header manually - browser will set correct multipart/form-data with boundary
+    return request.post(
       '/datasource/upload-collector',
-      formData,
-      { headers: { 'Content-Type': 'multipart/form-data' } }
+      formData
     )
   },
 

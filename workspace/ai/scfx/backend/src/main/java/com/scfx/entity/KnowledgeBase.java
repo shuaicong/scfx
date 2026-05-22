@@ -17,6 +17,7 @@ public class KnowledgeBase {
     private String author;
     private LocalDateTime publishTime;
     private String content;
+    private String contentHtml;              // HTML格式内容（保留图片标签等）
     private String contentHash;
     private String filePath;
     private String fileType;
@@ -25,6 +26,18 @@ public class KnowledgeBase {
     private String vectorIds;
     private String executionId;
     private String createdBy;
+
+    // 可视化坐标（PCA 降维后）
+    private Double vizX;
+    private Double vizY;
+    private Double vizZ;        // 3D 预留：第三主成分 Z 坐标
+
+    // 扩展字段
+    private Long categoryId;                 // 所属分类ID
+    private String collectionSource;         // 采集来源: liangxinwang
+    private String collectionVariety;         // 采集品种: corn/wheat
+    private String collectionReportType;      // 报告类型: 日报/周报
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
     @TableField(fill = FieldFill.INSERT_UPDATE)

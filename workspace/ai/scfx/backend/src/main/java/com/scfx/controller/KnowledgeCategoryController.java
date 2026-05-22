@@ -51,4 +51,9 @@ public class KnowledgeCategoryController {
     public Result<?> getMoveHistory(@PathVariable Long id) {
         return Result.success(service.getMoveHistory(id));
     }
+
+    @GetMapping("/category/{categoryId}/count")
+    public Result<?> getKnowledgeCount(@PathVariable Long categoryId) {
+        return Result.success(Map.of("count", service.getKnowledgeCount(categoryId)));
+    }
 }

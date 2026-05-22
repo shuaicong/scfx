@@ -2,11 +2,15 @@ package com.scfx;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * 海南储备集团粮食市场智能分析平台 - 启动类
  */
 @SpringBootApplication
+@EnableScheduling
+@EnableAsync
 public class GrainPlatformApplication {
 
     public static void main(String[] args) {

@@ -13,9 +13,10 @@ public class CronDescriptionUtil {
      */
     public static String describe(String cronExpression) {
         try {
-            CronExpression.parse(cronExpression);
+            String normalized = normalizeToSixFields(cronExpression);
+            CronExpression.parse(normalized);
 
-            String[] parts = cronExpression.split(" ");
+            String[] parts = normalized.split(" ");
             if (parts.length < 6) {
                 return "无效的 Cron 表达式";
             }
@@ -61,7 +62,8 @@ public class CronDescriptionUtil {
     public static List<String> calculateNextExecutions(String cronExpression, int count) {
         List<String> result = new ArrayList<>();
         try {
-            CronExpression parsed = CronExpression.parse(cronExpression);
+            String normalizedCron = normalizeToSixFields(cronExpression);
+            CronExpression parsed = CronExpression.parse(normalizedCron);
             ZonedDateTime now = ZonedDateTime.now();
 
             ZonedDateTime next = parsed.next(now);
@@ -73,6 +75,21 @@ public class CronDescriptionUtil {
             // 忽略
         }
         return result;
+    }
+
+    /**
+     * 将5字段Unix cron转换为6字段Spring cron
+     * Unix: minute hour day month dow
+     * Spring: second minute hour day month dow
+     */
+    public static String normalizeToSixFields(String cronExpression) {
+        if (cronExpression == null) return null;
+        String[] parts = cronExpression.trim().split("\\s+");
+        if (parts.length == 5) {
+            // Unix cron: minute hour day month dow -> prepend "0 second"
+            return "0 " + cronExpression;
+        }
+        return cronExpression;
     }
 
     private static String getDayOfWeekName(String dayOfWeek) {

@@ -6,6 +6,7 @@ import * as ElementPlusIconsVue from '@element-plus/icons-vue'
 import router from './router'
 import App from './App.vue'
 import './assets/styles/main.css'
+import './styles/dark-theme.css'
 
 const app = createApp(App)
 

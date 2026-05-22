@@ -1,12 +1,31 @@
 <template>
-  <span class="trigger-badge" :class="type">{{ label }}</span>
+  <span class="trigger-badge" :class="badgeClass">{{ label }}</span>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
-const props = defineProps<{ type: 'cron' | 'cycle' | 'once' }>()
-const labelMap = { cron: 'Cron 表达式', cycle: '周期触发', once: '单次触发' }
-const label = computed(() => labelMap[props.type])
+const props = defineProps<{ type?: string; executed?: boolean }>()
+const labelMap: Record<string, string> = {
+  cron: 'Cron 表达式',
+  cycle: '周期触发',
+  once: '单次触发',
+  manual: '手动',
+  single: '单次触发',
+  repeat: '周期触发'
+}
+const label = computed(() => {
+  const base = labelMap[props.type || ''] || props.type || '-'
+  if (props.type === 'once') {
+    return props.executed ? '单次 (已执行)' : '单次 (待执行)'
+  }
+  return base
+})
+const badgeClass = computed(() => {
+  if (props.type === 'once') {
+    return props.executed ? 'once executed' : 'once'
+  }
+  return props.type
+})
 </script>
 
 <style scoped>
@@ -30,5 +49,10 @@ const label = computed(() => labelMap[props.type])
   background: rgba(240, 136, 62, 0.1);
   border: 1px solid rgba(240, 136, 62, 0.2);
   color: var(--accent-orange);
+}
+.trigger-badge.once.executed {
+  background: rgba(110, 118, 129, 0.1);
+  border: 1px solid rgba(110, 118, 129, 0.2);
+  color: var(--text-muted);
 }
 </style>

@@ -27,7 +27,17 @@ public interface VectorTaskService {
     void retry(Long knowledgeId);
 
     /**
+     * 处理单条知识（双向量计算，不触发全局 PCA）
+     */
+    void processSingle(Long knowledgeId);
+
+    /**
      * 获取任务列表
      */
     List<VectorizationTask> getTasks(int page, int size);
+
+    /**
+     * 全量重算指定分类的 PCA（手动触发，清理旧基线重新构建）
+     */
+    void recomputePCAFull(Long categoryId);
 }

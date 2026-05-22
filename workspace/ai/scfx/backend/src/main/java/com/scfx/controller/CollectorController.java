@@ -1,32 +1,43 @@
 package com.scfx.controller;
 
 import com.scfx.common.Result;
+import com.scfx.entity.CollectionScript;
+import com.scfx.entity.ExecutionItem;
 import com.scfx.entity.KnowledgeBase;
-import com.scfx.entity.Report;
 import com.scfx.entity.TaskExecution;
+import com.scfx.mapper.ExecutionItemMapper;
+import com.scfx.mapper.KnowledgeCategoryMapper;
 import com.scfx.service.CategoryMappingService;
+import com.scfx.service.CollectionScriptService;
 import com.scfx.service.KnowledgeBaseService;
-import com.scfx.service.ReportService;
 import com.scfx.service.TaskExecutionService;
+import com.scfx.service.VectorTaskService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.codec.digest.DigestUtils;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 采集器控制器 - 提供给 Python 采集器调用的 REST API
  */
+@Slf4j
 @RestController
 @RequestMapping("/collector/exec")
 @RequiredArgsConstructor
 public class CollectorController {
 
     private final TaskExecutionService executionService;
-    private final ReportService reportService;
     private final CategoryMappingService categoryMappingService;
     private final KnowledgeBaseService knowledgeBaseService;
+    private final ExecutionItemMapper executionItemMapper;
+    private final VectorTaskService vectorTaskService;
+    private final CollectionScriptService scriptService;
+    private final KnowledgeCategoryMapper knowledgeCategoryMapper;
 
     /**
      * 启动采集任务
@@ -62,7 +73,7 @@ public class CollectorController {
     /**
      * 上报日志
      * POST /collector/exec/{executionId}/log
-     * Body: {"level": "INFO", "message": "登录成功"}
+     * Body: {"level": "INFO", "message": "登录成功", "phase": "login", "category": "checkpoint", "elapsedMs": 1234}
      */
     @PostMapping("/{executionId}/log")
     public Result<Void> addLog(
@@ -70,7 +81,15 @@ public class CollectorController {
             @RequestBody Map<String, Object> request) {
         String level = (String) request.getOrDefault("level", "INFO");
         String message = (String) request.get("message");
-        executionService.addLog(executionId, null, level, message);
+        String phase = (String) request.get("phase");
+        String category = (String) request.get("category");
+        Long elapsedMs = request.get("elapsedMs") != null ? ((Number) request.get("elapsedMs")).longValue() : null;
+
+        if (phase != null || category != null || elapsedMs != null) {
+            executionService.addStructuredLog(executionId, null, level, message, phase, category, elapsedMs);
+        } else {
+            executionService.addLog(executionId, null, level, message);
+        }
         return Result.success();
     }
 
@@ -83,66 +102,129 @@ public class CollectorController {
     public Result<Map<String, Object>> submitData(
             @PathVariable String executionId,
             @RequestBody Map<String, Object> request) {
-        // 1. 构建 Report（原始数据）- 保持原有逻辑
-        Report report = new Report();
-        report.setTitle((String) request.get("title"));
-        report.setSource((String) request.get("source"));
-        report.setOriginalUrl((String) request.get("url"));
-        report.setVariety((String) request.get("variety"));
-        report.setReportType((String) request.get("reportType"));
-        report.setContent((String) request.get("content"));
-        report.setExecutionId(executionId);
+        String source = (String) request.get("source");
+        String originalUrl = (String) request.get("url");
+        String title = (String) request.get("title");
+        String content = (String) request.get("content");
+        int contentLen = content != null ? content.length() : 0;
+        log.info("submitData: executionId={}, title={}, source={}, contentLength={}",
+            executionId, title, source, contentLen);
 
-        Object publishTimeObj = request.get("publishTime");
-        if (publishTimeObj != null) {
-            if (publishTimeObj instanceof String) {
-                report.setPublishTime(LocalDateTime.parse((String) publishTimeObj));
-            } else if (publishTimeObj instanceof Number) {
-                report.setPublishTime(LocalDateTime.ofEpochSecond(((Number) publishTimeObj).longValue() / 1000, 0, java.time.ZoneOffset.ofHours(8)));
+        // 0. 查询脚本配置（用于知识库同步和分类归属）
+        boolean syncToKnowledgeBase = true;
+        CollectionScript script = null;
+        try {
+            TaskExecution exec = executionService.findByExecutionId(executionId);
+            if (exec != null) {
+                script = scriptService.getById(exec.getScriptId());
+                if (script != null && Boolean.FALSE.equals(script.getSyncToKnowledgeBase())) {
+                    syncToKnowledgeBase = false;
+                }
             }
+        } catch (Exception e) {
+            log.warn("submitData: 查询脚本配置失败，默认同步: {}", e.getMessage());
         }
 
-        // 2. 检查 Report 去重（根据URL）
-        if (report.getOriginalUrl() != null && reportService.existsByUrl(report.getOriginalUrl())) {
-            return Result.error("报告已存在");
+        try {
+            // 1. 解析发布时间
+            LocalDateTime publishTime = null;
+            Object publishTimeObj = request.get("publishTime");
+            if (publishTimeObj != null) {
+                if (publishTimeObj instanceof String) {
+                    publishTime = LocalDateTime.parse((String) publishTimeObj);
+                } else if (publishTimeObj instanceof Number) {
+                    publishTime = LocalDateTime.ofEpochSecond(((Number) publishTimeObj).longValue() / 1000, 0, java.time.ZoneOffset.ofHours(8));
+                }
+            }
+
+            // 2. 构建 KnowledgeBase
+            KnowledgeBase kb = new KnowledgeBase();
+            kb.setTitle(title);
+            kb.setSourceType(getSourceTypeCode(source));
+            kb.setSourceName(getSourceName(source));
+            kb.setOriginalUrl(originalUrl);
+            kb.setContent(content);
+            kb.setContentHtml((String) request.get("contentHtml"));
+            kb.setPublishTime(publishTime);
+            kb.setExecutionId(executionId);
+            kb.setCollectionSource(source);
+            kb.setCollectionVariety((String) request.get("variety"));
+            kb.setCollectionReportType((String) request.get("reportType"));
+            kb.setVectorStatus("pending");
+
+            // 3. 分类归属：优先使用脚本绑定的分类，其次走映射规则
+            Long categoryId = null;
+            if (script != null && script.getCategoryId() != null) {
+                categoryId = script.getCategoryId();
+            } else {
+                categoryId = categoryMappingService.map(
+                    kb.getCollectionSource(),
+                    kb.getCollectionVariety(),
+                    kb.getCollectionReportType()
+                );
+            }
+            kb.setCategoryId(categoryId);
+
+            // 4. 内容指纹（null 安全）
+            kb.setContentHash(DigestUtils.md5Hex(content != null ? content : ""));
+
+            if (!syncToKnowledgeBase) {
+                // 同步已关闭：跳过知识库创建，只记录采集项
+                log.info("submitData: 同步已关闭，跳过知识库创建: title={}", title);
+                writeItem(executionId, null, title, originalUrl, "skipped", null);
+                return Result.success(Map.of("knowledgeId", -1));
+            }
+
+            // 5. 写入知识库（处理重复内容）
+            try {
+                knowledgeBaseService.save(kb);
+            } catch (DataIntegrityViolationException e) {
+                log.warn("submitData: 内容重复，关联已有知识库: contentHash={}, title={}", kb.getContentHash(), title);
+                KnowledgeBase existing = knowledgeBaseService.lambdaQuery()
+                    .eq(KnowledgeBase::getContentHash, kb.getContentHash())
+                    .one();
+                if (existing == null) {
+                    throw e; // 不是真正重复，重新抛出
+                }
+                kb = existing;
+            }
+
+            log.info("submitData: 知识库已保存, knowledgeId={}, contentHash={}", kb.getId(), kb.getContentHash());
+
+            // 写入 t_knowledge_category 关联
+            if (kb.getCategoryId() != null && kb.getId() != null) {
+                try {
+                    knowledgeCategoryMapper.insertBatch(kb.getId(), java.util.List.of(kb.getCategoryId()));
+                } catch (Exception e) {
+                    log.warn("submitData: 写入分类关联失败(不影响主流程): {}", e.getMessage());
+                }
+            }
+
+            // 6. 实时触发向量化（@Async 异步执行，不阻塞响应）
+            if (kb.getCategoryId() != null && kb.getId() != null) {
+                vectorTaskService.triggerCategory(kb.getCategoryId(), "collection");
+            }
+
+            // 7. 记录采集数据项
+            writeItem(executionId, kb.getId(), title, originalUrl, "created", null);
+
+            return Result.success(Map.of("knowledgeId", kb.getId()));
+
+        } catch (Exception e) {
+            log.error("submitData 失败: executionId={}, title={}, error={}", executionId, title, e.getMessage(), e);
+            return Result.error("提交数据失败: " + e.getMessage());
         }
-        reportService.saveReport(report);
+    }
 
-        // 3. 构建 KnowledgeBase（知识库）- 新增
-        KnowledgeBase kb = new KnowledgeBase();
-        kb.setTitle(report.getTitle());
-        kb.setSourceType(report.getSource());
-        kb.setSourceName(getSourceName(report.getSource()));
-        kb.setOriginalUrl(report.getOriginalUrl());
-        kb.setContent(report.getContent());
-        kb.setPublishTime(report.getPublishTime());
-        kb.setExecutionId(executionId);
-        kb.setCollectionSource(report.getSource());
-        kb.setCollectionVariety(report.getVariety());
-        kb.setCollectionReportType(report.getReportType());
-        kb.setVectorStatus("pending");  // 初始状态：待向量化
-
-        // 4. 分类映射 - 新增
-        Long categoryId = categoryMappingService.map(
-            kb.getSourceType(),
-            kb.getCollectionVariety(),
-            kb.getCollectionReportType()
-        );
-        kb.setCategoryId(categoryId);
-
-        // 5. 内容Hash去重 - 新增
-        String hash = DigestUtils.md5Hex(kb.getContent());
-        if (knowledgeBaseService.existsByHash(hash)) {
-            return Result.error("知识已存在");
-        }
-        kb.setContentHash(hash);
-
-        // 6. 写入知识库 - 新增
-        knowledgeBaseService.save(kb);
-
-        // 7. 触发分类向量化（异步）- 新增（暂无VectorTaskService，跳过）
-
-        return Result.success(Map.of("knowledgeId", kb.getId()));
+    private void writeItem(String executionId, Long knowledgeId, String title, String url, String action, String errorMessage) {
+        ExecutionItem item = new ExecutionItem();
+        item.setExecutionId(executionId);
+        item.setKnowledgeId(knowledgeId);
+        item.setTitle(title);
+        item.setUrl(url);
+        item.setAction(action);
+        item.setErrorMessage(errorMessage);
+        executionItemMapper.insert(item);
     }
 
     /**
@@ -153,6 +235,18 @@ public class CollectorController {
             "liangxinwang", "粮信网",
             "mysteel", "我的钢铁网",
             "china_grain", "中华粮网"
+        );
+        return map.getOrDefault(source, source);
+    }
+
+    /**
+     * 获取来源短码（对齐前端知识库页面筛选器）
+     */
+    private String getSourceTypeCode(String source) {
+        Map<String, String> map = Map.of(
+            "liangxinwang", "liangxin",
+            "mysteel", "mysteel",
+            "china_grain", "chinagrain"
         );
         return map.getOrDefault(source, source);
     }
@@ -174,15 +268,45 @@ public class CollectorController {
     /**
      * 完成执行
      * POST /collector/exec/{executionId}/complete
-     * Body: {"status": "success", "collectedCount": 10}
+     * Body: {
+     *   "status": "success",
+     *   "collectedCount": 10,
+     *   "totalCount": 50,
+     *   "successCount": 45,
+     *   "skipCount": 3,
+     *   "errorCount": 2,
+     *   "dataSizeMb": 2.3,
+     *   "phase": {"loginMs": 5120, "crawlMs": 30400, "parseMs": 8500, "reportMs": 3200}
+     * }
      */
     @PostMapping("/{executionId}/complete")
     public Result<Void> completeExecution(
             @PathVariable String executionId,
             @RequestBody Map<String, Object> request) {
         String status = (String) request.get("status");
-        int collectedCount = ((Number) request.getOrDefault("collectedCount", 0)).intValue();
-        executionService.completeExecution(executionId, status, collectedCount);
+        TaskExecutionService.ExecutionResult result = new TaskExecutionService.ExecutionResult();
+
+        result.setCollectedCount(((Number) request.getOrDefault("collectedCount", 0)).intValue());
+        result.setTotalCount(((Number) request.getOrDefault("totalCount", 0)).intValue());
+        result.setSuccessCount(((Number) request.getOrDefault("successCount", 0)).intValue());
+        result.setSkipCount(((Number) request.getOrDefault("skipCount", 0)).intValue());
+        result.setErrorCount(((Number) request.getOrDefault("errorCount", 0)).intValue());
+
+        Object dataSizeObj = request.get("dataSizeMb");
+        if (dataSizeObj != null) {
+            result.setDataSizeMb(new java.math.BigDecimal(dataSizeObj.toString()));
+        }
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> phase = (Map<String, Object>) request.get("phase");
+        if (phase != null) {
+            result.setPhaseLoginMs(phase.get("loginMs") != null ? ((Number) phase.get("loginMs")).longValue() : null);
+            result.setPhaseCrawlMs(phase.get("crawlMs") != null ? ((Number) phase.get("crawlMs")).longValue() : null);
+            result.setPhaseParseMs(phase.get("parseMs") != null ? ((Number) phase.get("parseMs")).longValue() : null);
+            result.setPhaseReportMs(phase.get("reportMs") != null ? ((Number) phase.get("reportMs")).longValue() : null);
+        }
+
+        executionService.completeExecution(executionId, status, result);
         return Result.success();
     }
 

@@ -26,6 +26,18 @@ public class TaskExecutionLog {
     /** 日志消息 */
     private String message;
 
+    /** 所属阶段：login/crawl/parse/report/system */
+    private String phase;
+
+    /** 日志分类：progress/data/error/metric/checkpoint */
+    private String category;
+
+    /** 相对执行开始的毫秒偏移 */
+    private Long elapsedMs;
+
+    /** 可选的结构化数据 JSON */
+    private String dataJson;
+
     /** 时间戳 */
     private LocalDateTime timestamp;
 }

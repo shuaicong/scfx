@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识库 - Warm Minimal Style</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Fraunces:opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #FEFBF6;
+      --bg-secondary: #F7F3ED;
+      --bg-tertiary: #EDE8E1;
+      --bg-hover: #E4DDD4;
+      --border-color: #E0D9CF;
+      --text-primary: #2D2A26;
+      --text-secondary: #6B6560;
+      --text-muted: #A39B8F;
+      --accent: #C17D4E;
+      --accent-hover: #A66A40;
+      --accent-bg: rgba(193, 125, 78, 0.1);
+      --blue: #5B8FA8;
+      --green: #7BA05A;
+      --yellow: #D4A84B;
+      --red: #C75D5D;
+      --purple: #8B7DA8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'DM Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 { font-family: 'Fraunces', Georgia, serif; font-weight: 500; }
+
+    .app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* Header - Warm Minimal */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      height: 60px;
+      background: rgba(253, 251, 246, 0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+      position: relative;
+      z-index: 100;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 32px; }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--accent);
+    }
+
+    .header-nav { display: flex; gap: 6px; }
+
+    .header-nav a {
+      padding: 8px 16px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 400;
+      border-radius: 20px;
+      transition: all 0.2s;
+    }
+
+    .header-nav a:hover { background: var(--bg-secondary); color: var(--text-primary); }
+    .header-nav a.active { background: var(--accent-bg); color: var(--accent); font-weight: 500; }
+
+    .search-trigger {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid transparent;
+      border-radius: 24px;
+      width: 260px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .search-trigger:hover { background: var(--bg-tertiary); border-color: var(--border-color); }
+    .search-trigger span { color: var(--text-muted); font-size: 13px; }
+    .search-trigger kbd {
+      margin-left: auto;
+      padding: 4px 10px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: inherit;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 12px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 24px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.25s;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #FEFBF6;
+      box-shadow: 0 2px 8px rgba(193, 125, 78, 0.25);
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(193, 125, 78, 0.35);
+    }
+
+    .btn-secondary {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover { background: var(--bg-tertiary); }
+
+    /* Main Content */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* Sidebar - Warm Minimal */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-tabs {
+      display: flex;
+      padding: 12px 12px 0;
+      gap: 4px;
+    }
+
+    .sidebar-tab {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      cursor: pointer;
+      border-radius: 12px 12px 0 0;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .sidebar-tab:hover { color: var(--text-secondary); background: var(--bg-tertiary); }
+    .sidebar-tab.active { color: var(--accent); background: var(--bg-primary); font-weight: 500; }
+
+    .sidebar-content { flex: 1; overflow-y: auto; padding: 16px 12px; }
+
+    .sidebar-section { margin-bottom: 20px; }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 14px;
+      color: var(--text-secondary);
+      border-radius: 14px;
+      margin-bottom: 2px;
+    }
+
+    .sidebar-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+    .sidebar-item.active { background: var(--accent-bg); color: var(--accent); }
+    .sidebar-item .icon { font-size: 17px; width: 24px; text-align: center; }
+    .sidebar-item .name { flex: 1; }
+    .sidebar-item .count { font-size: 12px; color: var(--text-muted); background: var(--bg-primary); padding: 3px 10px; border-radius: 12px; }
+
+    .sidebar-footer { padding: 16px; border-top: 1px solid var(--border-color); display: flex; gap: 8px; }
+
+    .sidebar-footer .btn { flex: 1; justify-content: center; font-size: 12px; padding: 10px; border-radius: 14px; }
+
+    /* List Area - Warm Minimal */
+    .list-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-primary);
+    }
+
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .list-header-left { display: flex; align-items: center; gap: 16px; }
+
+    .list-title {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .list-count { font-size: 13px; color: var(--text-muted); }
+
+    .view-toggle { display: flex; background: var(--bg-secondary); border-radius: 14px; padding: 4px; }
+
+    .view-toggle button {
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      border-radius: 10px;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .view-toggle button.active { background: var(--bg-primary); color: var(--text-primary); font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .view-toggle button:hover:not(.active) { color: var(--text-primary); }
+
+    /* Card Grid - Warm Minimal */
+    .card-grid {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      align-content: start;
+    }
+
+    .card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 20px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+      box-shadow: 0 12px 32px rgba(45, 42, 38, 0.08);
+    }
+
+    .card:hover::before { opacity: 1; }
+
+    .card-icon { font-size: 32px; margin-bottom: 16px; }
+
+    .card-title {
+      font-family: 'Fraunces', serif;
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      line-height: 1.4;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 14px;
+    }
+
+    .card-tags { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    .card-tag {
+      padding: 5px 12px;
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .card-tag.price { background: var(--accent-bg); color: var(--accent); }
+
+    /* Preview Panel - Warm Minimal */
+    .preview-panel {
+      flex: 1;
+      min-width: 360px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .preview-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .preview-title-icon { font-size: 26px; }
+
+    .preview-title span:last-child {
+      font-family: 'Fraunces', serif;
+      font-size: 20px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .preview-header-actions { display: flex; gap: 8px; }
+
+    .preview-header-actions button {
+      width: 38px;
+      height: 38px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: 12px;
+      transition: all 0.2s;
+    }
+
+    .preview-header-actions button:hover { background: var(--bg-tertiary); border-color: var(--accent); color: var(--accent); }
+
+    .preview-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .preview-meta-item {
+      background: var(--bg-secondary);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .preview-meta-item .label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 6px;
+    }
+
+    .preview-meta-item .value {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .preview-meta-item .value.success { color: var(--green); }
+
+    .preview-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .preview-section { margin-bottom: 28px; }
+
+    .preview-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .preview-section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-color);
+    }
+
+    .content-block {
+      background: var(--bg-primary);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid var(--border-color);
+    }
+
+    .content-block h2 {
+      font-family: 'Fraunces', serif;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+
+    .content-block h3 {
+      font-family: 'Fraunces', serif;
+      font-size: 16px;
+      font-weight: 500;
+      margin: 18px 0 10px;
+      color: var(--text-primary);
+    }
+
+    .content-block p {
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .related-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .related-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--bg-primary);
+      border-radius: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 1px solid transparent;
+    }
+
+    .related-item:hover { border-color: var(--accent); background: var(--bg-tertiary); }
+    .related-item .icon { font-size: 18px; }
+    .related-item .info { flex: 1; }
+    .related-item .title { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+    .related-item .meta { font-size: 12px; color: var(--text-muted); }
+    .related-item .score { font-size: 12px; color: var(--green); background: rgba(123, 166, 90, 0.1); padding: 4px 12px; border-radius: 12px; }
+
+    .preview-footer {
+      padding: 18px 24px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-primary);
+      display: flex;
+      gap: 12px;
+    }
+
+    .preview-footer .btn { flex: 1; justify-content: center; font-size: 13px; padding: 12px; border-radius: 14px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">
+          <span>📚</span>
+          <span>知识库</span>
+        </div>
+        <nav class="header-nav">
+          <a href="#" class="active">文档</a>
+          <a href="#">数据</a>
+          <a href="#">智能体</a>
+        </nav>
+      </div>
+      <div class="search-trigger">
+        <span>搜索知识库...</span>
+        <kbd>⌘K</kbd>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-secondary">导入</button>
+        <button class="btn btn-primary">+ 新建</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <aside class="sidebar">
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active">分类</button>
+          <button class="sidebar-tab">标签</button>
+        </div>
+        <div class="sidebar-content">
+          <div class="sidebar-section">
+            <div class="sidebar-header">
+              <span>来源分类</span>
+              <span style="cursor:pointer">+</span>
+            </div>
+            <div class="sidebar-item active">
+              <span class="icon">🌐</span>
+              <span class="name">粮信网</span>
+              <span class="count">24</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">📊</span>
+              <span class="name">我的钢铁</span>
+              <span class="count">18</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">🌾</span>
+              <span class="name">中华粮网</span>
+              <span class="count">12</span>
+            </div>
+          </div>
+          <div class="sidebar-section">
+            <div class="sidebar-header">标签</div>
+            <div class="sidebar-item">
+              <span class="icon">🏷️</span>
+              <span class="name">价格</span>
+              <span class="count">42</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">🏷️</span>
+              <span class="name">供需</span>
+              <span class="count">31</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">🏷️</span>
+              <span class="name">政策</span>
+              <span class="count">15</span>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-footer">
+          <button class="btn btn-secondary">管理</button>
+          <button class="btn btn-secondary">统计</button>
+        </div>
+      </aside>
+
+      <section class="list-area">
+        <div class="list-header">
+          <div class="list-header-left">
+            <h1 class="list-title">粮信网</h1>
+            <span class="list-count">24 条知识</span>
+          </div>
+          <div class="view-toggle">
+            <button class="active">卡片</button>
+            <button>列表</button>
+            <button>表格</button>
+          </div>
+        </div>
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-icon">📰</div>
+            <h3 class="card-title">2024年玉米市场价格周报（1月15日）</h3>
+            <div class="card-meta">
+              <span>🌐 粮信网</span>
+              <span>📅 2024-01-15</span>
+            </div>
+            <div class="card-tags">
+              <span class="card-tag price">价格</span>
+              <span class="card-tag">玉米</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-icon">📊</div>
+            <h3 class="card-title">东北地区玉米供需形势分析</h3>
+            <div class="card-meta">
+              <span>🌐 粮信网</span>
+              <span>📅 2024-01-12</span>
+            </div>
+            <div class="card-tags">
+              <span class="card-tag">供需</span>
+              <span class="card-tag">玉米</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-icon">📋</div>
+            <h3 class="card-title">2024年第一周粮食政策汇总</h3>
+            <div class="card-meta">
+              <span>🌐 粮信网</span>
+              <span>📅 2024-01-08</span>
+            </div>
+            <div class="card-tags">
+              <span class="card-tag">政策</span>
+              <span class="card-tag">小麦</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="preview-panel">
+        <div class="preview-header">
+          <div class="preview-title">
+            <span class="preview-title-icon">📰</span>
+            <span>玉米价格周报详情</span>
+          </div>
+          <div class="preview-header-actions">
+            <button title="全屏">⛶</button>
+            <button title="新窗口">↗</button>
+            <button title="关闭">✕</button>
+          </div>
+        </div>
+        <div class="preview-meta-grid">
+          <div class="preview-meta-item">
+            <div class="label">来源</div>
+            <div class="value">🌐 粮信网</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">日期</div>
+            <div class="value">2024-01-15</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">类型</div>
+            <div class="value">价格日报</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">状态</div>
+            <div class="value success">● 已向量化</div>
+          </div>
+        </div>
+        <div class="preview-content">
+          <div class="preview-section">
+            <div class="preview-section-title">内容摘要</div>
+            <div class="content-block">
+              <h2>本周玉米市场行情分析</h2>
+              <p>本周玉米市场价格整体呈现稳中偏强态势，东北地区深加工企业收购价格上调10-20元/吨，港口平舱价格保持稳定。</p>
+              <h3>主要产区动态</h3>
+              <p>黑龙江地区玉米毒素水平较好，贸易商收购积极性较高；吉林地区基层售粮进度加快，售粮意向价格偏高。</p>
+            </div>
+          </div>
+          <div class="preview-section">
+            <div class="preview-section-title">关联知识</div>
+            <div class="related-list">
+              <div class="related-item">
+                <span class="icon">📊</span>
+                <div class="info">
+                  <div class="title">东北地区玉米供需形势分析</div>
+                  <div class="meta">相关度 94% · 2024-01-12</div>
+                </div>
+                <span class="score">94%</span>
+              </div>
+              <div class="related-item">
+                <span class="icon">📰</span>
+                <div class="info">
+                  <div class="title">港口玉米价格行情</div>
+                  <div class="meta">相关度 87% · 2024-01-14</div>
+                </div>
+                <span class="score">87%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="preview-footer">
+          <button class="btn btn-secondary">编辑</button>
+          <button class="btn btn-primary">向量化</button>
+        </div>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>

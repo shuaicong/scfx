@@ -40,11 +40,6 @@
           <span class="menu-text">采集管理</span>
           <div class="menu-indicator"></div>
         </el-menu-item>
-        <el-menu-item index="/scripts" class="menu-item">
-          <el-icon class="menu-icon"><Document /></el-icon>
-          <span class="menu-text">脚本管理</span>
-          <div class="menu-indicator"></div>
-        </el-menu-item>
         <el-menu-item index="/ai-chat" class="menu-item">
           <el-icon class="menu-icon"><ChatDotRound /></el-icon>
           <span class="menu-text">AI 问答</span>
@@ -55,17 +50,29 @@
           <span class="menu-text">知识库管理</span>
           <div class="menu-indicator"></div>
         </el-menu-item>
-        <el-menu-item index="/logs" class="menu-item">
-          <el-icon class="menu-icon"><Tickets /></el-icon>
-          <span class="menu-text">日志查看</span>
-          <div class="menu-indicator"></div>
-        </el-menu-item>
         <div class="menu-divider"></div>
         <el-menu-item index="/settings" class="menu-item">
           <el-icon class="menu-icon"><Setting /></el-icon>
           <span class="menu-text">系统设置</span>
           <div class="menu-indicator"></div>
         </el-menu-item>
+        <el-menu-item index="/system/datasource" class="menu-item">
+          <el-icon class="menu-icon"><Connection /></el-icon>
+          <span class="menu-text">数据源管理</span>
+          <div class="menu-indicator"></div>
+        </el-menu-item>
+        <el-sub-menu index="alert" class="submenu-item">
+          <template #title>
+            <el-icon class="menu-icon"><WarningFilled /></el-icon>
+            <span class="menu-text">告警管理</span>
+          </template>
+          <el-menu-item index="/settings/alert-rules" class="menu-item sub-child">
+            <span class="menu-text">告警规则</span>
+          </el-menu-item>
+          <el-menu-item index="/settings/alert-records" class="menu-item sub-child">
+            <span class="menu-text">告警记录</span>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
 
       <div class="sidebar-footer">
@@ -85,14 +92,49 @@
           </div>
         </div>
         <div class="header-right">
-          <div class="header-time">
-            <span class="time-label">采集服务器</span>
-            <span class="time-value">{{ currentTime }}</span>
-          </div>
-          <el-button type="primary" class="collect-btn" @click="handleCollect" :loading="collecting">
-            <el-icon class="btn-icon"><Refresh /></el-icon>
-            <span class="btn-text">立即采集</span>
-          </el-button>
+          <el-dropdown trigger="click" @command="handleAlertCommand" v-if="totalUnresolved !== undefined">
+            <div class="alert-bell">
+              <el-badge :value="totalUnresolved" :hidden="totalUnresolved === 0" :max="99" class="bell-badge">
+                <el-icon :size="22" class="bell-icon"><Bell /></el-icon>
+              </el-badge>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu class="alert-dropdown">
+                <el-dropdown-item disabled class="dropdown-header">
+                  <span>最近告警</span>
+                  <span v-if="recentAlerts.length > 0" class="alert-count">{{ recentAlerts.length }} 条</span>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  v-for="alert in recentAlerts"
+                  :key="alert.id"
+                  :command="alert"
+                  class="alert-item"
+                >
+                  <div class="alert-item-content">
+                    <div class="alert-item-title">
+                      <span class="alert-level-dot" :class="alert.alertLevel"></span>
+                      <span class="alert-text">{{ alert.alertTitle }}</span>
+                    </div>
+                    <div class="alert-item-meta">
+                      <span class="alert-type">{{ alert.alertType }}</span>
+                      <span class="alert-time">{{ formatAlertTime(alert.createdAt) }}</span>
+                    </div>
+                  </div>
+                </el-dropdown-item>
+                <el-dropdown-item v-if="recentAlerts.length === 0" disabled class="empty-alerts">
+                  暂无未处理告警
+                </el-dropdown-item>
+                <el-dropdown-item
+                  v-if="recentAlerts.length > 0"
+                  command="viewAll"
+                  class="view-all-alerts"
+                  divided
+                >
+                  查看全部告警 →
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </el-header>
       <el-main class="main-content" :class="{ 'no-sidebar': route.meta.hideSidebar }">
@@ -107,16 +149,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { collectLiangxinwang } from '@/api/dashboard'
-import { DataAnalysis, Collection, Document, Setting, Refresh, Tickets, ChatDotRound } from '@element-plus/icons-vue'
+import { ref, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { DataAnalysis, Collection, Document, Setting, ChatDotRound, Connection, Bell, WarningFilled } from '@element-plus/icons-vue'
+import { useAlertPolling } from '@/composables/useAlertPolling'
 
 const route = useRoute()
-const collecting = ref(false)
-const currentTime = ref('')
-let timeInterval: ReturnType<typeof setInterval>
+const router = useRouter()
+
+const { totalUnresolved, recentAlerts, stats } = useAlertPolling()
 
 const activeMenu = computed(() => route.path)
 
@@ -124,41 +165,29 @@ const pageTitle = computed(() => {
   const titleMap: Record<string, string> = {
     '/dashboard': '数据仪表板',
     '/collection': '采集管理',
-    '/sdk': 'SDK管理',
-    '/scripts': '脚本管理',
     '/ai-chat': 'AI 知识问答',
     '/knowledge': '知识库管理',
-    '/logs': '日志查看',
-    '/settings': '系统设置'
+    '/settings': '系统设置',
+    '/system/datasource': '数据源管理',
+    '/settings/alert-rules': '告警规则',
+    '/settings/alert-records': '告警记录'
   }
   return titleMap[route.path] || '仪表板'
 })
 
-const updateTime = () => {
-  const now = new Date()
-  currentTime.value = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-}
-
-const handleCollect = async () => {
-  try {
-    collecting.value = true
-    await collectLiangxinwang()
-    ElMessage.success('采集任务已启动，请稍后查看日志')
-  } catch (error) {
-    ElMessage.error('启动采集失败')
-  } finally {
-    collecting.value = false
+function handleAlertCommand(command: any) {
+  if (command === 'viewAll') {
+    router.push('/settings/alert-records')
+  } else if (command?.id) {
+    // 跳转到告警记录页
+    router.push('/settings/alert-records')
   }
 }
 
-onMounted(() => {
-  updateTime()
-  timeInterval = setInterval(updateTime, 1000)
-})
-
-onUnmounted(() => {
-  clearInterval(timeInterval)
-})
+function formatAlertTime(time?: string): string {
+  if (!time) return ''
+  return time.substring(0, 16).replace('T', ' ')
+}
 </script>
 
 <style scoped>
@@ -365,27 +394,6 @@ onUnmounted(() => {
   gap: 24px;
 }
 
-.header-time {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-}
-
-.time-label {
-  font-size: 11px;
-  color: #a0aec0;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.time-value {
-  font-size: 14px;
-  font-weight: 600;
-  color: #4a5568;
-  font-variant-numeric: tabular-nums;
-  font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
-}
 
 .collect-btn {
   height: 40px;
@@ -417,6 +425,165 @@ onUnmounted(() => {
   padding: 24px;
   overflow-y: auto;
   background: linear-gradient(180deg, #f0f2f5 0%, #e8eaef 100%);
+}
+
+/* Notification Bell */
+.alert-bell {
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.alert-bell:hover {
+  background: #f0f2f5;
+}
+
+.bell-icon {
+  color: #4a5568;
+}
+
+.alert-dropdown {
+  min-width: 320px;
+  max-width: 400px;
+}
+
+.dropdown-header {
+  font-weight: 600 !important;
+  color: #1a202c !important;
+  font-size: 13px !important;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: default !important;
+}
+
+.dropdown-header:hover {
+  background: transparent !important;
+}
+
+.alert-count {
+  font-size: 11px;
+  color: #718096;
+  font-weight: 400;
+}
+
+.alert-item {
+  padding: 8px 12px !important;
+  line-height: 1.4 !important;
+}
+
+.alert-item-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.alert-item-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.alert-level-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.alert-level-dot.critical {
+  background: #e53e3e;
+}
+
+.alert-level-dot.error {
+  background: #ed8936;
+}
+
+.alert-level-dot.warning {
+  background: #ecc94b;
+}
+
+.alert-level-dot.info {
+  background: #4299e1;
+}
+
+.alert-text {
+  font-size: 13px;
+  color: #2d3748;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.alert-item-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 12px;
+}
+
+.alert-type {
+  font-size: 11px;
+  color: #a0aec0;
+}
+
+.alert-time {
+  font-size: 11px;
+  color: #a0aec0;
+}
+
+.empty-alerts {
+  justify-content: center !important;
+  color: #a0aec0 !important;
+  font-size: 13px !important;
+  padding: 16px !important;
+}
+
+.view-all-alerts {
+  justify-content: center !important;
+  color: #4299e1 !important;
+  font-weight: 500 !important;
+  font-size: 13px !important;
+}
+
+/* Sidebar Submenu */
+.submenu-item .el-sub-menu__title {
+  height: 48px;
+  padding: 0 16px;
+  border-radius: 10px;
+  color: #c8d1dc !important;
+  font-size: 14px;
+  transition: all 0.3s;
+}
+
+.submenu-item .el-sub-menu__title:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.submenu-item.is-active .el-sub-menu__title {
+  color: #f5c87a !important;
+}
+
+.submenu-item .menu-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 12px;
+  color: #7a8599;
+}
+
+.submenu-item.is-active .menu-icon {
+  color: #f5c87a;
+}
+
+.submenu-item .sub-child {
+  padding-left: 48px !important;
+  height: 40px !important;
+  font-size: 13px !important;
 }
 
 .main-content.no-sidebar {

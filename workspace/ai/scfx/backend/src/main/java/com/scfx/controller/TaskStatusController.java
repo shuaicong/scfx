@@ -16,8 +16,8 @@ public class TaskStatusController {
 
     @GetMapping
     public Result<Map<Long, TaskStatusService.TaskStatus>> getTasksStatus(
-            @RequestParam("ids") List<Long> ids) {
-        Map<Long, TaskStatusService.TaskStatus> statuses = taskStatusService.getTasksStatus(ids);
+            @RequestParam("ids") List<Long> idsArr) {
+        Map<Long, TaskStatusService.TaskStatus> statuses = taskStatusService.getTasksStatus(idsArr);
         return Result.success(statuses);
     }
 

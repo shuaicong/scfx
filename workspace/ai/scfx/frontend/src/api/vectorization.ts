@@ -31,6 +31,9 @@ export const vectorizationApi = {
   getTasks: (page: number = 1, size: number = 20) =>
     request.get<{ data: VectorizationTask[] }>('/vectorization/tasks', { params: { page, size } }),
 
+  getConfig: () =>
+    request.get<{ data: { enabled: boolean; mode: string } }>('/vectorization/config'),
+
   trigger: (categoryId: number) =>
     request.post(`/vectorization/trigger/${categoryId}`),
 

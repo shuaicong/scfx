@@ -1,27 +1,20 @@
 import request from './index'
 
 export const knowledgeApi = {
-  list: (params: { page?: number; size?: number; sourceType?: string; vectorStatus?: string; categoryId?: number }) =>
+  list: (params: { page?: number; size?: number; sourceType?: string; vectorStatus?: string; categoryId?: number; executionId?: string }) =>
     request.get('/knowledge/list', { params }),
 
   getById: (id: number) =>
     request.get(`/knowledge/${id}`),
+
+  update: (id: number, data: { title?: string; content?: string; sourceType?: string; author?: string }) =>
+    request.put(`/knowledge/${id}`, data),
 
   delete: (id: number) =>
     request.delete(`/knowledge/${id}`),
 
   revectorize: (id: number) =>
     request.post(`/knowledge/${id}/revectorize`),
-
-  stats: () =>
-    request.get('/knowledge/stats'),
-
-  search: (query: string, topK: number = 5) =>
-    request.get('/knowledge/search', { params: { query, top_k: topK } }),
-
-  // 按分类搜索知识
-  searchInCategory: (categoryId: number, query: string) =>
-    request.get(`/knowledge/category/${categoryId}/search`, { params: { query } }),
 
   upload: (formData: FormData) =>
     request.post('/knowledge/upload', formData, {
@@ -34,4 +27,19 @@ export const knowledgeApi = {
   // 获取未分类知识数量
   getUncategorizedCount: () =>
     request.get('/knowledge/uncategorized/count'),
+
+  // 获取指定分类的可视化数据（PCA 降维后 2D 坐标）
+  getVisualization: (categoryId: number, params?: { page?: number; size?: number; sample?: boolean }) =>
+    request.get<{
+      points: Array<{ id: number; title: string; x: number; y: number; z: number; vectorStatus: string; vizStatus: string; contentType: string }>;
+      total: number;
+      page: number;
+      size: number;
+      sample: boolean;
+      similarities: Record<number, Array<{ id: number; score: number }>>;
+    }>(`/knowledge/${categoryId}/visualization`, { params }),
+
+  // 手动触发 PCA 重算
+  recomputeVisualization: (categoryId: number) =>
+    request.post(`/knowledge/${categoryId}/visualization/recompute`),
 }

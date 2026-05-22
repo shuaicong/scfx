@@ -26,12 +26,6 @@ export const getAlertStats = () => request.get('/alerts/stats')
 
 export const resolveAlert = (id: number, resolvedBy?: string) => request.put(`/alerts/${id}/resolve`, null, { params: { resolvedBy } })
 
-export const getReports = (params: any) => request.get('/reports', { params })
-
-export const getReportById = (id: number) => request.get(`/reports/${id}`)
-
-export const getRecentReports = (limit: number) => request.get('/reports/recent', { params: { limit } })
-
 export const collectLiangxinwang = () => request.post('/collection/liangxinwang')
 
 export const getCollectionStatus = () => request.get('/collection/status')

@@ -17,8 +17,8 @@ corn:
       collect_times: ["18:30", "19:00", "19:30"]
 
 knowledge_api:
-  base_url: "http://localhost:5002"
-  ingest_endpoint: "/api/knowledge/ingest"
+  base_url: "http://localhost:8080/api"
+  ingest_endpoint: "/collector/exec"
 
 collection:
   retry_times: 3

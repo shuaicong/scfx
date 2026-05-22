@@ -9,9 +9,6 @@ public interface CategoryMapper {
     @Select("SELECT * FROM t_category WHERE deleted_at IS NULL ORDER BY sort_order")
     List<Category> findAll();
 
-    @Select("SELECT * FROM t_category WHERE deleted_at IS NULL AND parent_id IS NULL ORDER BY sort_order")
-    List<Category> findRoots();
-
     @Select("SELECT * FROM t_category WHERE deleted_at IS NULL AND parent_id = #{parentId} ORDER BY sort_order")
     List<Category> findByParentId(Long parentId);
 

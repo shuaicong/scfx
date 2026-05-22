@@ -33,7 +33,7 @@ public class TriggerScheduleService {
         for (CollectionScript script : scripts) {
             if (shouldExecute(script, now, nowTime)) {
                 log.info("触发定时任务: {}", script.getScriptName());
-                executeScript(script.getId(), "scheduled");
+                executeScript(script);
             }
         }
     }
@@ -42,6 +42,20 @@ public class TriggerScheduleService {
      * 判断是否应该执行
      */
     private boolean shouldExecute(CollectionScript script, LocalDateTime now, LocalTime nowTime) {
+        String triggerType = script.getTriggerType();
+
+        if ("once".equals(triggerType) || "single".equals(triggerType)) {
+            // 单次触发：检查是否已执行过，且 startTime 是否到达
+            if (script.getLastExecutionTime() != null) {
+                return false;
+            }
+            if (script.getStartTime() == null) {
+                return false;
+            }
+            // 只要当前时间 >= startTime 就触发（不设窗口限制，避免设置过去时间不执行）
+            return !now.isBefore(script.getStartTime());
+        }
+
         // 检查是否在有效期内
         if (script.getStartTime() != null && now.isBefore(script.getStartTime())) {
             return false;
@@ -52,14 +66,7 @@ public class TriggerScheduleService {
             return false;
         }
 
-        String triggerType = script.getTriggerType();
-        if ("once".equals(triggerType)) {
-            // 单次触发：检查是否已执行过
-            if (script.getLastExecutionTime() != null) {
-                return false;
-            }
-            return isTimeMatch(script.getRepeatTime(), nowTime) && isDateMatch(script, now);
-        } else if ("repeat".equals(triggerType)) {
+        if ("repeat".equals(triggerType)) {
             // 周期触发
             String repeatType = script.getRepeatType();
             if ("daily".equals(repeatType)) {
@@ -143,9 +150,17 @@ public class TriggerScheduleService {
     /**
      * 执行脚本
      */
-    public void executeScript(Long scriptId, String triggerType) {
-        TaskExecution execution = executionService.createExecution(scriptId, triggerType);
-        scriptService.updateLastExecutionTime(scriptId);
-        log.info("创建执行记录: executionId={}, scriptId={}", execution.getExecutionId(), scriptId);
+    public void executeScript(CollectionScript script) {
+        TaskExecution execution = executionService.createExecution(script.getId(), "scheduled");
+        scriptService.updateLastExecutionTime(script.getId());
+
+        // 单次触发执行后自动禁用
+        String tt = script.getTriggerType();
+        if ("once".equals(tt) || "single".equals(tt)) {
+            scriptService.disableScript(script.getId());
+            log.info("单次任务执行完毕，已自动禁用: {}", script.getScriptName());
+        }
+
+        log.info("创建执行记录: executionId={}, scriptId={}", execution.getExecutionId(), script.getId());
     }
 }

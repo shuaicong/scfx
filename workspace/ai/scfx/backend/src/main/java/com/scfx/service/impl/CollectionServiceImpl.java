@@ -1,9 +1,9 @@
 package com.scfx.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.scfx.entity.Report;
+import com.scfx.entity.KnowledgeBase;
 import com.scfx.entity.TaskExecution;
-import com.scfx.mapper.ReportMapper;
+import com.scfx.mapper.KnowledgeBaseMapper;
 import com.scfx.mapper.TaskExecutionMapper;
 import com.scfx.service.TaskExecutionService;
 import lombok.RequiredArgsConstructor;
@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CollectionServiceImpl {
 
-    private final ReportMapper reportMapper;
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final TaskExecutionMapper executionMapper;
     private final RestTemplate restTemplate;
 
@@ -52,15 +52,15 @@ public class CollectionServiceImpl {
 
     /**
      * 触发知识库接入
-     * 查询所有报告并发送到AI QA服务
+     * 查询本次执行对应的知识库条目并发送到AI QA服务
      */
     public void triggerKnowledgeIngest(String executionId) {
-        List<Report> reports = reportMapper.selectList(
-            new LambdaQueryWrapper<Report>()
-                .eq(Report::getExecutionId, executionId)
+        List<KnowledgeBase> items = knowledgeBaseMapper.selectList(
+            new LambdaQueryWrapper<KnowledgeBase>()
+                .eq(KnowledgeBase::getExecutionId, executionId)
         );
-        if (reports.isEmpty()) {
-            log.info("没有找到报告可接入知识库: executionId={}", executionId);
+        if (items.isEmpty()) {
+            log.info("没有找到知识库条目可接入: executionId={}", executionId);
             return;
         }
 
@@ -68,14 +68,13 @@ public class CollectionServiceImpl {
         Map<String, Object> payload = new HashMap<>();
         payload.put("executionId", executionId);
         payload.put("source", "liangxinwang");
-        payload.put("reports", reports.stream().map(r -> {
+        payload.put("reports", items.stream().map(kb -> {
             Map<String, Object> item = new HashMap<>();
-            item.put("title", r.getTitle());
-            item.put("source", r.getSource());
-            item.put("url", r.getOriginalUrl());
-            item.put("author", r.getAuthor());
-            item.put("publishTime", r.getPublishTime() != null ? r.getPublishTime().toString() : null);
-            item.put("content", r.getContent());
+            item.put("title", kb.getTitle());
+            item.put("source", kb.getSourceType());
+            item.put("url", kb.getOriginalUrl());
+            item.put("publishTime", kb.getPublishTime() != null ? kb.getPublishTime().toString() : null);
+            item.put("content", kb.getContent());
             return item;
         }).collect(Collectors.toList()));
 

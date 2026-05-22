@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/batch-operation")
+@RequestMapping("/batch-operation")
 @RequiredArgsConstructor
 public class BatchOperationController {
 

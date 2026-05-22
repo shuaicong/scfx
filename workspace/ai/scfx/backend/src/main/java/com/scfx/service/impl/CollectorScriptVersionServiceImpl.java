@@ -19,8 +19,15 @@ import java.util.List;
 public class CollectorScriptVersionServiceImpl implements CollectorScriptVersionService {
     private final CollectorScriptVersionMapper scriptVersionMapper;
 
-    @Value("${collector.script.path:/python-collector-sdk/collectorsdk/collectors}")
+    @Value("${collector.script.path:#{systemProperties['user.home']}/workspace/ai/scfx/python-collector-sdk/collectorsdk/collectors}")
     private String scriptBasePath;
+
+    private void ensureDirectoryExists() {
+        File dir = new File(scriptBasePath);
+        if (!dir.exists()) {
+            dir.mkdirs();
+        }
+    }
 
     @Override
     public List<CollectorScriptVersion> getVersions(String datasourceCode) {
@@ -30,6 +37,11 @@ public class CollectorScriptVersionServiceImpl implements CollectorScriptVersion
     @Override
     public CollectorScriptVersion getCurrentVersion(String datasourceCode) {
         return scriptVersionMapper.findCurrentByDatasourceCode(datasourceCode);
+    }
+
+    @Override
+    public CollectorScriptVersion getVersionById(Long id) {
+        return scriptVersionMapper.selectById(id);
     }
 
     @Override
@@ -79,10 +91,11 @@ public class CollectorScriptVersionServiceImpl implements CollectorScriptVersion
         // 检查是否有相同 MD5 的最新版本
         CollectorScriptVersion current = scriptVersionMapper.findCurrentByDatasourceCode(datasourceCode);
         if (current != null && md5.equals(current.getFileMd5())) {
-            throw new RuntimeException("文件内容与最新版本相同，无需重复上传");
+            return null; // 返回 null 让 controller 处理
         }
 
         // 保存文件
+        ensureDirectoryExists();
         String filePath = scriptBasePath + "/" + datasourceCode + ".py";
         Path path = Path.of(filePath);
 

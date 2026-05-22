@@ -19,6 +19,8 @@
         <result column="vector_ids" property="vectorIds"/>
         <result column="execution_id" property="executionId"/>
         <result column="created_by" property="createdBy"/>
+        <result column="viz_x" property="vizX"/>
+        <result column="viz_y" property="vizY"/>
         <result column="category_id" property="categoryId"/>
         <result column="collection_source" property="collectionSource"/>
         <result column="collection_variety" property="collectionVariety"/>

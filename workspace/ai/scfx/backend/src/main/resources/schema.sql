@@ -36,6 +36,17 @@ CREATE TABLE IF NOT EXISTS t_task_execution (
     end_time TIMESTAMP,
     duration_ms BIGINT,
     error_message VARCHAR(4000),
+    collected_count INT DEFAULT 0,
+    total_count INT DEFAULT 0,
+    success_count INT DEFAULT 0,
+    skip_count INT DEFAULT 0,
+    error_count INT DEFAULT 0,
+    data_size_mb DECIMAL(10,2) DEFAULT 0,
+    phase_login_ms BIGINT DEFAULT 0,
+    phase_crawl_ms BIGINT DEFAULT 0,
+    phase_parse_ms BIGINT DEFAULT 0,
+    phase_report_ms BIGINT DEFAULT 0,
+    detail_json TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -46,6 +57,10 @@ CREATE TABLE IF NOT EXISTS t_task_execution_log (
     script_id BIGINT,
     level VARCHAR(20) NOT NULL,
     message VARCHAR(4000) NOT NULL,
+    phase VARCHAR(20) DEFAULT NULL COMMENT '所属阶段：login/crawl/parse/report/system',
+    category VARCHAR(20) DEFAULT NULL COMMENT '日志分类：progress/data/error/metric/checkpoint',
+    elapsed_ms BIGINT DEFAULT NULL COMMENT '相对执行开始的毫秒偏移',
+    data_json TEXT DEFAULT NULL COMMENT '可选的结构化数据 JSON',
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -147,6 +162,8 @@ CREATE TABLE IF NOT EXISTS t_collection_script (
     repeat_count INT,
     repeat_time VARCHAR(20),
     current_version INT,
+    sync_to_knowledge_base TINYINT(1) DEFAULT 1 COMMENT '是否同步到知识库',
+    category_id BIGINT DEFAULT NULL COMMENT '关联分类ID（采集结果同步到知识库时自动归类）',
     created_by VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -185,6 +202,7 @@ CREATE TABLE IF NOT EXISTS t_knowledge_base (
     author VARCHAR(100),
     publish_time DATETIME,
     content TEXT NOT NULL,
+    content_html TEXT COMMENT 'HTML格式内容（保留图片标签等）',
     content_hash VARCHAR(64),
     file_path VARCHAR(500),
     file_type VARCHAR(20),
@@ -211,6 +229,19 @@ WHERE NOT EXISTS (SELECT 1 FROM t_collection_task WHERE source_name = 'liangxinw
 -- =============================================
 -- 分类管理相关表
 -- =============================================
+
+-- 执行采集数据项表
+CREATE TABLE IF NOT EXISTS t_execution_item (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    execution_id VARCHAR(50) NOT NULL COMMENT '执行ID',
+    knowledge_id BIGINT COMMENT '知识库条目ID',
+    title VARCHAR(500) COMMENT '标题',
+    url VARCHAR(1000) COMMENT '来源URL',
+    action VARCHAR(30) NOT NULL COMMENT '操作类型：created/skipped_duplicate/skipped_existing/error',
+    error_message VARCHAR(1000) COMMENT '失败原因',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_execution_id (execution_id)
+);
 
 -- 分类表
 CREATE TABLE IF NOT EXISTS t_category (
@@ -293,8 +324,162 @@ CREATE TABLE IF NOT EXISTS t_category_favorite (
     INDEX idx_favorite_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='用户分类收藏夹表';
 
+-- =============================================
+-- 数据源管理相关表
+-- =============================================
+
+-- 数据源表
+CREATE TABLE IF NOT EXISTS t_data_source (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE COMMENT '数据源编码',
+    name VARCHAR(100) NOT NULL COMMENT '显示名称',
+    description VARCHAR(500) COMMENT '描述信息',
+    logo_url VARCHAR(255) COMMENT 'logo URL',
+    enabled TINYINT(1) DEFAULT 1 COMMENT '启用状态',
+    sort_order INT DEFAULT 0 COMMENT '排序',
+    config JSON COMMENT '配置信息',
+    last_heartbeat TIMESTAMP COMMENT '最后心跳时间',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE INDEX idx_code (code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据源表';
+
+-- 采集器脚本版本表
+CREATE TABLE IF NOT EXISTS t_collector_script_version (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    datasource_code VARCHAR(50) NOT NULL COMMENT '数据源编码',
+    version INT NOT NULL COMMENT '版本号',
+    file_path VARCHAR(255) NOT NULL COMMENT '文件路径',
+    file_md5 VARCHAR(32) NOT NULL COMMENT '文件MD5',
+    file_size INT COMMENT '文件大小',
+    is_current TINYINT(1) DEFAULT 0 COMMENT '是否当前版本',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_by VARCHAR(100) COMMENT '创建人',
+    UNIQUE INDEX idx_datasource_version (datasource_code, version),
+    INDEX idx_datasource_current (datasource_code, is_current)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='采集器脚本版本表';
+
+-- 脚本操作日志表
+CREATE TABLE IF NOT EXISTS t_script_operation_log (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    datasource_code VARCHAR(50) NOT NULL COMMENT '数据源编码',
+    operation_type VARCHAR(20) NOT NULL COMMENT '操作类型(UPLOAD/UPDATE/DELETE/ROLLBACK)',
+    operator VARCHAR(100) COMMENT '操作人',
+    operate_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    file_md5 VARCHAR(32) NOT NULL COMMENT '文件MD5',
+    file_size INT COMMENT '文件大小',
+    backup_path VARCHAR(255) COMMENT '备份路径',
+    remark VARCHAR(500) COMMENT '备注',
+    INDEX idx_datasource_code (datasource_code),
+    INDEX idx_operate_time (operate_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='脚本操作日志表';
+
+-- =============================================
+-- 操作日志和审计
+-- =============================================
+
+-- 操作日志表
+CREATE TABLE IF NOT EXISTS t_operation_log (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    operator VARCHAR(100) NOT NULL COMMENT '操作人',
+    operation_type VARCHAR(50) NOT NULL COMMENT '操作类型',
+    target_type VARCHAR(50) NOT NULL COMMENT '目标类型',
+    target_id BIGINT NOT NULL COMMENT '目标ID',
+    detail JSON COMMENT '操作详情',
+    ip VARCHAR(50) COMMENT 'IP地址',
+    operate_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    INDEX idx_target (target_type, target_id),
+    INDEX idx_operator_time (operator, operate_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作日志表';
+
+-- 告警规则表
+CREATE TABLE IF NOT EXISTS t_alert_rule (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    rule_name VARCHAR(100) COMMENT '规则名称',
+    rule_type VARCHAR(50) COMMENT '规则类型(CONTINUOUS_FAIL/SERVICE_OFFLINE/ZERO_RESULT/TIMEOUT)',
+    condition JSON COMMENT '条件配置',
+    enabled TINYINT(1) DEFAULT 1 COMMENT '是否启用',
+    notify_channels JSON COMMENT '通知渠道',
+    notify_target VARCHAR(500) COMMENT '通知目标',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='告警规则表';
+
+-- =============================================
+-- 初始化数据：数据源
+-- =============================================
+
+INSERT INTO t_data_source (code, name, description, config) VALUES
+('liangxin', '粮信网', '中国粮食网玉米晨报', NULL),
+('mysteel', '我的钢铁网', '我的钢铁网价格数据', NULL),
+('chinagrain', '中华粮网', '中华粮网市场数据', NULL),
+('usda', 'USDA', '美国农业部数据', NULL),
+('market', '市场数据', '第三方市场数据', NULL);
+
 -- 初始化数据：粮信网顶级分类
 INSERT INTO t_category (name, icon, color, sort_order) VALUES
 ('粮信网', '🌐', '#58A6FF', 1),
 ('我的钢铁', '🏭', '#3FB950', 2),
 ('中华粮网', '🌾', '#F0883E', 3);
+
+-- 采集脚本关联分类（已有表新增列）
+ALTER TABLE t_collection_script ADD COLUMN IF NOT EXISTS category_id BIGINT DEFAULT NULL COMMENT '关联分类ID（采集结果同步到知识库时自动归类）';
+
+-- =============================================
+-- 向量可视化相关（双向量方案）
+-- =============================================
+
+-- 知识库表新增字段（PCA 降维坐标）
+ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS content_html TEXT COMMENT 'HTML格式内容（保留图片标签等）';
+ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS category_id BIGINT DEFAULT NULL COMMENT '所属分类ID';
+ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS collection_source VARCHAR(50) DEFAULT NULL COMMENT '采集来源';
+ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS collection_variety VARCHAR(50) DEFAULT NULL COMMENT '采集品种';
+ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS collection_report_type VARCHAR(50) DEFAULT NULL COMMENT '报告类型';
+ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS viz_x DOUBLE DEFAULT NULL COMMENT 'PCA降维X坐标（可视化用）';
+ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS viz_y DOUBLE DEFAULT NULL COMMENT 'PCA降维Y坐标（可视化用）';
+ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS viz_z DOUBLE DEFAULT NULL COMMENT 'PCA降维Z坐标（3D预留）';
+
+-- 可视化向量存储表（DashScope 768维向量）
+CREATE TABLE IF NOT EXISTS t_knowledge_viz (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    knowledge_id BIGINT NOT NULL COMMENT '知识库条目ID',
+    vector_768 VARBINARY(3072) DEFAULT NULL COMMENT 'DashScope 768维向量（3072字节，固定长度）',
+    viz_status VARCHAR(20) DEFAULT 'pending' COMMENT '可视化状态：vectorized/failed/pending',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE INDEX idx_viz_knowledge (knowledge_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='可视化向量存储表（DashScope 768维）';
+
+-- PCA 基线缓存表（增量投影复用均值/主成分）
+CREATE TABLE IF NOT EXISTS t_pca_baseline (
+    category_id BIGINT NOT NULL PRIMARY KEY COMMENT '分类ID',
+    last_viz_id BIGINT NOT NULL DEFAULT 0 COMMENT '已标记的最大 t_knowledge_viz.id',
+    vector_count INT NOT NULL DEFAULT 0 COMMENT '参与基线的向量数',
+    mean_vector VARBINARY(3072) DEFAULT NULL COMMENT '均值向量（768维）',
+    pc1 VARBINARY(3072) DEFAULT NULL COMMENT '第一主成分（768维）',
+    pc2 VARBINARY(3072) DEFAULT NULL COMMENT '第二主成分（768维）',
+    pc3 VARBINARY(3072) DEFAULT NULL COMMENT '第三主成分（768维，3D预留）',
+    x_min DOUBLE DEFAULT NULL COMMENT '归一化X下界',
+    x_max DOUBLE DEFAULT NULL COMMENT '归一化X上界',
+    y_min DOUBLE DEFAULT NULL COMMENT '归一化Y下界',
+    y_max DOUBLE DEFAULT NULL COMMENT '归一化Y上界',
+    z_min DOUBLE DEFAULT NULL COMMENT '归一化Z下界（3D预留）',
+    z_max DOUBLE DEFAULT NULL COMMENT '归一化Z上界（3D预留）',
+    version INT DEFAULT 1 COMMENT '版本号',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='PCA基线缓存表';
+
+-- PCA 计算记录表（版本快照，用于回溯排查聚类异常）
+CREATE TABLE IF NOT EXISTS t_pca_calculation_record (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    version INT NOT NULL COMMENT '版本号（同一分类递增）',
+    trigger_type VARCHAR(20) NOT NULL COMMENT '触发类型: manual_full/incremental/manual_single/auto_incremental',
+    point_count INT NOT NULL COMMENT '参与本次计算的向量数',
+    before_count INT DEFAULT 0 COMMENT '计算前向量数',
+    computation_cost_ms BIGINT DEFAULT NULL COMMENT '计算耗时(ms)',
+    remark VARCHAR(500) DEFAULT NULL COMMENT '备注（如触发源、异常信息）',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE INDEX idx_calc_version (category_id, version)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='PCA计算记录表';

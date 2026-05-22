@@ -177,13 +177,17 @@ class CollectorReporter:
             self._started = True
             return {"executionId": execution_id, "taskId": task_id}
 
-    def report_log(self, level: str, message: str):
+    def report_log(self, level: str, message: str, phase: str = "",
+                    category: str = "", elapsed_ms: int = 0):
         """
         上报日志（异步）
 
         Args:
             level: 日志级别 DEBUG/INFO/WARN/ERROR
             message: 日志消息
+            phase: 所属阶段 login/crawl/parse/report/system
+            category: 日志分类 progress/data/error/metric/checkpoint
+            elapsed_ms: 相对开始时间的毫秒偏移
         """
         if not self._started or not self._execution_id:
             return
@@ -193,6 +197,9 @@ class CollectorReporter:
             "executionId": self._execution_id,
             "level": level,
             "message": message,
+            "phase": phase,
+            "category": category,
+            "elapsedMs": elapsed_ms,
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -267,13 +274,27 @@ class CollectorReporter:
         else:
             self._send_error(entry)
 
-    def report_complete(self, status: str, collected_count: int):
+    def report_complete(self, status: str, collected_count: int,
+                        total_count: int = 0, success_count: int = 0,
+                        skip_count: int = 0, error_count: int = 0,
+                        data_size_mb: float = 0.0,
+                        phase_login_ms: int = 0, phase_crawl_ms: int = 0,
+                        phase_parse_ms: int = 0, phase_report_ms: int = 0):
         """
         上报完成（异步）
 
         Args:
             status: success/failed
             collected_count: 总采集数量
+            total_count: 总处理数
+            success_count: 成功数
+            skip_count: 去重跳过数
+            error_count: 失败数
+            data_size_mb: 数据量(MB)
+            phase_login_ms: 登录阶段耗时(ms)
+            phase_crawl_ms: 抓取阶段耗时(ms)
+            phase_parse_ms: 解析阶段耗时(ms)
+            phase_report_ms: 上报阶段耗时(ms)
         """
         if not self._started or not self._execution_id:
             return
@@ -283,6 +304,17 @@ class CollectorReporter:
             "executionId": self._execution_id,
             "status": status,
             "collectedCount": collected_count,
+            "totalCount": total_count,
+            "successCount": success_count,
+            "skipCount": skip_count,
+            "errorCount": error_count,
+            "dataSizeMb": data_size_mb,
+            "phase": {
+                "loginMs": phase_login_ms,
+                "crawlMs": phase_crawl_ms,
+                "parseMs": phase_parse_ms,
+                "reportMs": phase_report_ms,
+            },
             "timestamp": datetime.now().isoformat(),
         }
 
@@ -325,43 +357,64 @@ class CollectorReporter:
 
     def _send_log(self, entry: dict):
         """发送日志到后端"""
-        requests.post(
+        payload = {"level": entry["level"], "message": entry["message"]}
+        if entry.get("phase"):
+            payload["phase"] = entry["phase"]
+        if entry.get("category"):
+            payload["category"] = entry["category"]
+        if entry.get("elapsedMs"):
+            payload["elapsedMs"] = entry["elapsedMs"]
+        resp = requests.post(
             f"{self.config.api_base}/collector/exec/{entry['executionId']}/log",
-            json={"level": entry["level"], "message": entry["message"]},
+            json=payload,
             timeout=self.config.timeout,
         )
+        resp.raise_for_status()
 
     def _send_progress(self, entry: dict):
         """发送进度到后端"""
-        requests.post(
+        resp = requests.post(
             f"{self.config.api_base}/collector/exec/{entry['executionId']}/progress",
             json={"collectedCount": entry["collectedCount"]},
             timeout=self.config.timeout,
         )
+        resp.raise_for_status()
 
     def _send_data(self, entry: dict):
         """发送数据到后端"""
-        requests.post(
+        resp = requests.post(
             f"{self.config.api_base}/collector/exec/{entry['executionId']}/data",
             json=entry["data"],
             timeout=self.config.timeout,
         )
+        resp.raise_for_status()
 
     def _send_error(self, entry: dict):
         """发送错误到后端"""
-        requests.post(
+        resp = requests.post(
             f"{self.config.api_base}/collector/exec/{entry['executionId']}/error",
             json={"errorMessage": entry["errorMessage"]},
             timeout=self.config.timeout,
         )
+        resp.raise_for_status()
 
     def _send_complete(self, entry: dict):
         """发送完成到后端"""
-        requests.post(
+        resp = requests.post(
             f"{self.config.api_base}/collector/exec/{entry['executionId']}/complete",
-            json={"status": entry["status"], "collectedCount": entry["collectedCount"]},
+            json={
+                "status": entry["status"],
+                "collectedCount": entry["collectedCount"],
+                "totalCount": entry.get("totalCount", 0),
+                "successCount": entry.get("successCount", 0),
+                "skipCount": entry.get("skipCount", 0),
+                "errorCount": entry.get("errorCount", 0),
+                "dataSizeMb": entry.get("dataSizeMb", 0.0),
+                "phase": entry.get("phase", {}),
+            },
             timeout=self.config.timeout,
         )
+        resp.raise_for_status()
 
     def _shutdown(self):
         """关闭上报器，等待队列处理完成"""
@@ -372,23 +425,23 @@ class CollectorReporter:
 
     # ==================== 便捷方法 ====================
 
-    def log_debug(self, message: str):
+    def log_debug(self, message: str, phase: str = "", category: str = ""):
         """快捷方法：记录DEBUG日志"""
-        self.report_log("DEBUG", message)
+        self.report_log("DEBUG", message, phase=phase, category=category)
 
-    def log_info(self, message: str):
+    def log_info(self, message: str, phase: str = "", category: str = ""):
         """快捷方法：记录INFO日志"""
-        self.report_log("INFO", message)
+        self.report_log("INFO", message, phase=phase, category=category)
 
-    def log_warn(self, message: str):
+    def log_warn(self, message: str, phase: str = "", category: str = ""):
         """快捷方法：记录WARN日志"""
-        self.report_log("WARN", message)
+        self.report_log("WARN", message, phase=phase, category=category)
 
-    def log_error(self, message: str):
+    def log_error(self, message: str, phase: str = "", category: str = ""):
         """快捷方法：记录ERROR日志"""
-        self.report_log("ERROR", message)
+        self.report_log("ERROR", message, phase=phase, category=category)
 
-    def submit_report(self, title: str, source: str, url: str, variety: str = "", report_type: str = "", content: str = "", publish_time: str = ""):
+    def submit_report(self, title: str, source: str, url: str, variety: str = "", report_type: str = "", content: str = "", content_html: str = "", publish_time: str = ""):
         """
         快捷方法：提交报告数据
 
@@ -399,6 +452,7 @@ class CollectorReporter:
             variety: 品种
             report_type: 报告类型
             content: 正文内容
+            content_html: 正文HTML（保留格式）
             publish_time: 发布时间
         """
         data = {
@@ -408,6 +462,7 @@ class CollectorReporter:
             "variety": variety,
             "reportType": report_type,
             "content": content,
+            "contentHtml": content_html,
             "publishTime": publish_time,
         }
         self.report_data(data)

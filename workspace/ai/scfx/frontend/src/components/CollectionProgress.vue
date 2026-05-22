@@ -1,4 +1,3 @@
-<!-- frontend/src/components/CollectionProgress.vue -->
 <template>
   <el-drawer v-model="drawerVisible" title="执行进度" size="500px" direction="rtl">
     <div class="progress-info">
@@ -8,25 +7,33 @@
         <el-progress :percentage="progressPercent" style="flex: 1; margin-left: 16px;" />
       </div>
 
-      <div class="stats">
-        <div class="stat-item">
-          <span class="label">已处理</span>
-          <span class="value">{{ processedCount }}</span>
+      <!-- 实时统计 -->
+      <div v-if="hasStats" class="realtime-stats">
+        <div class="stat-row">
+          <span class="stat-item">总处理 <strong>{{ stats.total }}</strong></span>
+          <span class="stat-item success">成功 <strong>{{ stats.success }}</strong></span>
+          <span class="stat-item skip">去重 <strong>{{ stats.skip }}</strong></span>
+          <span class="stat-item error">失败 <strong>{{ stats.error }}</strong></span>
         </div>
-        <div class="stat-item">
-          <span class="label">总数</span>
-          <span class="value">{{ totalCount }}</span>
-        </div>
+      </div>
+
+      <!-- 阶段耗时 -->
+      <div v-if="hasPhases" class="phase-summary">
+        <span v-if="execution?.phaseLoginMs" class="phase-tag login">登录 {{ fmt(execution.phaseLoginMs) }}</span>
+        <span v-if="execution?.phaseCrawlMs" class="phase-tag crawl">抓取 {{ fmt(execution.phaseCrawlMs) }}</span>
+        <span v-if="execution?.phaseParseMs" class="phase-tag parse">解析 {{ fmt(execution.phaseParseMs) }}</span>
+        <span v-if="execution?.phaseReportMs" class="phase-tag report">上报 {{ fmt(execution.phaseReportMs) }}</span>
       </div>
     </div>
 
+    <!-- 日志 -->
     <div class="log-section">
       <ExecutionLogViewer :executionId="executionId" :logs="logs" />
     </div>
 
     <template #footer>
       <el-button @click="drawerVisible = false">关闭</el-button>
-      <el-button type="danger" @click="handleCancel" :disabled="execution?.status === 'success' || execution?.status === 'failed'">取消执行</el-button>
+      <el-button type="danger" @click="handleCancel" :disabled="isTerminal">取消执行</el-button>
     </template>
   </el-drawer>
 </template>
@@ -41,9 +48,27 @@ const executionId = ref('')
 const execution = ref<TaskExecution | null>(null)
 const logs = ref<ExecutionLog[]>([])
 
-const processedCount = computed(() => (execution.value as any)?.processedCount || 0)
-const totalCount = computed(() => (execution.value as any)?.totalCount || 0)
+const hasStats = computed(() =>
+  execution.value?.totalCount != null && execution.value!.totalCount! > 0
+)
+const hasPhases = computed(() =>
+  execution.value?.phaseLoginMs || execution.value?.phaseCrawlMs ||
+  execution.value?.phaseParseMs || execution.value?.phaseReportMs
+)
+const isTerminal = computed(() => {
+  const s = (execution.value as any)?.status
+  return s === 'success' || s === 'failed' || s === 'cancelled'
+})
 
+const stats = computed(() => ({
+  total: (execution.value as any)?.totalCount ?? 0,
+  success: (execution.value as any)?.successCount ?? 0,
+  skip: (execution.value as any)?.skipCount ?? 0,
+  error: (execution.value as any)?.errorCount ?? 0,
+}))
+
+const processedCount = computed(() => stats.value.success + stats.value.error)
+const totalCount = computed(() => (execution.value as any)?.totalCount || 0)
 const progressPercent = computed(() => {
   const total = totalCount.value
   if (!total) return 0
@@ -51,37 +76,25 @@ const progressPercent = computed(() => {
 })
 
 const statusType = computed(() => {
-  const map: Record<string, string> = {
-    pending: 'info',
-    running: 'primary',
-    success: 'success',
-    failed: 'danger',
-    cancelled: 'warning'
-  }
-  const status = (execution.value as any)?.status || 'pending'
-  return map[status] || 'info'
+  const map: Record<string, string> = { pending: 'info', running: 'primary', success: 'success', failed: 'danger', cancelled: 'warning' }
+  return map[(execution.value as any)?.status || 'pending'] || 'info'
+})
+const statusText = computed(() => {
+  const map: Record<string, string> = { pending: '等待中', running: '执行中', success: '已完成', failed: '失败', cancelled: '已取消' }
+  return map[(execution.value as any)?.status || 'pending'] || '等待中'
 })
 
-const statusText = computed(() => {
-  const map: Record<string, string> = {
-    pending: '等待中',
-    running: '执行中',
-    success: '已完成',
-    failed: '失败',
-    cancelled: '已取消'
-  }
-  const status = (execution.value as any)?.status || 'pending'
-  return map[status] || status || '等待中'
-})
+function fmt(ms: number) {
+  if (!ms) return ''
+  return ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${ms}ms`
+}
 
 async function loadExecution() {
   if (!executionId.value) return
   try {
     const res: any = await executionApi.get(executionId.value)
     execution.value = res.data || {}
-  } catch (error) {
-    console.error('加载执行状态失败', error)
-  }
+  } catch (e) { console.error('加载执行状态失败', e) }
 }
 
 async function loadLogs() {
@@ -89,92 +102,53 @@ async function loadLogs() {
   try {
     const res: any = await executionApi.logs(executionId.value)
     logs.value = res.data || []
-  } catch (error) {
-    console.error('加载执行日志失败', error)
-  }
+  } catch (e) { console.error('加载执行日志失败', e) }
 }
 
 async function handleCancel() {
   try {
     await executionApi.cancel(executionId.value)
     drawerVisible.value = false
-  } catch (error) {
-    console.error('取消执行失败', error)
-  }
+  } catch (e) { console.error('取消执行失败', e) }
 }
 
-// 定时刷新
 let timer: number | null = null
-
 function startPolling() {
-  loadExecution()
-  loadLogs()
-  timer = window.setInterval(() => {
-    loadExecution()
-    loadLogs()
-  }, 3000)
+  loadExecution(); loadLogs()
+  timer = window.setInterval(() => { loadExecution(); loadLogs() }, 3000)
 }
-
 function stopPolling() {
-  if (timer) {
-    clearInterval(timer)
-    timer = null
-  }
+  if (timer) { clearInterval(timer); timer = null }
 }
+watch(drawerVisible, (val) => { val ? startPolling() : stopPolling() })
+onUnmounted(() => stopPolling())
 
-watch(drawerVisible, (val) => {
-  if (val) {
-    startPolling()
-  } else {
-    stopPolling()
-  }
-})
-
-onUnmounted(() => {
-  stopPolling()
-})
-
-// 暴露 open 方法供外部调用
-function open(id: string) {
-  executionId.value = id
-  drawerVisible.value = true
-}
-
+function open(id: string) { executionId.value = id; drawerVisible.value = true }
 defineExpose({ open })
 </script>
 
 <style scoped>
-.progress-info {
-  padding: 16px;
+.progress-info { padding: 16px; }
+.execution-id { color: #666; margin-bottom: 16px; font-size: 13px; }
+.status-row { display: flex; align-items: center; margin-bottom: 20px; }
+
+.realtime-stats { margin-bottom: 12px; }
+.stat-row { display: flex; gap: 16px; font-size: 13px; }
+.stat-item { color: #606266; }
+.stat-item strong { font-size: 16px; margin-left: 4px; }
+.stat-item.success strong { color: #67c23a; }
+.stat-item.skip strong { color: #e6a23c; }
+.stat-item.error strong { color: #f56c6c; }
+
+.phase-summary { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.phase-tag {
+  font-size: 11px; padding: 2px 8px; border-radius: 4px;
+  background: #f0f2f5; color: #606266;
 }
-.execution-id {
-  color: #666;
-  margin-bottom: 16px;
-  font-size: 13px;
-}
-.status-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 20px;
-}
-.stats {
-  display: flex;
-  gap: 32px;
-}
-.stat-item {
-  display: flex;
-  flex-direction: column;
-}
-.stat-item .label {
-  font-size: 12px;
-  color: #999;
-}
-.stat-item .value {
-  font-size: 24px;
-  font-weight: bold;
-}
-.log-section {
-  padding: 16px;
-  border-top: 1px solid #eee;
-}
+.phase-tag.login { border-left: 3px solid #58a6ff; }
+.phase-tag.crawl { border-left: 3px solid #3fb950; }
+.phase-tag.parse { border-left: 3px solid #d29922; }
+.phase-tag.report { border-left: 3px solid #a371f7; }
+
+.log-section { padding: 16px; border-top: 1px solid #eee; }
 </style>

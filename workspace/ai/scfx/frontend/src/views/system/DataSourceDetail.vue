@@ -25,7 +25,6 @@
             <el-descriptions-item label="标识">{{ dataSource.code }}</el-descriptions-item>
             <el-descriptions-item label="名称">{{ dataSource.name }}</el-descriptions-item>
             <el-descriptions-item label="描述" :span="2">{{ dataSource.description || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="认证方式">{{ getAuthTypeText(dataSource.authType) }}</el-descriptions-item>
             <el-descriptions-item label="状态">
               <el-tag :type="dataSource.enabled === 1 ? 'success' : 'danger'" size="small">
                 {{ dataSource.enabled === 1 ? '启用' : '禁用' }}
@@ -150,18 +149,6 @@
         <el-form-item label="描述" prop="description">
           <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="数据源描述" />
         </el-form-item>
-        <el-form-item label="登录URL" prop="loginUrl">
-          <el-input v-model="editForm.loginUrl" placeholder="登录页面URL" />
-        </el-form-item>
-        <el-form-item label="认证方式" prop="authType">
-          <el-select v-model="editForm.authType" placeholder="选择认证方式" style="width: 100%;">
-            <el-option label="无认证" value="none" />
-            <el-option label="Cookie认证" value="cookie" />
-            <el-option label="登录表单" value="form" />
-            <el-option label="OAuth" value="oauth" />
-            <el-option label="API密钥" value="apikey" />
-          </el-select>
-        </el-form-item>
         <el-form-item label="启用" prop="enabled">
           <el-switch v-model="editForm.enabled" />
         </el-form-item>
@@ -224,8 +211,6 @@ const formRef = ref<FormInstance>()
 const editForm = reactive({
   name: '',
   description: '',
-  loginUrl: '',
-  authType: 'none',
   enabled: true
 })
 
@@ -233,19 +218,6 @@ const editForm = reactive({
 const scriptDialogVisible = ref(false)
 const currentVersion = ref<ScriptVersion | null>(null)
 const scriptContent = ref('')
-
-// Auth type mapping
-const authTypeMap: Record<string, string> = {
-  none: '无认证',
-  cookie: 'Cookie认证',
-  form: '登录表单',
-  oauth: 'OAuth',
-  apikey: 'API密钥'
-}
-
-function getAuthTypeText(type?: string): string {
-  return authTypeMap[type || 'none'] || type || '无认证'
-}
 
 // Computed
 const totalExecutions = computed(() => {
@@ -356,8 +328,6 @@ function openEditDialog() {
   if (!dataSource.value) return
   editForm.name = dataSource.value.name
   editForm.description = dataSource.value.description || ''
-  editForm.loginUrl = dataSource.value.loginUrl || ''
-  editForm.authType = dataSource.value.authType || 'none'
   editForm.enabled = dataSource.value.enabled === 1
   editDialogVisible.value = true
 }
@@ -373,8 +343,6 @@ async function handleSaveEdit() {
       const data: Partial<DataSource> = {
         name: editForm.name,
         description: editForm.description,
-        loginUrl: editForm.loginUrl,
-        authType: editForm.authType,
         enabled: editForm.enabled ? 1 : 0
       }
 

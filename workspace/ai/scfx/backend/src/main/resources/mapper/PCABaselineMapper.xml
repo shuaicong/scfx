@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scfx.mapper.PCABaselineMapper">
+    <resultMap id="BaseResultMap" type="com.scfx.entity.PCABaseline">
+        <id column="category_id" property="categoryId"/>
+        <result column="last_viz_id" property="lastVizId"/>
+        <result column="vector_count" property="vectorCount"/>
+        <result column="mean_vector" property="meanVector" typeHandler="com.scfx.handler.FloatArrayTypeHandler"/>
+        <result column="pc1" property="pc1" typeHandler="com.scfx.handler.FloatArrayTypeHandler"/>
+        <result column="pc2" property="pc2" typeHandler="com.scfx.handler.FloatArrayTypeHandler"/>
+        <result column="x_min" property="xMin"/>
+        <result column="x_max" property="xMax"/>
+        <result column="y_min" property="yMin"/>
+        <result column="y_max" property="yMax"/>
+        <result column="version" property="version"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+</mapper>

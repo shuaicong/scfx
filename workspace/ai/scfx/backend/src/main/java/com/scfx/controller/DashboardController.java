@@ -1,10 +1,12 @@
 package com.scfx.controller;
 
 import com.scfx.common.Result;
+import com.scfx.entity.KnowledgeBase;
 import com.scfx.service.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -16,11 +18,10 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DashboardController {
 
-    private final CollectionTaskService taskService;
+    private final CollectionScriptService scriptService;
     private final CollectionLogService logService;
     private final AlertService alertService;
-    private final ReportService reportService;
-    private final LiangxinwangCollector collector;
+    private final KnowledgeBaseService knowledgeBaseService;
 
     /**
      * 获取仪表板数据
@@ -31,14 +32,17 @@ public class DashboardController {
 
         // 系统状态
         Map<String, Object> systemStatus = new HashMap<>();
-        systemStatus.put("runningTasks", taskService.getRunningTaskCount());
-        systemStatus.put("todaySuccess", taskService.getTodaySuccessCount());
-        systemStatus.put("todayFailed", taskService.getTodayFailedCount());
-        systemStatus.put("todayReports", reportService.getTodayReportCount());
+        systemStatus.put("runningTasks", scriptService.getAllScripts().stream().filter(s -> "enabled".equals(s.getStatus())).count());
+        systemStatus.put("todaySuccess", scriptService.getTodaySuccessCount());
+        systemStatus.put("todayFailed", scriptService.getTodayFailedCount());
+        systemStatus.put("todayReports", knowledgeBaseService.count(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<KnowledgeBase>()
+                .ge(KnowledgeBase::getCreatedAt, LocalDateTime.now().withHour(0).withMinute(0).withSecond(0))
+        ));
 
         // 计算成功率
-        long success = taskService.getTodaySuccessCount();
-        long failed = taskService.getTodayFailedCount();
+        long success = scriptService.getTodaySuccessCount();
+        long failed = scriptService.getTodayFailedCount();
         long total = success + failed;
         double successRate = total > 0 ? (double) success / total * 100 : 100.0;
         systemStatus.put("successRate", Math.round(successRate * 100.0) / 100.0);
@@ -47,7 +51,7 @@ public class DashboardController {
         data.put("systemStatus", systemStatus);
 
         // 各数据源统计
-        data.put("sourceStats", taskService.getSourceStats());
+        data.put("sourceStats", scriptService.getSourceStats());
 
         // 最近日志
         data.put("recentLogs", logService.getRecentLogs(10));
@@ -65,14 +69,17 @@ public class DashboardController {
     public Result<Map<String, Object>> getStatistics(@RequestParam(defaultValue = "today") String period) {
         Map<String, Object> stats = new HashMap<>();
 
-        stats.put("totalTasks", taskService.getAllTasks().size());
-        stats.put("runningTasks", taskService.getRunningTaskCount());
-        stats.put("todaySuccess", taskService.getTodaySuccessCount());
-        stats.put("todayFailed", taskService.getTodayFailedCount());
-        stats.put("todayReports", reportService.getTodayReportCount());
+        stats.put("totalTasks", scriptService.getAllScripts().size());
+        stats.put("runningTasks", scriptService.getAllScripts().stream().filter(s -> "enabled".equals(s.getStatus())).count());
+        stats.put("todaySuccess", scriptService.getTodaySuccessCount());
+        stats.put("todayFailed", scriptService.getTodayFailedCount());
+        stats.put("todayReports", knowledgeBaseService.count(
+            new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<KnowledgeBase>()
+                .ge(KnowledgeBase::getCreatedAt, LocalDateTime.now().withHour(0).withMinute(0).withSecond(0))
+        ));
 
-        long success = taskService.getTodaySuccessCount();
-        long failed = taskService.getTodayFailedCount();
+        long success = scriptService.getTodaySuccessCount();
+        long failed = scriptService.getTodayFailedCount();
         long total = success + failed;
         double successRate = total > 0 ? (double) success / total * 100 : 100.0;
         stats.put("successRate", Math.round(successRate * 100.0) / 100.0);
@@ -81,20 +88,5 @@ public class DashboardController {
         stats.put("logStats", logService.getLogStats().getData());
 
         return Result.success(stats);
-    }
-
-    /**
-     * 手动触发采集
-     */
-    @PostMapping("/collect")
-    public Result<Map<String, Object>> triggerCollection() {
-        // 在新线程中执行采集，避免阻塞请求
-        new Thread(() -> {
-            collector.collectTodayCornReports();
-        }).start();
-
-        Map<String, Object> response = new HashMap<>();
-        response.put("message", "采集任务已启动，请稍后查看日志");
-        return Result.success(response);
     }
 }

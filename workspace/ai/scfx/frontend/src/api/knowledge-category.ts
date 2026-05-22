@@ -21,4 +21,8 @@ export const knowledgeCategoryApi = {
   // 批量移动知识到指定分类
   batchMove: (knowledgeIds: number[], targetCategoryId: number, operator?: string) =>
     request.post('/knowledge/batch/move', { knowledgeIds, targetCategoryId, operator }),
+
+  // 获取分类下的知识数量
+  getCountByCategory: (categoryId: number) =>
+    request.get<{ data: { count: number } }>(`/knowledge/category/${categoryId}/count`),
 }

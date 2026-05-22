@@ -14,10 +14,6 @@
             </span>
           </div>
         </div>
-        <el-button type="primary" class="collect-btn" @click="handleCollect(source.sourceName)">
-          <el-icon class="btn-icon"><Refresh /></el-icon>
-          立即采集
-        </el-button>
       </div>
 
       <el-row :gutter="20" class="stat-row">
@@ -226,9 +222,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getDashboard, collectLiangxinwang } from '@/api/dashboard'
+import { getDashboard } from '@/api/dashboard'
 import {
-  Connection, Refresh, SuccessFilled, CircleCloseFilled, Document, Clock,
+  Connection, SuccessFilled, CircleCloseFilled, Document, Clock,
   Tickets, WarningFilled, CloseBold, InfoFilled, Grid, List, Setting, Aim,
   CaretTop, CaretBottom
 } from '@element-plus/icons-vue'
@@ -248,16 +244,6 @@ const loadDashboard = async () => {
     }
   } catch (error) {
     console.error('加载仪表板数据失败', error)
-  }
-}
-
-const handleCollect = async (sourceName: string) => {
-  try {
-    await collectLiangxinwang()
-    ElMessage.success('采集任务已启动')
-    setTimeout(loadDashboard, 3000)
-  } catch (error) {
-    ElMessage.error('启动采集失败')
   }
 }
 

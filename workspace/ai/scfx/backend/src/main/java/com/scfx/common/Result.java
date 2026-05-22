@@ -42,4 +42,8 @@ public class Result<T> {
     public static <T> Result<T> error(Integer code, String message) {
         return new Result<>(code, message, null);
     }
+
+    public static <T> Result<T> sameContent() {
+        return new Result<>(409, "文件内容与最新版本相同，无需重复上传", null);
+    }
 }

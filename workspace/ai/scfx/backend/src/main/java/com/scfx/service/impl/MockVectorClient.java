@@ -14,7 +14,7 @@ import java.util.Random;
 @ConditionalOnProperty(name = "vector.enabled", havingValue = "false", matchIfMissing = true)
 public class MockVectorClient implements VectorClient {
 
-    private static final int DEFAULT_DIMENSIONS = 1536;
+    private static final int DEFAULT_DIMENSIONS = 1024;
 
     @Override
     public VectorResult embed(String text) {

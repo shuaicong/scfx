@@ -44,12 +44,44 @@ public class TaskExecution {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    /** 采集数量 */
+    /** 采集数量（兼容旧字段） */
     private Integer collectedCount;
 
-    /** 脚本版本号 */
-    private Integer scriptVersion;
+    // ========== 执行统计 ==========
 
-    /** 脚本MD5 */
-    private String scriptMd5;
+    /** 总处理数 */
+    private Integer totalCount;
+
+    /** 成功数 */
+    private Integer successCount;
+
+    /** 去重跳过数 */
+    private Integer skipCount;
+
+    /** 失败数 */
+    private Integer errorCount;
+
+    /** 数据量（MB） */
+    private java.math.BigDecimal dataSizeMb;
+
+    // ========== 阶段耗时（毫秒） ==========
+
+    /** 登录阶段耗时 */
+    private Long phaseLoginMs;
+
+    /** 抓取阶段耗时 */
+    private Long phaseCrawlMs;
+
+    /** 解析阶段耗时 */
+    private Long phaseParseMs;
+
+    /** 上报阶段耗时 */
+    private Long phaseReportMs;
+
+    /** 执行详情 JSON */
+    private String detailJson;
+
+    /** 版本号（非数据库字段，由服务层查询时填充） */
+    @TableField(exist = false)
+    private Integer versionNum;
 }

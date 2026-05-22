@@ -41,11 +41,6 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="authType" label="认证方式" width="120" align="center">
-        <template #default="{ row }">
-          {{ getAuthTypeText(row.authType) }}
-        </template>
-      </el-table-column>
       <el-table-column prop="hasScript" label="脚本" width="80" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.hasScript" type="success" size="small">已上传</el-tag>
@@ -95,18 +90,6 @@
         </el-form-item>
         <el-form-item label="描述" prop="description">
           <el-input v-model="form.description" type="textarea" :rows="3" placeholder="数据源描述" />
-        </el-form-item>
-        <el-form-item label="登录URL" prop="loginUrl">
-          <el-input v-model="form.loginUrl" placeholder="登录页面URL" />
-        </el-form-item>
-        <el-form-item label="认证方式" prop="authType">
-          <el-select v-model="form.authType" placeholder="选择认证方式" style="width: 100%;">
-            <el-option label="无认证" value="none" />
-            <el-option label="Cookie认证" value="cookie" />
-            <el-option label="登录表单" value="form" />
-            <el-option label="OAuth" value="oauth" />
-            <el-option label="API密钥" value="apikey" />
-          </el-select>
         </el-form-item>
         <el-form-item label="启用" prop="enabled">
           <el-switch v-model="form.enabled" />
@@ -202,8 +185,6 @@ const form = reactive({
   code: '',
   name: '',
   description: '',
-  loginUrl: '',
-  authType: 'none',
   enabled: true
 })
 
@@ -215,9 +196,6 @@ const formRules: FormRules = {
   ],
   name: [
     { required: true, message: '请输入名称', trigger: 'blur' }
-  ],
-  authType: [
-    { required: true, message: '请选择认证方式', trigger: 'change' }
   ]
 }
 
@@ -231,19 +209,6 @@ const uploadFile = ref<File | null>(null)
 // Script view dialog state
 const scriptDialogVisible = ref(false)
 const scriptContent = ref('')
-
-// Auth type mapping
-const authTypeMap: Record<string, string> = {
-  none: '无认证',
-  cookie: 'Cookie认证',
-  form: '登录表单',
-  oauth: 'OAuth',
-  apikey: 'API密钥'
-}
-
-function getAuthTypeText(type?: string): string {
-  return authTypeMap[type || 'none'] || type || '无认证'
-}
 
 // Load data
 async function loadData() {
@@ -298,8 +263,6 @@ function openEditDialog(row: DataSource) {
   form.code = row.code
   form.name = row.name
   form.description = row.description || ''
-  form.loginUrl = row.loginUrl || ''
-  form.authType = row.authType || 'none'
   form.enabled = row.enabled === 1
   formDialogVisible.value = true
 }
@@ -309,8 +272,6 @@ function resetForm() {
   form.code = ''
   form.name = ''
   form.description = ''
-  form.loginUrl = ''
-  form.authType = 'none'
   form.enabled = true
   formRef.value?.resetFields()
 }
@@ -328,8 +289,6 @@ async function handleSubmit() {
         code: form.code,
         name: form.name,
         description: form.description,
-        loginUrl: form.loginUrl,
-        authType: form.authType,
         enabled: form.enabled ? 1 : 0
       }
 
@@ -394,9 +353,15 @@ async function handleUpload() {
     ElMessage.success('脚本上传成功')
     uploadDialogVisible.value = false
     loadData()
-  } catch (e) {
+  } catch (e: any) {
     console.error('上传失败', e)
-    ElMessage.error('上传失败')
+    // 文件内容相同不是错误，是业务逻辑提示 (409)
+    const errorMsg = e.message || ''
+    if (errorMsg.includes('文件内容与最新版本相同') || errorMsg.includes('409')) {
+      ElMessage.info('文件内容与最新版本相同，无需重复上传')
+    } else {
+      ElMessage.error('上传失败')
+    }
   } finally {
     uploading.value = false
   }

@@ -75,6 +75,10 @@ public class DataSourceController {
                 operator
             );
 
+            if (version == null) {
+                return Result.sameContent();
+            }
+
             return Result.success(Map.of(
                 "code", version.getDatasourceCode(),
                 "version", version.getVersion(),
@@ -102,5 +106,10 @@ public class DataSourceController {
     public Result<Map<String, Boolean>> checkScriptExists(@PathVariable String code) {
         boolean exists = scriptVersionService.scriptExists(code);
         return Result.success(Map.of("exists", exists));
+    }
+
+    @GetMapping("/{code}/versions")
+    public Result<List<CollectorScriptVersion>> getVersions(@PathVariable String code) {
+        return Result.success(scriptVersionService.getVersions(code));
     }
 }

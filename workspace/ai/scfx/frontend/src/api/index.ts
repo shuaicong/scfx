@@ -3,13 +3,29 @@ import { ElMessage } from 'element-plus'
 
 const request = axios.create({
   baseURL: '/api',
-  timeout: 30000
+  timeout: 30000,
+  paramsSerializer: (params) => {
+    const searchParams = new URLSearchParams()
+    Object.keys(params).forEach(key => {
+      const value = params[key]
+      if (value === undefined || value === null || value === '') return
+      if (Array.isArray(value)) {
+        value.forEach(v => searchParams.append(key, v))
+      } else {
+        searchParams.append(key, String(value))
+      }
+    })
+    return searchParams.toString()
+  }
 })
 
 request.interceptors.request.use(
   config => {
     config.headers['Accept'] = 'application/json; charset=utf-8'
-    config.headers['Content-Type'] = 'application/json; charset=utf-8'
+    // Don't set Content-Type for FormData - browser will set correct multipart/form-data with boundary
+    if (!(config.data instanceof FormData)) {
+      config.headers['Content-Type'] = 'application/json; charset=utf-8'
+    }
     return config
   },
   error => {
@@ -21,6 +37,10 @@ request.interceptors.response.use(
   response => {
     const res = response.data
     if (res.code !== 200) {
+      // 409 业务提示不弹错误，让调用方处理
+      if (res.code === 409) {
+        return Promise.reject(new Error(res.message || '文件内容与最新版本相同'))
+      }
       ElMessage.error(res.message || '请求失败')
       return Promise.reject(new Error(res.message || '请求失败'))
     }
@@ -129,6 +149,15 @@ export interface CollectionScript {
   endType?: 'never' | 'date' | 'count'
   repeatCount?: number
   currentVersion?: number
+
+  /** 最近执行状态（由服务端查询时填充） */
+  lastExecutionStatus?: 'success' | 'failed' | 'running' | 'pending' | null
+
+  /** 是否同步到知识库 */
+  syncToKnowledgeBase?: boolean
+
+  /** 关联分类ID */
+  categoryId?: number
 }
 
 export interface ScriptStats {
@@ -150,9 +179,21 @@ export const scriptApi = {
   getContent: (id: number) =>
     request.get<{ data: string }>(`/scripts/${id}/content`),
 
-  // 创建脚本（简化版）
-  create: (scriptName: string, description: string, scriptContent: string) =>
-    request.post<{ data: CollectionScript }>('/scripts', { scriptName, description, scriptContent }),
+  // 创建脚本
+  create: (data: {
+    scriptName: string
+    description?: string
+    source?: string
+    triggerType?: string
+    cronExpression?: string
+    startTime?: string
+    endTime?: string
+    endType?: string | null
+    repeatCount?: number | null
+    syncToKnowledgeBase?: boolean
+    categoryId?: number | null
+  }) =>
+    request.post<{ data: CollectionScript }>('/scripts', data),
 
   // 上传脚本文件
   upload: (scriptName: string, description: string, file: File) => {
@@ -209,6 +250,7 @@ export interface TaskExecution {
   executionId: string
   scriptId: number
   versionId?: number
+  versionNum?: number
   triggerType: 'manual' | 'scheduled' | 'api'
   status: 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
   startTime?: string
@@ -216,6 +258,16 @@ export interface TaskExecution {
   durationMs?: number
   errorMessage?: string
   createdAt?: string
+  collectedCount?: number
+  totalCount?: number
+  successCount?: number
+  skipCount?: number
+  errorCount?: number
+  dataSizeMb?: number
+  phaseLoginMs?: number
+  phaseCrawlMs?: number
+  phaseParseMs?: number
+  phaseReportMs?: number
 }
 
 export interface ExecutionLog {
@@ -225,72 +277,14 @@ export interface ExecutionLog {
   level: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR'
   message: string
   timestamp: string
+  phase?: 'login' | 'crawl' | 'parse' | 'report' | 'system'
+  category?: 'progress' | 'data' | 'error' | 'metric' | 'checkpoint'
+  elapsedMs?: number
 }
 
-export const executionApi = {
-  execute: (scriptId: number) =>
-    request.post<{ executionId: string }>(`/scripts/${scriptId}/execute`),
-
-  list: (scriptId: number, params: { page?: number; size?: number }) =>
-    request.get<any>(`/scripts/${scriptId}/executions`, { params }),
-
-  get: (executionId: string) =>
-    request.get<TaskExecution>(`/scripts/executions/${executionId}`),
-
-  cancel: (executionId: string) =>
-    request.post(`/scripts/executions/${executionId}/cancel`),
-
-  logs: (executionId: string) =>
-    request.get<ExecutionLog[]>(`/scripts/executions/${executionId}/logs`),
-}
-
-// ==================== 版本管理 API ====================
-
-export interface ScriptVersion {
-  id?: number
-  scriptId: number
-  versionNum: number
-  scriptName?: string
-  scriptContent?: string
-  triggerType?: string
-  repeatType?: string
-  repeatTime?: string
-  weeklyDays?: string
-  monthlyDay?: number
-  monthlyLastDay?: boolean
-  cronExpression?: string
-  endType?: string
-  endTime?: string
-  repeatCount?: number
-  changeDescription: string
-  createdBy?: string
-  createdAt?: string
-  isCurrent?: boolean
-  executionCount?: number
-  successCount?: number
-  failedCount?: number
-}
-
-export const versionApi = {
-  list: (scriptId: number) =>
-    request.get<ScriptVersion[]>(`/scripts/${scriptId}/versions`),
-
-  get: (scriptId: number, versionId: number) =>
-    request.get<ScriptVersion>(`/scripts/${scriptId}/versions/${versionId}`),
-
-  restore: (scriptId: number, versionId: number, changeDescription: string) =>
-    request.post<CollectionScript>(
-      `/scripts/${scriptId}/versions/${versionId}/restore`,
-      null,
-      { params: { changeDescription } }
-    ),
-
-  compare: (scriptId: number, versionId1: number, versionId2: number) =>
-    request.get<{ v1: ScriptVersion; v2: ScriptVersion }>(
-      `/scripts/${scriptId}/versions/compare`,
-      { params: { versionId1, versionId2 } }
-    ),
-}
+// Re-export executionApi from execution module
+export { executionApi } from './execution'
+export type { ExecutionDetail, ExecutionItem, LogEntry, LogsResponse } from './execution'
 
 // ==================== Cron 校验 API ====================
 

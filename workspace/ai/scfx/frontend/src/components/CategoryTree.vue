@@ -241,27 +241,6 @@ const presetColors = [
 ]
 
 // ============================================
-// 11.5 未分类快捷入口
-// ============================================
-const uncategorizedCount = ref(0)
-const loadUncategorizedCount = async () => {
-  try {
-    // 调用 API 获取未分类知识数量
-    // GET /api/knowledge/uncategorized-count
-    const res = await knowledgeApi.getUncategorizedCount()
-    uncategorizedCount.value = res.data?.data?.count || 0
-  } catch (e) {
-    console.error('Failed to load uncategorized count:', e)
-    uncategorizedCount.value = 0
-  }
-}
-
-const goToUncategorized = () => {
-  // 触发事件通知父组件跳转未分类
-  emit('select', { id: -1, name: '未分类' } as Category)
-}
-
-// ============================================
 // 11.1 向量化状态可见
 // ============================================
 interface VectorizeStatus {
@@ -1269,7 +1248,6 @@ onMounted(() => {
   loadTree()
   loadExpandedState()
   loadFavorites()
-  loadUncategorizedCount()
   loadAllVectorizeStatuses()
   checkNotifications()
   document.addEventListener('click', hideContextMenu)
@@ -1408,13 +1386,6 @@ defineExpose({ loadTree })
         <span class="pinned-name">{{ cat.name }}</span>
         <button class="pin-btn pinned" @click.stop="togglePin(cat)" title="取消置顶">📌</button>
       </div>
-    </div>
-
-    <!-- 11.5 未分类快捷入口 -->
-    <div class="uncategorized-section" @click="goToUncategorized">
-      <span class="uncategorized-icon">📌</span>
-      <span class="uncategorized-label">未分类</span>
-      <span v-if="uncategorizedCount > 0" class="uncategorized-count">{{ uncategorizedCount }}条</span>
     </div>
 
     <!-- Favorite categories -->
@@ -3064,41 +3035,6 @@ defineExpose({ loadTree })
   margin-bottom: 8px;
 }
 
-/* 11.5 未分类快捷入口样式 */
-.uncategorized-section {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  margin: 4px 8px;
-  background: var(--bg-tertiary);
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-  font-size: 12px;
-}
-
-.uncategorized-section:hover {
-  background: var(--bg-hover);
-}
-
-.uncategorized-icon {
-  font-size: 14px;
-}
-
-.uncategorized-label {
-  flex: 1;
-  font-weight: 400;
-  color: var(--text-primary);
-}
-
-.uncategorized-count {
-  font-size: 10px;
-  color: var(--text-muted);
-  background: var(--bg-tertiary);
-  padding: 1px 6px;
-  border-radius: 10px;
-}
 
 /* 11.1 向量化徽章样式 */
 .vectorize-badge {

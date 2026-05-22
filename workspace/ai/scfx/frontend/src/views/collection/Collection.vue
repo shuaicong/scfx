@@ -40,10 +40,6 @@
                   <el-icon><Plus /></el-icon>
                   新建任务
                 </el-button>
-                <el-button type="primary" @click="handleCollect" :loading="collecting">
-                  <el-icon><Refresh /></el-icon>
-                  立即采集
-                </el-button>
               </div>
             </div>
           </template>
@@ -60,9 +56,9 @@
                 <el-tag :type="getStatusType(row.status)">{{ getStatusText(row.status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="lastExecutionTime" label="最后执行" width="160">
+            <el-table-column prop="lastExecutionTime" label="最后执行" width="140">
               <template #default="{ row }">
-                {{ row.lastExecutionTime ? row.lastExecutionTime.substring(0, 19) : '-' }}
+                {{ row.lastExecutionTime ? formatDateTime(row.lastExecutionTime) : '-' }}
               </template>
             </el-table-column>
             <el-table-column prop="successCount" label="成功" width="80">
@@ -244,9 +240,9 @@
                 <el-tag :type="getVectorStatusType(row.status)">{{ row.status }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="createdAt" label="创建时间" width="160">
+            <el-table-column prop="createdAt" label="创建时间" width="140">
               <template #default="{ row }">
-                {{ row.createdAt ? row.createdAt.substring(0, 19) : '-' }}
+                {{ row.createdAt ? formatDateTime(row.createdAt) : '-' }}
               </template>
             </el-table-column>
             <el-table-column label="操作" width="180" fixed="right">
@@ -357,9 +353,9 @@
         </el-descriptions-item>
         <el-descriptions-item label="成功次数">{{ currentTask.successCount || 0 }}</el-descriptions-item>
         <el-descriptions-item label="失败次数">{{ currentTask.failedCount || 0 }}</el-descriptions-item>
-        <el-descriptions-item label="最后执行">{{ currentTask.lastExecutionTime ? currentTask.lastExecutionTime.substring(0, 19) : '-' }}</el-descriptions-item>
-        <el-descriptions-item label="下次执行">{{ currentTask.nextExecutionTime ? currentTask.nextExecutionTime.substring(0, 19) : '-' }}</el-descriptions-item>
-        <el-descriptions-item label="创建时间" :span="2">{{ currentTask.createdAt ? currentTask.createdAt.substring(0, 19) : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="最后执行">{{ currentTask.lastExecutionTime ? formatDateTime(currentTask.lastExecutionTime) : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="下次执行">{{ currentTask.nextExecutionTime ? formatDateTime(currentTask.nextExecutionTime) : '-' }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间" :span="2">{{ currentTask.createdAt ? formatDateTime(currentTask.createdAt) : '-' }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
@@ -412,7 +408,7 @@
 import { ref, reactive, onMounted, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Upload, Plus } from '@element-plus/icons-vue'
-import { getTasks, collectLiangxinwang, createTask, updateTaskStatus, deleteTask as removeTask } from '@/api/dashboard'
+import { getTasks, createTask, updateTaskStatus, deleteTask as removeTask } from '@/api/dashboard'
 import { scriptApi, executionApi, CollectionScript, type TaskExecution } from '@/api'
 import { vectorizationApi } from '@/api/vectorization'
 import CollectionProgress from '@/components/CollectionProgress.vue'
@@ -434,7 +430,6 @@ interface ScriptStats {
 }
 
 const loading = ref(false)
-const collecting = ref(false)
 const creatingTask = ref(false)
 const savingTask = ref(false)
 const createTaskDialogVisible = ref(false)
@@ -720,9 +715,12 @@ const getVectorStatusType = (status: string) => {
   return map[status] || 'info'
 }
 
-const formatTime = (time: string) => {
+const formatDateTime = (time: string) => {
   if (!time) return '-'
-  return time.substring(0, 19)
+  const d = new Date(time)
+  if (isNaN(d.getTime())) return time.substring(0, 19)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 const viewExecutionLogs = (row: TaskExecution) => {
@@ -878,7 +876,6 @@ const handleCreateTask = async () => {
   } finally {
     creatingTask.value = false
   }
-  }
 }
 
 const editScript = (row: any) => {
@@ -897,18 +894,6 @@ const handleScriptSizeChange = (size: number) => {
 const handleScriptPageChange = (page: number) => {
   scriptPagination.page = page
   loadScripts()
-}
-
-const handleCollect = async () => {
-  try {
-    collecting.value = true
-    await collectLiangxinwang()
-    ElMessage.success('采集任务已启动，请查看日志了解进度')
-  } catch (error) {
-    ElMessage.error('启动采集失败')
-  } finally {
-    collecting.value = false
-  }
 }
 
 interface TaskRow {

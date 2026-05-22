@@ -26,6 +26,7 @@ spring:
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
   type-aliases-package: com.scfx.entity
+  type-handlers-package: com.scfx.handler
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
@@ -62,6 +63,10 @@ logging:
     com.scfx: DEBUG
 
 # 自定义配置
+collector:
+  script:
+    path: ${COLLECTOR_SCRIPT_PATH:${user.home}/workspace/ai/scfx/python-collector-sdk}
+
 app:
   ai-qa-service:
     url: http://localhost:5002
@@ -70,23 +75,40 @@ app:
     expiration: 86400000
 
   collection:
-    sources:
-      liangxinwang:
-        name: 粮信网
-        enabled: true
-        username: ${LXW_USERNAME:33022}
-        password: ${LXW_PASSWORD:qlp707}
-        login-url: https://my.chinagrain.cn/jinnong/a/login
-        report-url: https://www.chinagrain.cn/report/
     cookie-dir: data/sessions
     data-dir: data/raw
 
+# PCA 降维配置
+pca:
+  max-iterations: 100           # 幂迭代最大收敛轮数
+  convergence-threshold: 1.0E-6 # 精度阈值，越小迭代越久但越精确
+  dirty-threshold: 20           # 脏数据累计条数，超过此值自动触发增量 PCA
+
+# 异步线程池配置
+async:
+  pool:
+    core-size: 2
+    max-size: 5
+    queue-capacity: 50
+
 # 向量库配置
 vector:
-  enabled: false  # true: 使用真实向量库, false: 使用 Mock
-  openai:
-    api-url: https://api.openai.com/v1/embeddings
-    api-key: your-api-key-here
-    model: text-embedding-ada-002
-    dimensions: 1536
-    timeout: 30000
+  enabled: true   # true: 使用真实向量库, false: 使用 Mock
+
+  # 硅基流动（纯文本向量化，BGE-M3，免费）
+  siliconflow:
+    api-key: sk-zsdbsodwzydxcipkgzincbbewbfqkfitbexxrudhliyesnvz
+    api-url: https://api.siliconflow.cn/v1/embeddings
+    model: BAAI/bge-m3
+    dimensions: 1024
+    connect-timeout: 5000      # 连接超时（毫秒）
+    read-timeout: 30000        # 读取超时（毫秒）
+
+  # 阿里云百炼 DashScope（多模态向量化，文本+图片）
+  dashscope:
+    api-key: sk-e0383efc6c3148f59c80c11c3624d985
+    api-url: https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding
+    model: tongyi-embedding-vision-flash-2026-03-06
+    dimensions: 768
+    connect-timeout: 5000      # 连接超时（毫秒）
+    read-timeout: 30000        # 读取超时（毫秒）

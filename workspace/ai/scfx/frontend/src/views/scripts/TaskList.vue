@@ -100,11 +100,16 @@
           <span class="filter-label">数据源</span>
           <select v-model="filters.source" class="filter-select" @change="handleFilter">
             <option value="">全部</option>
-            <option value="liangxin">粮信网</option>
-            <option value="mysteel">我的钢铁网</option>
-            <option value="chinagrain">中华粮网</option>
-            <option value="usda">USDA</option>
-            <option value="market">市场数据</option>
+            <option v-for="ds in datasourceList" :key="ds.code" :value="ds.code">{{ ds.name }}</option>
+          </select>
+        </div>
+        <div class="filter-item">
+          <span class="filter-label">分类</span>
+          <select v-model="filters.categoryId" class="filter-select" @change="handleFilter">
+            <option value="">全部</option>
+            <option v-for="cat in flatCategories" :key="cat.id" :value="cat.id">
+              {{ '　'.repeat(cat.depth) }}{{ cat.icon }} {{ cat.name }}
+            </option>
           </select>
         </div>
         <div class="filter-search">
@@ -119,11 +124,24 @@
         </div>
       </div>
 
+      <!-- Failure Alert -->
+      <el-alert
+        v-if="failedAlertVisible"
+        :title="`有 ${failedCount} 个采集任务上次执行失败，请关注`"
+        type="warning"
+        show-icon
+        :closable="true"
+        close-text="知道了"
+        @close="dismissFailedAlert"
+        class="failure-alert"
+      />
+
       <!-- Table -->
       <div class="table-container">
         <!-- Batch Actions -->
         <div class="batch-actions" :class="{ show: selectedRows.length > 0 }">
           <span class="batch-info">已选择 <span>{{ selectedRows.length }}</span> 项</span>
+          <el-button size="small" type="primary" @click="handleBatchExecute">批量执行</el-button>
           <el-button size="small" type="success" @click="handleBatchEnable">批量启用</el-button>
           <el-button size="small" type="warning" @click="handleBatchDisable">批量禁用</el-button>
           <el-button size="small" @click="handleClearSelection">取消选择</el-button>
@@ -144,9 +162,11 @@
               <th>任务名称</th>
               <th>状态</th>
               <th>数据源</th>
+              <th>分类</th>
               <th>触发方式</th>
               <th>下次执行</th>
               <th>最近执行</th>
+              <th>最近状态</th>
               <th>执行统计</th>
               <th>操作</th>
             </tr>
@@ -178,7 +198,10 @@
                 <SourceTag :source="script.source" />
               </td>
               <td>
-                <TriggerBadge :type="script.triggerType" />
+                <span class="category-cell">{{ getCategoryName(script.categoryId) }}</span>
+              </td>
+              <td>
+                <TriggerBadge :type="script.triggerType" :executed="script.triggerType === 'once' ? !!script.lastExecutionTime : undefined" />
               </td>
               <td>
                 <span class="time-value" :class="{ next: script.status === 'enabled' && script.nextExecutionTime }">
@@ -189,6 +212,11 @@
                 <span class="time-value">{{ formatTime(script.lastExecutionTime) }}</span>
               </td>
               <td>
+                <span class="status-badge" :class="execStatusClass(script.lastExecutionStatus, script.status)">
+                  {{ execStatusText(script.lastExecutionStatus, script.status) }}
+                </span>
+              </td>
+              <td>
                 <div class="stats-inline">
                   <span class="success">✓ {{ script.successCount }}</span>
                   <span class="failed">✗ {{ script.failedCount }}</span>
@@ -197,14 +225,8 @@
               <td>
                 <div class="action-buttons">
                   <button class="action-btn success" @click="handleExecute(script)">执行</button>
-                  <button
-                    v-if="taskStatuses[script.id!]?.status === 'running'"
-                    class="action-btn danger"
-                    @click="handleStop(script)"
-                  >停止</button>
+                  <button v-if="script.lastExecutionStatus === 'failed'" class="action-btn warning" @click="handleRetry(script)">重试</button>
                   <button class="action-btn primary" @click="handleDetail(script.id!)">详情</button>
-                  <button class="action-btn" @click="handleEdit(script.id!)">编辑</button>
-                  <button class="action-btn" @click="handleVersion(script.id!)">版本</button>
                   <button
                     class="action-btn"
                     :class="script.status === 'enabled' ? 'warning' : 'success'"
@@ -256,18 +278,11 @@
     <!-- 进度抽屉 -->
     <CollectionProgress ref="progressDrawer" />
 
-    <!-- 编辑抽屉 -->
-    <ScriptEditDrawer
-      v-model:visible="editDrawerVisible"
-      :script-id="editingScriptId"
-      @success="loadData"
-    />
-
     <!-- 详情弹窗 -->
     <ScriptDetailDialog
       v-model:visible="detailDialogVisible"
       :script-id="detailScriptId"
-      @edit="(script: any) => { detailDialogVisible = false; editingScriptId = script.id ?? null; editDrawerVisible = true; }"
+      @edit="(script: any) => { detailDialogVisible = false; router.push(`/scripts/${script.id}`) }"
     />
   </div>
 </template>
@@ -285,10 +300,10 @@ import StatusBadge from '@/components/StatusBadge.vue'
 import SourceTag from '@/components/SourceTag.vue'
 import TriggerBadge from '@/components/TriggerBadge.vue'
 import CollectionProgress from '@/components/CollectionProgress.vue'
-import ScriptEditDrawer from './components/ScriptEditDrawer.vue'
 import ScriptDetailDialog from './components/ScriptDetailDialog.vue'
 import { scriptApi, executionApi } from '@/api'
-import request from '@/api/index'
+import { datasourceApi } from '@/api/datasource'
+import { categoryApi, type Category } from '@/api/category'
 import type { CollectionScript } from '@/api'
 
 const router = useRouter()
@@ -298,23 +313,6 @@ const scripts = ref<CollectionScript[]>([])
 const hoveredRow = ref<number | null | undefined>(null)
 const selectedRows = ref<number[]>([])
 
-// Real-time task statuses
-interface TaskStatus {
-  scriptId: number
-  status: string
-  collectedCount: number
-  executionId: string
-  startTime: string
-  lastExecuted: string
-  lastCollectedCount: number
-}
-const taskStatuses = reactive<Record<number, TaskStatus>>({})
-let statusPollingInterval: number | null = null
-
-// 新建/编辑抽屉
-const editDrawerVisible = ref(false)
-const editingScriptId = ref<number | null>(null)
-
 // 详情弹窗
 const detailDialogVisible = ref(false)
 const detailScriptId = ref<number>(0)
@@ -322,11 +320,22 @@ const detailScriptId = ref<number>(0)
 // 进度抽屉
 const progressDrawer = ref<any>(null)
 
+// 失败通知
+const failedAlertVisible = ref(sessionStorage.getItem('dismissFailedAlert') !== 'true')
+const failedCount = computed(() =>
+  scripts.value.filter(s => s.lastExecutionStatus === 'failed').length
+)
+function dismissFailedAlert() {
+  failedAlertVisible.value = false
+  sessionStorage.setItem('dismissFailedAlert', 'true')
+}
+
 const filters = reactive({
   status: '',
   trigger: '',
   source: '',
-  keyword: ''
+  keyword: '',
+  categoryId: ''
 })
 
 const pagination = reactive({
@@ -352,19 +361,11 @@ const filteredScripts = computed(() => {
     const matchKeyword = !filters.keyword ||
       script.scriptName.toLowerCase().includes(filters.keyword.toLowerCase()) ||
       (script.description && script.description.toLowerCase().includes(filters.keyword.toLowerCase()))
-    return matchStatus && matchTrigger && matchSource && matchKeyword
+    const matchCategory = !filters.categoryId || String(script.categoryId) === filters.categoryId
+    return matchStatus && matchTrigger && matchSource && matchKeyword && matchCategory
   })
 })
 
-// Calculate stats - now done in loadData
-function calculateStats() {
-  stats.total = scripts.value.length
-  stats.enabled = scripts.value.filter(s => s.status === 'enabled').length
-  stats.disabled = scripts.value.filter(s => s.status === 'disabled').length
-  stats.todayExec = Math.floor(Math.random() * 10) // Mock data
-  stats.success = scripts.value.reduce((sum, s) => sum + (s.successCount || 0), 0)
-  stats.failed = scripts.value.reduce((sum, s) => sum + (s.failedCount || 0), 0)
-}
 
 // Paginated scripts
 const totalPages = computed(() => Math.ceil(filteredScripts.value.length / pagination.pageSize) || 1)
@@ -374,6 +375,40 @@ const paginatedScripts = computed(() => {
   const end = start + pagination.pageSize
   return filteredScripts.value.slice(start, end)
 })
+
+const datasourceList = ref<{ code: string; name: string }[]>([])
+
+const flatCategories = ref<Array<Category & { depth: number }>>([])
+
+function flattenTree(cats: Category[], depth = 0): Array<Category & { depth: number }> {
+  const result: Array<Category & { depth: number }> = []
+  for (const cat of cats) {
+    result.push({ ...cat, depth })
+    if (cat.children && cat.children.length > 0) {
+      result.push(...flattenTree(cat.children, depth + 1))
+    }
+  }
+  return result
+}
+
+async function loadCategories() {
+  try {
+    const res: any = await categoryApi.tree()
+    const tree = res.data?.data || []
+    flatCategories.value = flattenTree(tree)
+  } catch (e) {
+    console.error('加载分类列表失败', e)
+  }
+}
+
+async function loadDatasources() {
+  try {
+    const res: any = await datasourceApi.list()
+    datasourceList.value = res.data || []
+  } catch (e) {
+    console.error('加载数据源列表失败', e)
+  }
+}
 
 // Page numbers to display
 const visiblePages = computed(() => {
@@ -409,7 +444,13 @@ const isIndeterminate = computed(() => {
 // Methods
 function formatTime(time?: string): string {
   if (!time) return '--'
-  return time.substring(0, 16).replace(' ', ' ')
+  return time.substring(0, 16).replace('T', ' ')
+}
+
+function getCategoryName(categoryId: number | undefined | null): string {
+  if (!categoryId) return '--'
+  const cat = flatCategories.value.find(c => c.id === categoryId)
+  return cat ? `${cat.icon} ${cat.name}` : '--'
 }
 
 function formatNumber(num: number): string {
@@ -474,22 +515,11 @@ function handleRefresh() {
 }
 
 function handleCreate() {
-  editingScriptId.value = null
-  editDrawerVisible.value = true
-}
-
-function handleEdit(id: number) {
-  editingScriptId.value = id
-  editDrawerVisible.value = true
+  router.push('/scripts/create')
 }
 
 function handleDetail(id: number) {
-  detailScriptId.value = id
-  detailDialogVisible.value = true
-}
-
-function handleVersion(id: number) {
-  router.push(`/scripts/${id}/versions`)
+  router.push(`/scripts/${id}`)
 }
 
 function handleRecord(id: number) {
@@ -565,67 +595,19 @@ async function handleBatchDisable() {
   }
 }
 
-async function loadData() {
-  loading.value = true
+async function handleBatchExecute() {
   try {
-    const res: any = await scriptApi.list({
-      page: pagination.page,
-      size: pagination.pageSize,
-      status: filters.status || undefined,
-      source: filters.source || undefined
-    })
-    const pageData = res.data
-    scripts.value = pageData.records || []
-    // 计算统计数据
-    stats.total = scripts.value.length
-    stats.enabled = scripts.value.filter(s => s.status === 'enabled').length
-    stats.disabled = scripts.value.filter(s => s.status === 'disabled').length
-    stats.success = scripts.value.reduce((sum, s) => sum + (s.successCount || 0), 0)
-    stats.failed = scripts.value.reduce((sum, s) => sum + (s.failedCount || 0), 0)
-  } catch (e) {
-    console.error('Failed to load scripts', e)
-  } finally {
-    loading.value = false
-  }
-}
-
-// Poll task statuses every 5 seconds
-async function pollTaskStatuses() {
-  const ids = scripts.value.filter(s => s.id !== undefined).map(s => s.id!)
-  if (ids.length === 0) return
-
-  try {
-    const res: any = await request.get('/scripts/status', { params: { ids } })
-    Object.assign(taskStatuses, res.data || {})
-  } catch (e) {
-    console.error('Failed to poll task statuses', e)
-  }
-}
-
-function startStatusPolling() {
-  if (statusPollingInterval) return
-  pollTaskStatuses()
-  statusPollingInterval = window.setInterval(pollTaskStatuses, 5000)
-}
-
-function stopStatusPolling() {
-  if (statusPollingInterval) {
-    clearInterval(statusPollingInterval)
-    statusPollingInterval = null
-  }
-}
-
-async function handleStop(script: CollectionScript) {
-  const status = taskStatuses[script.id!]
-  if (!status || !status.executionId) {
-    ElMessage.warning('该任务当前未在运行')
-    return
-  }
-  try {
-    await ElMessageBox.confirm(`确定停止脚本"${script.scriptName}"的执行吗？`, '停止确认', { type: 'warning' })
-    await executionApi.cancel(status.executionId)
-    ElMessage.success('已发送停止指令')
-    pollTaskStatuses()
+    await ElMessageBox.confirm(`确定立即执行已选择的 ${selectedRows.value.length} 个脚本吗？`, '批量执行确认', { type: 'info' })
+    const idsWithDef = selectedRows.value.filter(id => id !== undefined) as number[]
+    const results = await Promise.allSettled(idsWithDef.map(id => scriptApi.execute(id)))
+    const rejected = results.filter(r => r.status === 'rejected')
+    if (rejected.length === 0) {
+      ElMessage.success(`批量执行请求已提交 (${idsWithDef.length} 个)`)
+    } else {
+      ElMessage.error(`${rejected.length} / ${idsWithDef.length} 个脚本执行失败`)
+    }
+    handleClearSelection()
+    loadData()
   } catch (e: any) {
     if (e !== 'cancel') {
       console.error(e)
@@ -633,13 +615,70 @@ async function handleStop(script: CollectionScript) {
   }
 }
 
+async function loadData() {
+  loading.value = true
+  try {
+    // 获取所有脚本（客户端分页 + 过滤），确保搜索和过滤在全量数据上生效
+    const params: any = { page: 1, size: 9999 }
+    if (filters.status) params.status = filters.status
+    if (filters.source) params.source = filters.source
+    const res: any = await scriptApi.list(params)
+    scripts.value = (res.data?.records || []).map((s: any) => {
+      // 扩展字段 lastExecutionStatus，由后端填充
+      return s
+    })
+    // 真实统计数据
+    try {
+      const statsRes: any = await scriptApi.stats()
+      const s = statsRes.data || {}
+      stats.total = s.total || 0
+      stats.enabled = s.enabled || 0
+      stats.disabled = s.disabled || 0
+    } catch (_) { /* ignore */ }
+    stats.success = scripts.value.reduce((sum: number, s: any) => sum + (s.successCount || 0), 0)
+    stats.failed = scripts.value.reduce((sum: number, s: any) => sum + (s.failedCount || 0), 0)
+  } catch (e) {
+    console.error('Failed to load scripts', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleRetry(script: CollectionScript) {
+  try {
+    await ElMessageBox.confirm(`确定重新执行"${script.scriptName}"吗？`, '重试确认', { type: 'info' })
+    const res: any = await scriptApi.execute(script.id!)
+    if (res.data?.executionId) {
+      progressDrawer.value?.open(res.data.executionId)
+    }
+    ElMessage.success('脚本已触发执行')
+  } catch (e: any) {
+    if (e !== 'cancel') console.error(e)
+  }
+}
+
+function execStatusClass(lastStatus: string | undefined, scriptStatus: string | undefined): string {
+  if (lastStatus === 'success') return 'success'
+  if (lastStatus === 'failed') return 'failed'
+  if (lastStatus === 'running' || lastStatus === 'pending') return 'running'
+  return 'none'
+}
+
+function execStatusText(lastStatus: string | undefined, scriptStatus: string | undefined): string {
+  if (lastStatus === 'success') return '成功'
+  if (lastStatus === 'failed') return '失败'
+  if (lastStatus === 'running') return '运行中'
+  if (lastStatus === 'pending') return '等待中'
+  return '-'
+}
+
 onMounted(() => {
   loadData()
-  startStatusPolling()
+  loadDatasources()
+  loadCategories()
 })
 
 onUnmounted(() => {
-  stopStatusPolling()
 })
 </script>
 
@@ -998,6 +1037,37 @@ onUnmounted(() => {
   color: var(--accent-red);
 }
 
+/* Status Badge */
+.status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.status-badge.success {
+  background: rgba(63, 185, 80, 0.15);
+  color: var(--accent-green);
+}
+.status-badge.failed {
+  background: rgba(248, 81, 73, 0.15);
+  color: var(--accent-red);
+}
+.status-badge.running {
+  background: rgba(240, 136, 62, 0.15);
+  color: var(--accent-orange);
+}
+.status-badge.none {
+  background: rgba(110, 118, 129, 0.1);
+  color: var(--text-muted);
+}
+
+/* Category */
+.category-cell {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 /* Actions */
 .action-buttons {
   display: flex;
@@ -1175,6 +1245,11 @@ onUnmounted(() => {
 .page-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+/* Failure Alert */
+.failure-alert {
+  margin-bottom: 12px;
 }
 
 /* Responsive */

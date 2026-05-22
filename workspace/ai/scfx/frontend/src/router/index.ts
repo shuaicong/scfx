@@ -35,16 +35,16 @@ const routes = [
         meta: { title: '任务详情', hideSidebar: true }
       },
       {
-        path: 'scripts/:id/versions',
-        name: 'VersionHistory',
-        component: () => import('../views/scripts/VersionHistory.vue'),
-        meta: { title: '版本历史', hideSidebar: true }
-      },
-      {
         path: 'scripts/:scriptId/executions/:executionId',
         name: 'ExecutionDetail',
         component: () => import('../views/scripts/ExecutionDetail.vue'),
         meta: { title: '执行详情', hideSidebar: true }
+      },
+      {
+        path: 'scripts/:scriptId/executions',
+        name: 'ExecutionHistory',
+        component: () => import('../views/scripts/ExecutionHistory.vue'),
+        meta: { title: '执行历史', hideSidebar: true }
       },
       {
         path: 'logs',
@@ -71,24 +71,34 @@ const routes = [
         meta: { title: '知识库管理' }
       },
       {
-        path: 'system',
-        name: 'System',
-        component: () => import('../views/layout/Layout.vue'),
-        meta: { title: '系统管理' },
-        children: [
-          {
-            path: 'datasource',
-            name: 'DataSource',
-            component: () => import('../views/system/DataSource.vue'),
-            meta: { title: '数据源管理' }
-          },
-          {
-            path: 'datasource/:code',
-            name: 'DataSourceDetail',
-            component: () => import('../views/system/DataSourceDetail.vue'),
-            meta: { title: '数据源详情', hideSidebar: true }
-          }
-        ]
+        path: 'knowledge/visualization',
+        name: 'KnowledgeVisualization',
+        component: () => import('../views/knowledge/KnowledgeVisualization.vue'),
+        meta: { title: '向量可视化' }
+      },
+      {
+        path: 'system/datasource',
+        name: 'DataSource',
+        component: () => import('../views/system/DataSource.vue'),
+        meta: { title: '数据源管理' }
+      },
+      {
+        path: 'system/datasource/:code',
+        name: 'DataSourceDetail',
+        component: () => import('../views/system/DataSourceDetail.vue'),
+        meta: { title: '数据源详情', hideSidebar: true }
+      },
+      {
+        path: 'settings/alert-rules',
+        name: 'AlertRules',
+        component: () => import('../views/settings/AlertRules.vue'),
+        meta: { title: '告警规则' }
+      },
+      {
+        path: 'settings/alert-records',
+        name: 'AlertRecords',
+        component: () => import('../views/settings/AlertRecords.vue'),
+        meta: { title: '告警记录' }
       }
     ]
   }

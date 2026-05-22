@@ -5,7 +5,7 @@
       <div class="sidebar-resize-handle" @mousedown="startResize" v-if="!sidebarCollapsed"></div>
 
       <div class="sidebar-tabs">
-        <button class="sidebar-tab" :class="{ active: sidebarTab === 'tree' }" @click="sidebarTab = 'tree'">分类</button>
+        <span class="sidebar-tab active">分类</span>
         <button class="sidebar-collapse-btn" @click="toggleSidebar" title="折叠侧边栏">◀</button>
       </div>
 
@@ -20,68 +20,6 @@
           />
         </div>
 
-        <div class="sidebar-section" v-if="false">
-          <div class="sidebar-header">
-            来源分类
-            <button class="sidebar-header-btn" title="新建文件夹" @click="createRootFolder">+</button>
-          </div>
-
-          <div v-for="folder in folders" :key="folder.id" class="folder-wrapper" :data-folder-id="folder.id">
-            <div
-              class="sidebar-item folder"
-              :class="{ open: folder.open, active: selectedFolder === folder.id }"
-              @click="toggleFolder(folder)"
-              @dblclick="startRename(folder)"
-            >
-              <span class="icon arrow" v-if="folder.children?.length">▶</span>
-              <span class="icon">{{ folder.icon }}</span>
-              <span class="name" v-if="!folder.editing">{{ folder.name }}</span>
-              <input
-                v-else
-                class="rename-input"
-                v-model="folder.renameValue"
-                @blur="finishRename(folder)"
-                @keyup.enter="finishRename(folder)"
-                @click.stop
-                autofocus
-              />
-              <span class="count">{{ folder.count }}</span>
-              <div class="sidebar-item-actions">
-                <button @click.stop="addSubfolder(folder)" title="添加子分类">+</button>
-                <button @click.stop="startRename(folder)" title="重命名">✏️</button>
-                <button @click.stop="importToFolder(folder)" title="导入文件">📥</button>
-              </div>
-            </div>
-
-            <!-- Sub-items -->
-            <div class="sub-items" :class="{ open: folder.open && folder.children?.length }" v-if="folder.children?.length">
-              <div
-                v-for="child in folder.children"
-                :key="child.id"
-                class="sidebar-item"
-                :data-folder-id="child.id"
-                :class="{ active: selectedSource === child.key }"
-                @click="selectSource(child.key || '')"
-                @dblclick="startRename(child)"
-              >
-                <span class="icon">{{ child.icon }}</span>
-                <span class="name" v-if="!child.editing">{{ child.name }}</span>
-                <input
-                  v-else
-                  class="rename-input"
-                  v-model="child.renameValue"
-                  @blur="finishRename(child)"
-                  @keyup.enter="finishRename(child)"
-                  @click.stop
-                />
-                <span class="count">{{ child.count }}</span>
-                <div class="sidebar-item-actions">
-                  <button @click.stop="startRename(child)" title="重命名">✏️</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
 
       <div class="sidebar-footer">
@@ -97,7 +35,7 @@
     </aside>
 
     <!-- List Area -->
-    <section class="list-area" id="listArea">
+    <section class="list-area" id="listArea" :class="{ 'list-collapsed': listCollapsed }">
       <!-- Expand button (shown when sidebar is collapsed) -->
       <button v-if="sidebarCollapsed" class="sidebar-expand-btn" @click="toggleSidebar" title="展开侧边栏">
         <span class="expand-icon">▶</span>
@@ -126,6 +64,31 @@
           </span>
         </template>
       </nav>
+
+      <!-- Mock Mode Warning Banner -->
+      <div v-if="!vectorConfig.enabled" class="mock-warning-banner">
+        ⚠️ 向量化服务未配置（Mock 模式），向量数据为模拟数据
+      </div>
+
+      <!-- Vectorization Stats -->
+      <div class="vector-stats" v-loading="vectorLoading">
+        <div class="stat-card stat-card-purple">
+          <div class="stat-value">{{ vectorStats.pending }}</div>
+          <div class="stat-label">待处理</div>
+        </div>
+        <div class="stat-card stat-card-blue">
+          <div class="stat-value">{{ vectorStats.processing }}</div>
+          <div class="stat-label">处理中</div>
+        </div>
+        <div class="stat-card stat-card-green">
+          <div class="stat-value">{{ vectorStats.vectorized }}</div>
+          <div class="stat-label">已完成</div>
+        </div>
+        <div class="stat-card stat-card-red">
+          <div class="stat-value">{{ vectorStats.failed }}</div>
+          <div class="stat-label">失败</div>
+        </div>
+      </div>
 
       <div class="list-header">
         <div class="list-header-left">
@@ -157,12 +120,23 @@
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
             </svg>
           </button>
+          <button class="btn btn-secondary" @click="goToVisualization">可视化</button>
           <button class="btn btn-primary" @click="showAddDialog = true">+ 新建</button>
         </div>
       </div>
 
       <!-- Filters Bar - Tag Style -->
       <div class="filters-bar">
+        <div class="filter-group search-group">
+          <span class="filter-label">搜索:</span>
+          <input
+            type="text"
+            class="search-input"
+            v-model="filters.search"
+            placeholder="搜索标题/内容..."
+            @input="onSearchInput"
+          />
+        </div>
         <div class="filter-group">
           <span class="filter-label">来源:</span>
           <div class="filter-tags">
@@ -209,6 +183,9 @@
           </div>
         </div>
         <div class="filter-spacer"></div>
+        <div class="filter-tag execution-id-filter" v-if="filters.executionId">
+          执行: {{ filters.executionId.substring(0, 8) }}...
+        </div>
         <button class="filter-clear" :class="{ show: hasFilters }" @click="clearFilters">
           清除筛选
         </button>
@@ -227,9 +204,9 @@
       </div>
 
       <!-- Card Grid -->
-      <div class="card-grid" id="cardGrid" v-show="viewMode === 'card' && !previewVisible">
+      <div class="card-grid" id="cardGrid" v-loading="loading" v-show="viewMode === 'card' && !previewVisible">
         <div
-          v-for="item in list"
+          v-for="item in filteredList"
           :key="item.id"
           class="card"
           :class="{ selected: selectedItems.includes(item.id!) }"
@@ -248,7 +225,7 @@
             <span v-for="tag in item.tags" :key="tag" class="card-tag" :class="tag">{{ tag }}</span>
           </div>
         </div>
-        <div v-if="list.length === 0 && !loading" class="empty-state">
+        <div v-if="filteredList.length === 0 && !loading" class="empty-state">
           <span class="empty-icon">📭</span>
           <span class="empty-text">暂无数据</span>
         </div>
@@ -257,7 +234,7 @@
       <!-- Sidebar Mode Compact List -->
       <div class="sidebar-mode-list" v-show="previewVisible">
         <div
-          v-for="item in list"
+          v-for="item in filteredList"
           :key="item.id"
           class="sidebar-mode-item"
           :class="{ active: currentPreview?.id === item.id }"
@@ -291,7 +268,7 @@
             </tr>
           </thead>
           <tbody id="tableBody">
-            <tr v-for="item in list" :key="item.id" @click="handleRowClick(item)">
+            <tr v-for="item in filteredList" :key="item.id" @click="handleRowClick(item)">
               <td>
                 <div class="checkbox" :class="{ checked: selectedItems.includes(item.id!) }" @click.stop="toggleSelect(item.id!)"></div>
               </td>
@@ -336,6 +313,9 @@
                   </button>
                 </div>
               </td>
+            </tr>
+            <tr v-if="filteredList.length === 0 && !loading">
+              <td colspan="7" class="empty-cell">暂无数据</td>
             </tr>
           </tbody>
         </table>
@@ -419,6 +399,10 @@
           <div class="label">来源类型</div>
           <div class="value">{{ getSourceTypeText(currentPreview.sourceType) }}</div>
         </div>
+        <div class="preview-meta-item" v-if="currentPreview.executionId">
+          <div class="label">执行 ID</div>
+          <div class="value mono">{{ currentPreview.executionId.substring(0, 12) }}...</div>
+        </div>
       </div>
 
       <div class="preview-status-bar" v-if="currentPreview">
@@ -442,18 +426,19 @@
       <div class="preview-content" v-if="currentPreview">
         <div class="preview-section">
           <div class="preview-section-title">内容摘要</div>
-          <div class="content-block" v-if="currentPreview.content">
+          <div class="content-block" v-if="currentPreview.content || currentPreview.contentHtml">
             <h2>{{ currentPreview.title }}</h2>
-            <p>{{ currentPreview.content }}</p>
+            <div v-if="currentPreview.contentHtml" class="content-html" v-html="currentPreview.contentHtml"></div>
+            <p v-else>{{ currentPreview.content }}</p>
           </div>
           <div class="content-block" v-else>
             <p style="color: var(--text-muted);">暂无内容摘要</p>
           </div>
         </div>
 
-        <div class="preview-section" v-if="relatedItems.length > 0">
+        <div class="preview-section">
           <div class="preview-section-title">关联知识</div>
-          <div class="related-list">
+          <div class="related-list" v-if="relatedItems.length > 0">
             <div
               v-for="item in relatedItems"
               :key="item.id"
@@ -467,6 +452,9 @@
               </div>
               <span class="score">{{ item.score || 90 }}%</span>
             </div>
+          </div>
+          <div v-else class="content-block">
+            <p style="color: var(--text-muted);">暂无关联知识</p>
           </div>
         </div>
       </div>
@@ -547,7 +535,7 @@
   <div class="modal-overlay" v-if="showDetailDialog" @click.self="showDetailDialog = false">
     <div class="modal modal-lg">
       <div class="modal-header">
-        <h3>知识详情</h3>
+        <h3>编辑知识</h3>
         <button class="modal-close" @click="showDetailDialog = false">✕</button>
       </div>
       <div class="modal-body">
@@ -558,7 +546,7 @@
           </div>
           <div class="detail-item">
             <div class="detail-label">标题</div>
-            <div class="detail-value">{{ currentPreview.title }}</div>
+            <input type="text" v-model="editForm.title" class="edit-input" />
           </div>
           <div class="detail-item">
             <div class="detail-label">来源名称</div>
@@ -566,49 +554,45 @@
           </div>
           <div class="detail-item">
             <div class="detail-label">来源类型</div>
-            <div class="detail-value">{{ getSourceTypeText(currentPreview.sourceType) }}</div>
+            <input type="text" v-model="editForm.sourceType" class="edit-input" />
           </div>
           <div class="detail-item">
             <div class="detail-label">作者</div>
-            <div class="detail-value">{{ currentPreview.author || '-' }}</div>
+            <input type="text" v-model="editForm.author" class="edit-input" />
           </div>
           <div class="detail-item">
             <div class="detail-label">发布时间</div>
             <div class="detail-value">{{ currentPreview.publishTime || '-' }}</div>
           </div>
-          <div class="detail-item">
-            <div class="detail-label">文本块数</div>
-            <div class="detail-value">{{ currentPreview.chunkCount || 0 }}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">向量化状态</div>
-            <div class="detail-value">
-              <span class="status-badge" :class="currentPreview.vectorStatus">
-                {{ getStatusText(currentPreview.vectorStatus) }}
-              </span>
-            </div>
+          <div class="detail-item-full">
+            <div class="detail-label">内容</div>
+            <textarea v-model="editForm.content" class="edit-textarea" rows="8"></textarea>
           </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" @click="showDetailDialog = false">关闭</button>
+        <button class="btn btn-secondary" @click="showDetailDialog = false">取消</button>
+        <button class="btn btn-primary" @click="handleSave" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</button>
       </div>
     </div>
-  </div>
 
-  <!-- Category Mapping Dialog -->
-  <CategoryMappingDialog v-model="showMappingDialog" />
+    <!-- Category Mapping Dialog -->
+    <CategoryMappingDialog v-model="showMappingDialog" />
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { knowledgeApi } from '@/api/knowledge'
 import { categoryApi, type Category } from '@/api/category'
+import { vectorizationApi } from '@/api/vectorization'
 import CategoryTree from '@/components/CategoryTree.vue'
-import CategoryStatsPanel from '@/components/CategoryStatsPanel.vue'
 import CategoryMappingDialog from '@/components/CategoryMappingDialog.vue'
 
+const route = useRoute()
+const router = useRouter()
 interface KnowledgeItem {
   id?: number
   title: string
@@ -621,9 +605,12 @@ interface KnowledgeItem {
   publishTime?: string
   createdAt?: string
   content?: string
+  contentHtml?: string
   tags?: string[]
   revectorizing?: boolean
   score?: number
+  executionId?: string
+  scriptId?: number
 }
 
 // Sources
@@ -635,127 +622,6 @@ const sources = ref([
   { key: 'usda', name: 'USDA', abbr: 'U', count: 0 },
   { key: 'manual', name: '人工录入', abbr: 'R', count: 0 }
 ])
-
-// Folders (with nested structure)
-interface Folder {
-  id: number
-  name: string
-  icon: string
-  count: number
-  open: boolean
-  editing?: boolean
-  renameValue?: string
-  children?: Folder[]
-  parentId?: number
-  key?: string
-}
-
-const folders = ref<Folder[]>([
-  {
-    id: 1,
-    name: '粮信网',
-    icon: '🌐',
-    count: 24,
-    open: true,
-    children: [
-      { id: 11, name: '玉米', icon: '🌐', count: 12, open: false, key: 'liangxin-corn', parentId: 1 },
-      { id: 12, name: '小麦', icon: '🌐', count: 8, open: false, key: 'liangxin-wheat', parentId: 1 },
-      { id: 13, name: '稻米', icon: '🌐', count: 4, open: false, key: 'liangxin-rice', parentId: 1 }
-    ]
-  },
-  {
-    id: 2,
-    name: '我的钢铁',
-    icon: '📺',
-    count: 18,
-    open: false,
-    children: [
-      { id: 21, name: '钢材', icon: '📺', count: 10, open: false, key: 'mysteel-steel', parentId: 2 },
-      { id: 22, name: '铁矿石', icon: '📺', count: 8, open: false, key: 'mysteel-iron', parentId: 2 }
-    ]
-  },
-  {
-    id: 3,
-    name: '中华粮网',
-    icon: '🌾',
-    count: 12,
-    open: false,
-    children: []
-  },
-  {
-    id: 4,
-    name: 'USDA',
-    icon: '🦃',
-    count: 8,
-    open: false,
-    children: []
-  }
-])
-
-const selectedFolder = ref<number | null>(null)
-
-// Folder operations
-function toggleFolder(folder: Folder) {
-  folder.open = !folder.open
-  if (folder.children?.length) {
-    const wrapper = document.querySelector(`[data-folder-id="${folder.id}"]`) as HTMLElement | null
-    const arrow = wrapper?.querySelector('.arrow') as HTMLElement | null
-    if (arrow) {
-      arrow.style.transform = folder.open ? 'rotate(90deg)' : 'rotate(0deg)'
-    }
-  }
-}
-
-function createRootFolder() {
-  const newFolder: Folder = {
-    id: Date.now(),
-    name: '新建文件夹',
-    icon: '📁',
-    count: 0,
-    open: false,
-    editing: true,
-    renameValue: '新建文件夹',
-    children: []
-  }
-  folders.value.push(newFolder)
-  // Focus on input after render
-  setTimeout(() => {
-    const input = document.querySelector(`[data-folder-id="${newFolder.id}"] .rename-input`)
-    if (input) (input as HTMLInputElement).focus()
-  }, 50)
-}
-
-function addSubfolder(parent: Folder) {
-  const newChild: Folder = {
-    id: Date.now(),
-    name: '新建子分类',
-    icon: '📁',
-    count: 0,
-    open: false,
-    editing: true,
-    renameValue: '新建子分类',
-    parentId: parent.id
-  }
-  if (!parent.children) parent.children = []
-  parent.children.push(newChild)
-  parent.open = true
-}
-
-function startRename(folder: Folder) {
-  folder.editing = true
-  folder.renameValue = folder.name
-}
-
-function finishRename(folder: Folder) {
-  if (folder.renameValue && folder.renameValue.trim()) {
-    folder.name = folder.renameValue.trim()
-  }
-  folder.editing = false
-}
-
-function importToFolder(folder: Folder) {
-  ElMessage.info(`导入文件到 "${folder.name}" 功能开发中`)
-}
 
 // Category selection handlers
 const onCategorySelect = (category: any) => {
@@ -776,7 +642,8 @@ async function loadKnowledgeByCategory(categoryId: number) {
       size: pagination.size,
       categoryId: categoryId,
       sourceType: filters.sourceType || undefined,
-      vectorStatus: filters.vectorStatus || undefined
+      vectorStatus: filters.vectorStatus || undefined,
+      executionId: filters.executionId || undefined
     })
     const pageData = res.data
     list.value = pageData.records || []
@@ -794,7 +661,6 @@ async function loadKnowledgeByCategory(categoryId: number) {
 // UI State
 const sidebarCollapsed = ref(false)
 const sidebarWidth = ref(280)
-const sidebarTab = ref('tree')
 const listCollapsed = ref(false)
 const viewMode = ref('card')
 const previewVisible = ref(false)
@@ -839,15 +705,35 @@ const filters = reactive({
   sourceType: '',
   sourceName: '',
   vectorStatus: '',
-  search: ''
+  search: '',
+  executionId: ''
 })
 
-const hasFilters = computed(() => filters.sourceType || filters.vectorStatus || filters.search)
+const hasFilters = computed(() => filters.sourceType || filters.vectorStatus || filters.search || filters.executionId)
 
 // List data
 const list = ref<KnowledgeItem[]>([])
 const loading = ref(false)
 const selectedItems = ref<number[]>([])
+
+// Vectorization stats
+const vectorStats = reactive({
+  pending: 0,
+  processing: 0,
+  vectorized: 0,
+  failed: 0,
+  total: 0
+})
+const vectorLoading = ref(false)
+
+// Vectorization config (mock mode detection)
+const vectorConfig = reactive({
+  enabled: true,
+  mode: 'real'
+})
+
+// Stats polling
+const statsTimer = ref<ReturnType<typeof setInterval> | null>(null)
 
 // Pagination
 const pagination = reactive({
@@ -948,6 +834,14 @@ const manualForm = reactive({
 
 const uploading = ref(false)
 const submitting = ref(false)
+const saving = ref(false)
+
+const editForm = reactive({
+  title: '',
+  content: '',
+  sourceType: '',
+  author: ''
+})
 
 const statusOptions = [
   { value: 'vectorized', label: '已向量化', color: '#3fb950' },
@@ -963,12 +857,50 @@ const currentListTitle = computed(() => {
   return '知识列表'
 })
 
-// Watch sidebar tab
-watch(sidebarTab, (val) => {
-  const tree = document.getElementById('sidebarTree')
-  if (tree) {
-    tree.style.display = val === 'tree' ? 'block' : 'none'
+let searchTimer: ReturnType<typeof setTimeout> | null = null
+function onSearchInput() {
+  if (searchTimer) clearTimeout(searchTimer)
+  searchTimer = setTimeout(() => {
+    loadData()
+  }, 300)
+}
+
+const filteredList = computed(() => {
+  const q = filters.search.toLowerCase().trim()
+  if (!q) return list.value
+  return list.value.filter(item =>
+    (item.title && item.title.toLowerCase().includes(q)) ||
+    (item.content && item.content.toLowerCase().includes(q))
+  )
+})
+
+// Close dropdowns on click outside
+function clickHandler(e: MouseEvent) {
+  if (!(e.target as HTMLElement).closest('.filter-dropdown')) {
+    sourceDropdownOpen.value = false
+    statusDropdownOpen.value = false
   }
+}
+
+onMounted(() => {
+  document.addEventListener('click', clickHandler)
+  // Check for executionId query param (navigate from execution detail)
+  const execId = route.query.executionId as string
+  if (execId) {
+    filters.executionId = execId
+  }
+  loadData()
+  loadVectorStats()
+  loadVectorConfig()
+  // Poll vectorization stats every 10 seconds
+  statsTimer.value = setInterval(() => {
+    loadVectorStats()
+  }, 10000)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('click', clickHandler)
+  if (statsTimer.value) clearInterval(statsTimer.value)
 })
 
 // Methods
@@ -977,11 +909,11 @@ function toggleSidebar() {
 }
 
 function toggleList() {
-  const listArea = document.getElementById('listArea')
-  if (listArea) {
-    listCollapsed.value = !listCollapsed.value
-    listArea.classList.toggle('list-collapsed', listCollapsed.value)
-  }
+  listCollapsed.value = !listCollapsed.value
+}
+
+function goToVisualization() {
+  router.push('/knowledge/visualization')
 }
 
 function selectSource(key: string) {
@@ -1015,6 +947,7 @@ function clearFilters() {
   filters.sourceName = ''
   filters.vectorStatus = ''
   filters.search = ''
+  filters.executionId = ''
   selectedSource.value = 'all'
   pagination.page = 1
   loadData()
@@ -1027,7 +960,9 @@ async function loadData() {
       page: pagination.page,
       size: pagination.size,
       sourceType: filters.sourceType || undefined,
-      vectorStatus: filters.vectorStatus || undefined
+      vectorStatus: filters.vectorStatus || undefined,
+      executionId: filters.executionId || undefined,
+      categoryId: selectedCategoryId.value || undefined
     })
     const pageData = res.data
     list.value = pageData.records || []
@@ -1051,6 +986,33 @@ async function loadData() {
     ElMessage.error('加载列表失败')
   } finally {
     loading.value = false
+  }
+}
+
+async function loadVectorStats() {
+  try {
+    const res: any = await vectorizationApi.getStats()
+    if (res.code === 200 && res.data) {
+      vectorStats.pending = res.data.pending || 0
+      vectorStats.processing = res.data.processing || 0
+      vectorStats.vectorized = res.data.vectorized || 0
+      vectorStats.failed = res.data.failed || 0
+      vectorStats.total = res.data.total || 0
+    }
+  } catch (e) {
+    console.error('加载向量化统计失败', e)
+  }
+}
+
+async function loadVectorConfig() {
+  try {
+    const res: any = await vectorizationApi.getConfig()
+    if (res.code === 200 && res.data) {
+      vectorConfig.enabled = res.data.enabled
+      vectorConfig.mode = res.data.mode
+    }
+  } catch (e) {
+    console.error('加载向量化配置失败', e)
   }
 }
 
@@ -1092,15 +1054,44 @@ async function viewDetail(item: KnowledgeItem) {
     const res: any = await knowledgeApi.getById(item.id!)
     currentPreview.value = res.data || item
     previewVisible.value = true
-
-    // Load related items
-    relatedItems.value = list.value
-      .filter(i => i.id !== item.id)
-      .slice(0, 3)
-      .map(i => ({ ...i, score: Math.floor(Math.random() * 20) + 80 }))
+    editForm.title = currentPreview.value.title || ''
+    editForm.content = currentPreview.value.content || ''
+    editForm.sourceType = currentPreview.value.sourceType || ''
+    editForm.author = currentPreview.value.author || ''
   } catch (e) {
     currentPreview.value = item
     previewVisible.value = true
+    editForm.title = item.title || ''
+    editForm.content = item.content || ''
+    editForm.sourceType = item.sourceType || ''
+    editForm.author = item.author || ''
+  }
+}
+
+async function handleSave() {
+  if (!currentPreview.value?.id) return
+  saving.value = true
+  try {
+    await knowledgeApi.update(currentPreview.value.id, {
+      title: editForm.title,
+      content: editForm.content,
+      sourceType: editForm.sourceType,
+      author: editForm.author
+    })
+    ElMessage.success('保存成功')
+    if (currentPreview.value) {
+      currentPreview.value.title = editForm.title
+      currentPreview.value.content = editForm.content
+      currentPreview.value.sourceType = editForm.sourceType
+      currentPreview.value.author = editForm.author
+    }
+    showDetailDialog.value = false
+    loadData()
+  } catch (e) {
+    console.error('保存失败', e)
+    ElMessage.error('保存失败')
+  } finally {
+    saving.value = false
   }
 }
 
@@ -1109,15 +1100,38 @@ function closePreview() {
   currentPreview.value = null
 }
 
+// 轮询等待向量化完成
+function pollVectorizationStatus(id: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const maxAttempts = 30
+    let attempts = 0
+
+    const timer = setInterval(async () => {
+      attempts++
+      try {
+        const res: any = await knowledgeApi.getById(id)
+        const status = res.data?.vectorStatus
+
+        if (status === 'vectorized') {
+          clearInterval(timer)
+          resolve()
+        } else if (status === 'failed') {
+          clearInterval(timer)
+          reject(new Error('向量化失败'))
+        } else if (attempts >= maxAttempts) {
+          clearInterval(timer)
+          reject(new Error('向量化超时'))
+        }
+      } catch {
+        clearInterval(timer)
+        reject(new Error('向量化状态查询失败'))
+      }
+    }, 2000)
+  })
+}
+
 function togglePreviewList() {
-  const listArea = document.getElementById('listArea')
-  if (listArea) {
-    if (listArea.classList.contains('list-collapsed')) {
-      listArea.classList.remove('list-collapsed')
-    } else {
-      listArea.classList.add('list-collapsed')
-    }
-  }
+  listCollapsed.value = !listCollapsed.value
 }
 
 function toggleFullscreen() {
@@ -1128,10 +1142,27 @@ function openInNewWindow() {
   ElMessage.info('新窗口打开功能开发中')
 }
 
-function changeStatus(status: string) {
-  if (!currentPreview.value) return
-  currentPreview.value.vectorStatus = status
-  ElMessage.success(`状态已更新为: ${status}`)
+async function changeStatus(status: string) {
+  if (!currentPreview.value?.id) return
+  if (status !== 'pending' && status !== 'failed') {
+    ElMessage.info('状态不能手动设置')
+    return
+  }
+  try {
+    const id = currentPreview.value.id
+    await ElMessageBox.confirm(`确定要${status === 'pending' ? '触发向量化' : '重试向量化'}吗？`, '确认', { type: 'info' })
+    currentPreview.value.vectorStatus = 'processing'
+    await knowledgeApi.revectorize(id)
+    ElMessage.info('正在向量化，请稍候...')
+    await pollVectorizationStatus(id)
+    ElMessage.success('向量化完成')
+    loadData()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      console.error('向量化失败', e)
+      ElMessage.error(e.message || '向量化失败')
+    }
+  }
 }
 
 function getStatusText(status?: string) {
@@ -1243,12 +1274,14 @@ async function handleRevectorize(item: KnowledgeItem) {
     await ElMessageBox.confirm('确定要重新向量化该知识吗？', '确认', { type: 'info' })
     item.revectorizing = true
     await knowledgeApi.revectorize(item.id)
-    ElMessage.success('已发起重向量化任务')
+    ElMessage.info('正在向量化，请稍候...')
+    await pollVectorizationStatus(item.id)
+    ElMessage.success('向量化完成')
     loadData()
   } catch (e: any) {
     if (e !== 'cancel') {
       console.error('重向量化失败', e)
-      ElMessage.error('重向量化失败')
+      ElMessage.error(e.message || '重向量化失败')
     }
   } finally {
     item.revectorizing = false
@@ -1280,12 +1313,14 @@ async function batchVectorize() {
     for (const id of selectedItems.value) {
       await knowledgeApi.revectorize(id)
     }
-    ElMessage.success('已发起重向量化任务')
+    ElMessage.info('正在批量向量化，请稍候...')
+    await Promise.all(selectedItems.value.map(id => pollVectorizationStatus(id)))
+    ElMessage.success('批量向量化完成')
     clearSelection()
     loadData()
   } catch (e: any) {
     if (e !== 'cancel') {
-      ElMessage.error('重向量化失败')
+      ElMessage.error('批量向量化未全部完成，请重试失败项')
     }
   }
 }
@@ -1294,9 +1329,7 @@ async function batchDelete() {
   if (selectedItems.value.length === 0) return
   try {
     await ElMessageBox.confirm(`确定删除选中的 ${selectedItems.value.length} 项知识吗？删除后无法恢复！`, '警告', { type: 'warning' })
-    for (const id of selectedItems.value) {
-      await knowledgeApi.delete(id)
-    }
+    await Promise.all(selectedItems.value.map(id => knowledgeApi.delete(id)))
     ElMessage.success('删除成功')
     clearSelection()
     loadData()
@@ -1308,43 +1341,7 @@ async function batchDelete() {
 }
 
 // Mock data for testing
-function loadMockData() {
-  const mockList: KnowledgeItem[] = [
-    { id: 1, title: '2024年玉米市场价格周报（1月15日）', sourceType: 'liangxin', sourceIcon: '🌐', sourceName: '粮信网', publishTime: '2024-01-15', vectorStatus: 'vectorized', chunkCount: 12, tags: ['价格', '玉米'], content: '本周玉米市场价格整体呈现稳中偏强态势，东北地区深加工企业收购价格上调10-20元/吨，港口平舱价格保持稳定。' },
-    { id: 2, title: '东北地区玉米供需形势分析', sourceType: 'liangxin', sourceIcon: '🌐', sourceName: '粮信网', publishTime: '2024-01-12', vectorStatus: 'vectorized', chunkCount: 8, tags: ['供需', '玉米'], content: '黑龙江地区玉米毒素水平较好，贸易商收购积极性较高。' },
-    { id: 3, title: '2024年第一周粮食政策汇总', sourceType: 'chinagrain', sourceIcon: '🌾', sourceName: '中华粮网', publishTime: '2024-01-08', vectorStatus: 'pending', chunkCount: 5, tags: ['政策'] },
-    { id: 4, title: '大豆进口数据月报', sourceType: 'usda', sourceIcon: '🦃', sourceName: 'USDA', publishTime: '2024-01-13', vectorStatus: 'vectorized', chunkCount: 15, tags: ['供需', '大豆'] },
-    { id: 5, title: '港口玉米价格行情', sourceType: 'mysteel', sourceIcon: '📺', sourceName: '我的钢铁', publishTime: '2024-01-14', vectorStatus: 'processing', chunkCount: 6, tags: ['价格', '玉米'] },
-    { id: 6, title: '国际粮食市场周报', sourceType: 'usda', sourceIcon: '🦃', sourceName: 'USDA', publishTime: '2024-01-10', vectorStatus: 'failed', chunkCount: 10, tags: ['国际'] },
-    { id: 7, title: '小麦期货周评', sourceType: 'chinagrain', sourceIcon: '🌾', sourceName: '中华粮网', publishTime: '2024-01-09', vectorStatus: 'vectorized', chunkCount: 7, tags: ['价格', '小麦'] },
-    { id: 8, title: '巴西大豆出口数据', sourceType: 'usda', sourceIcon: '🦃', sourceName: 'USDA', publishTime: '2024-01-11', vectorStatus: 'pending', chunkCount: 4, tags: ['供需', '大豆', '国际'] },
-  ]
-  list.value = mockList
-  pagination.total = 50
-  pagination.start = 1
-  pagination.end = 8
 
-  // Update source counts
-  sources.value.forEach(s => {
-    if (s.key === 'all') {
-      s.count = mockList.length
-    } else {
-      s.count = mockList.filter(i => i.sourceType === s.key).length
-    }
-  })
-}
-
-// Close dropdowns on click outside
-document.addEventListener('click', (e) => {
-  if (!(e.target as HTMLElement).closest('.filter-dropdown')) {
-    sourceDropdownOpen.value = false
-    statusDropdownOpen.value = false
-  }
-})
-
-onMounted(() => {
-  loadData()
-})
 </script>
 
 <style scoped>
@@ -1480,33 +1477,6 @@ onMounted(() => {
 
 .sidebar-resize-handle:hover {
   background: var(--accent);
-}
-
-.sidebar-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--border-color);
-  padding: 8px 8px 0;
-}
-
-.sidebar-tab {
-  flex: 1;
-  padding: 10px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  color: var(--text-muted);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.sidebar-tab:hover {
-  color: var(--text-secondary);
-}
-
-.sidebar-tab.active {
-  color: var(--accent);
-  border-bottom-color: var(--accent);
 }
 
 .sidebar-content {
@@ -1755,6 +1725,22 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
+.search-input {
+  padding: 6px 12px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  width: 180px;
+  transition: border-color 0.15s;
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+}
+
 .filter-tag {
   padding: 6px 12px;
   background: var(--bg-secondary);
@@ -1828,27 +1814,12 @@ onMounted(() => {
   border-color: var(--accent);
 }
 
-.filter-spacer {
-  flex: 1;
-}
-
-.filter-clear {
-  display: none;
-  padding: 8px 12px;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.filter-clear.show {
-  display: block;
-}
-
-.filter-clear:hover {
-  color: var(--accent);
+.execution-id-filter {
+  background: rgba(88, 166, 255, 0.15) !important;
+  border-color: var(--blue) !important;
+  color: var(--blue) !important;
+  font-size: 11px !important;
+  cursor: default !important;
 }
 
 /* Batch Bar */
@@ -2096,6 +2067,10 @@ onMounted(() => {
   background: var(--red);
 }
 
+.sidebar-mode-item .item-status.vectorized {
+  background: var(--green);
+}
+
 /* Table View */
 .table-view {
   flex: 1;
@@ -2136,6 +2111,13 @@ onMounted(() => {
 
 .data-table tbody tr:hover {
   background: var(--bg-secondary);
+}
+
+.empty-cell {
+  text-align: center;
+  padding: 40px 16px !important;
+  color: var(--text-muted);
+  font-size: 14px;
 }
 
 .title-cell {
@@ -2561,6 +2543,46 @@ onMounted(() => {
   margin-bottom: 10px;
 }
 
+.content-html {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.content-html img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+.content-html p {
+  margin-bottom: 10px;
+}
+
+.content-html table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+  font-size: 13px;
+}
+
+.content-html table td,
+.content-html table th {
+  border: 1px solid var(--border-color, #e5e7eb);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.content-html table th {
+  background: var(--bg-tertiary, #f3f4f6);
+  font-weight: 600;
+}
+
+.content-html table tr:nth-child(even) {
+  background: var(--bg-primary, #fafafa);
+}
+
 .related-list {
   display: flex;
   flex-direction: column;
@@ -2825,6 +2847,52 @@ onMounted(() => {
   color: var(--text-primary);
 }
 
+.detail-item-full {
+  grid-column: 1 / -1;
+  background: var(--bg-primary);
+  padding: 12px 16px;
+}
+
+.edit-input {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.edit-input:focus {
+  border-color: var(--accent);
+}
+
+.edit-textarea {
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  min-height: 100px;
+  font-family: inherit;
+  transition: border-color 0.15s;
+}
+
+.edit-textarea:focus {
+  border-color: var(--accent);
+}
+
+.mono {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
 /* Btn styles matching prototype */
 .btn {
   display: inline-flex;
@@ -2879,197 +2947,6 @@ onMounted(() => {
   flex-direction: column;
 }
 
-/* Folder Hierarchy Styles */
-.folder-wrapper {
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar-item.folder {
-  flex-direction: row;
-  align-items: center;
-  padding-right: 6px;
-}
-
-.sidebar-item.folder .folder-arrow {
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: var(--text-muted);
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-
-.sidebar-item.folder .folder-arrow.open {
-  transform: rotate(90deg);
-}
-
-.sidebar-item.folder .icon {
-  transition: none;
-}
-
-.sidebar-item-actions {
-  display: none;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-}
-
-.sidebar-item:hover .sidebar-item-actions {
-  display: flex;
-}
-
-.action-btn {
-  width: 22px;
-  height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: transparent;
-  border: none;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 4px;
-  font-size: 12px;
-  transition: all 0.15s;
-}
-
-.action-btn:hover {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-}
-
-.action-btn.add:hover {
-  color: var(--green);
-}
-
-.action-btn.rename:hover {
-  color: var(--accent);
-}
-
-.action-btn.import:hover {
-  color: var(--blue);
-}
-
-.sub-items {
-  display: none;
-  padding-left: 20px;
-}
-
-.sub-items.open {
-  display: flex;
-  flex-direction: column;
-}
-
-.rename-input {
-  flex: 1;
-  padding: 4px 8px;
-  background: var(--bg-primary);
-  border: 1px solid var(--accent);
-  border-radius: 4px;
-  color: var(--text-primary);
-  font-size: 13px;
-  outline: none;
-}
-
-/* Sidebar Mode List */
-.sidebar-mode-list {
-  display: none;
-  flex-direction: column;
-  gap: 4px;
-  padding: 8px;
-}
-
-.sidebar-mode-list.visible {
-  display: flex;
-}
-
-.sidebar-mode-list.visible {
-  display: flex;
-}
-
-.sidebar-mode-list .sidebar-item {
-  padding: 8px 10px;
-  font-size: 13px;
-}
-
-.sidebar-mode-list .sidebar-item.active {
-  background: var(--accent-bg);
-  color: var(--accent);
-}
-
-/* Sidebar Mode Item Styles */
-.sidebar-mode-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.sidebar-mode-item:hover {
-  background: var(--bg-tertiary);
-}
-
-.sidebar-mode-item.active {
-  background: var(--accent-bg);
-}
-
-.sidebar-mode-item .item-icon {
-  font-size: 16px;
-  width: 20px;
-  text-align: center;
-}
-
-.sidebar-mode-item .item-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.sidebar-mode-item .item-title {
-  font-size: 13px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-primary);
-}
-
-.sidebar-mode-item .item-meta {
-  font-size: 11px;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 4px;
-}
-
-.sidebar-mode-item .item-status {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
-.sidebar-mode-item .item-status.vectorized {
-  background: var(--green);
-}
-
-.sidebar-mode-item .item-status.pending {
-  background: var(--yellow);
-}
-
-.sidebar-mode-item .item-status.processing {
-  background: var(--blue);
-}
-
-.sidebar-mode-item .item-status.failed {
-  background: var(--red);
-}
 
 /* Breadcrumb Navigation */
 .breadcrumb-nav {
@@ -3115,5 +2992,63 @@ onMounted(() => {
 .breadcrumb-separator {
   color: var(--text-muted, #9ca3af);
   user-select: none;
+}
+
+/* Mock Warning Banner */
+.mock-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  margin: 8px 20px 0;
+  background: rgba(210, 153, 34, 0.15);
+  border: 1px solid var(--yellow, #d29922);
+  border-radius: 6px;
+  color: var(--yellow, #d29922);
+  font-size: 13px;
+}
+
+/* Vectorization Stats */
+.vector-stats {
+  display: flex;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.vector-stats .stat-card {
+  flex: 1;
+  padding: 16px;
+  border-radius: 8px;
+  color: #fff;
+  text-align: center;
+}
+
+.stat-card-purple {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.stat-card-blue {
+  background: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+}
+
+.stat-card-green {
+  background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+}
+
+.stat-card-red {
+  background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%);
+}
+
+.vector-stats .stat-value {
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.vector-stats .stat-label {
+  font-size: 13px;
+  opacity: 0.9;
 }
 </style>
