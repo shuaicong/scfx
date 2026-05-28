@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scfx.mapper.KnowledgeChunkMapper">
+
+    <select id="selectByKnowledgeIdAndIsActive" resultType="com.scfx.entity.KnowledgeChunk">
+        SELECT id, knowledge_id, category_id, chunk_index, content, token_count,
+               vector_status, error_message, is_active, created_at, updated_at
+        FROM t_knowledge_chunk
+        WHERE knowledge_id = #{knowledgeId} AND is_active = #{isActive}
+        ORDER BY chunk_index ASC
+    </select>
+
+</mapper>
