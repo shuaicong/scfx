@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.scfx.entity.CollectionScript;
 import com.scfx.entity.TaskExecution;
 import com.scfx.mapper.CollectionScriptMapper;
+import com.scfx.mapper.DataSourceMapper;
 import com.scfx.mapper.TaskExecutionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,11 +13,15 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import javax.sql.DataSource;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -33,10 +38,13 @@ public class CollectorAgentService {
     private final TaskExecutionMapper executionMapper;
     private final CollectionScriptMapper scriptMapper;
     private final TaskExecutionService executionService;
+    private final DataSourceMapper dataSourceMapper;
     @Autowired
     private DataSource dataSource;
 
-    @Value("${collector.script.path:${user.home}/workspace/ai/scfx/python-collector-sdk}")
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Value("${collector.sdk-path:${user.home}/workspace/ai/scfx/python-collector-sdk}")
     private String collectorSdkPath;
 
     @Value("${collector.api.base:http://localhost:8080/api}")
@@ -104,32 +112,54 @@ public class CollectorAgentService {
         try {
             log.info("开始执行采集器: executionId={}, scriptId={}", executionId, script.getId());
 
-            // 从数据源获取当前版本的脚本路径
-            String collectorScriptPath = getCollectorScriptPath(script.getSource());
-            if (collectorScriptPath == null) {
-                throw new RuntimeException("数据源 " + script.getSource() + " 没有找到采集器脚本");
+            // 获取数据源名称（如 liangxin, mysteel, chinagrain）
+            String datasourceName = script.getSource();
+            if (datasourceName == null || datasourceName.isEmpty()) {
+                throw new RuntimeException("脚本 " + script.getId() + " 没有关联数据源");
             }
 
-            // 从路径提取数据源名称（如 liangxin, mysteel, chinagrain）
-            String datasourceName = getDatasourceNameFromPath(collectorScriptPath);
-
-            // 从脚本名称推断报告类型（晨报/日报），传递给采集器用于过滤
+            // 从脚本名称推断报告类型（晨报/日报），通过环境变量传递给采集器
             String reportType = "morning";
             if (script.getScriptName() != null && script.getScriptName().contains("日报")) {
                 reportType = "evening";
             }
 
-            // 构建命令 - 使用 main.py <datasource> 子命令方式运行
+            // 数据源代码归一化（用于环境变量命名）
+            String datasourceCode = datasourceName.toUpperCase().replaceAll("[^a-zA-Z0-9]+", "_")
+                .replaceAll("^_|_$", "");
+
+            // 构建命令 - 使用 main.py run <code> 方式运行
             ProcessBuilder pb = new ProcessBuilder(
-                "python3", "main.py", datasourceName,
-                "--execution-id", executionId,
-                "--task-id", String.valueOf(script.getId()),
-                "--source", script.getSource() != null ? script.getSource() : "",
+                "python3", "main.py",
                 "--api-base", apiBase,
-                "--report-type", reportType
+                "run", datasourceName,
+                "--execution-id", executionId,
+                "--task-id", String.valueOf(script.getId())
             );
             // 设置工作目录为 SDK 根目录
             pb.directory(new java.io.File(collectorSdkPath));
+            // 通过环境变量传递报告类型
+            pb.environment().put(datasourceCode + "_REPORT_TYPE", reportType);
+
+            // 读取数据源配置（JSON），注入采集器特有参数
+            com.scfx.entity.DataSource ds = dataSourceMapper.findByCode(datasourceName);
+            String dsConfig = (ds != null) ? ds.getConfig() : null;
+            if (dsConfig != null && !dsConfig.isEmpty()) {
+                try {
+                    Map<String, Object> configMap = objectMapper.readValue(dsConfig,
+                        new TypeReference<Map<String, Object>>() {});
+                    for (Map.Entry<String, Object> entry : configMap.entrySet()) {
+                        if (entry.getValue() != null) {
+                            pb.environment().put(
+                                datasourceCode + "_" + entry.getKey().toUpperCase(),
+                                entry.getValue().toString());
+                        }
+                    }
+                } catch (Exception e) {
+                    log.warn("解析数据源配置失败: datasource={}", datasourceName, e);
+                }
+            }
+
             pb.redirectErrorStream(true);
 
             log.info("执行命令: {} {}", pb.command());

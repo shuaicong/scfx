@@ -234,6 +234,7 @@
                   >
                     {{ script.status === 'enabled' ? '禁用' : '启用' }}
                   </button>
+                  <button class="action-btn danger" @click="handleDelete(script)">删除</button>
                 </div>
               </td>
             </tr>
@@ -520,6 +521,23 @@ function handleCreate() {
 
 function handleDetail(id: number) {
   router.push(`/scripts/${id}`)
+}
+
+async function handleDelete(script: CollectionScript) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除任务"${script.scriptName}"吗？\n将同时清除该任务的执行记录、日志等关联数据。`,
+      '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+    await scriptApi.delete(script.id!)
+    ElMessage.success('删除成功')
+    handleRefresh()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      console.error(e)
+    }
+  }
 }
 
 function handleRecord(id: number) {

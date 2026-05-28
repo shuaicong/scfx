@@ -154,11 +154,12 @@
                 {{ row.executionCount || 0 }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right">
+            <el-table-column label="操作" width="280" fixed="right">
               <template #default="{ row }">
                 <el-button type="primary" link size="small" @click="executeScript(row)">执行</el-button>
                 <el-button type="warning" link size="small" @click="editScript(row)">编辑</el-button>
                 <el-button type="info" link size="small" @click="showScriptDetail(row)">详情</el-button>
+                <el-button type="danger" link size="small" @click="handleDeleteScript(row)">删除</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -776,6 +777,24 @@ async function executeScript(row: CollectionScript) {
       ElMessage.error('执行失败')
     }
   }).catch(() => {})
+}
+
+async function handleDeleteScript(row: CollectionScript) {
+  try {
+    await ElMessageBox.confirm(
+      `确定删除脚本"${row.scriptName}"吗？\n将同时清除该脚本的执行记录、日志等关联数据。`,
+      '删除确认',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
+    await scriptApi.delete(row.id!)
+    ElMessage.success('删除成功')
+    loadScripts()
+    loadScriptStats()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error('删除失败')
+    }
+  }
 }
 
 const showUploadDialog = () => {

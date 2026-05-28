@@ -2,6 +2,9 @@ package com.scfx.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.scfx.entity.KnowledgeBase;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
 
 public interface KnowledgeBaseService extends IService<KnowledgeBase> {
 
@@ -12,9 +15,16 @@ public interface KnowledgeBaseService extends IService<KnowledgeBase> {
 
     /**
      * 删除知识条目并联动清理可视化数据
-     * 1. 清理 t_knowledge_viz 记录
-     * 2. 重置 viz_x / viz_y 为空
-     * 3. 执行软删除
      */
     boolean removeWithViz(Long id);
+
+    /**
+     * 从上传文件创建知识记录
+     * @param file       上传的 .docx 文件
+     * @param categoryId 所属分类 ID
+     * @param title      文档标题
+     * @return 创建的知识记录
+     * @throws IOException 文件存储失败
+     */
+    KnowledgeBase createFromUpload(MultipartFile file, Long categoryId, String title) throws IOException;
 }

@@ -2,12 +2,16 @@ package com.scfx.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.scfx.entity.DrCoord;
+import com.scfx.entity.DrVersion;
 import com.scfx.entity.KnowledgeBase;
 import com.scfx.entity.KnowledgeViz;
 import com.scfx.entity.PCABaseline;
 import com.scfx.entity.PCACalculationRecord;
 import com.scfx.entity.VectorizationLog;
 import com.scfx.entity.VectorizationTask;
+import com.scfx.mapper.DrCoordMapper;
+import com.scfx.mapper.DrVersionMapper;
 import com.scfx.mapper.KnowledgeBaseMapper;
 import com.scfx.mapper.KnowledgeVizMapper;
 import com.scfx.mapper.PCABaselineMapper;
@@ -18,6 +22,7 @@ import com.scfx.service.DimensionalityReducer;
 import com.scfx.service.VectorClient;
 import com.scfx.service.VectorStore;
 import com.scfx.service.VectorTaskService;
+import com.scfx.util.DocxTextExtractor;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -45,8 +50,10 @@ public class VectorTaskServiceImpl implements VectorTaskService {
     private final PCACalculationRecordMapper calcRecordMapper;
     private final VectorClient vectorClient;
     private final VectorStore vectorStore;
-    private final DimensionalityReducer reducer;
+    private final Map<String, DimensionalityReducer> reducers;
     private final VizAsyncProcessor vizAsyncProcessor;
+    private final DrCoordMapper drCoordMapper;
+    private final DrVersionMapper drVersionMapper;
 
     @Value("${pca.dirty-threshold:20}")
     private int dirtyThreshold;
@@ -91,9 +98,22 @@ public class VectorTaskServiceImpl implements VectorTaskService {
         kb.setVectorStatus("processing");
         knowledgeMapper.updateById(kb);
 
-        if (!computeDualVectors(kb)) {
-            return;
-        }
+        // 创建单条处理任务，使日志能关联 taskId
+        VectorizationTask task = new VectorizationTask();
+        task.setCategoryId(kb.getCategoryId());
+        task.setTotalCount(1);
+        task.setStatus("processing");
+        task.setTriggerType("auto_dirty");
+        taskMapper.insert(task);
+
+        boolean ok = computeDualVectors(kb, task.getId());
+
+        task.setStatus(ok ? "completed" : "failed");
+        task.setProcessedCount(ok ? 1 : 0);
+        task.setCompletedAt(LocalDateTime.now());
+        taskMapper.updateById(task);
+
+        if (!ok) return;
 
         // 脏数据追踪：单条更新不触 PCA，累计达到阈值后自动触发增量 PCA
         if (kb.getCategoryId() != null) {
@@ -128,7 +148,7 @@ public class VectorTaskServiceImpl implements VectorTaskService {
         int totalEntries = pendingList.size() + rateLimitedKnowledgeIds.size();
 
         if (totalEntries == 0) {
-            // auto_dirty 类型即使无队列条目也执行 PCA
+            // auto_dirty 类型即使无队列条目也执行 PCA（不创建任务记录，processSingle 已创建）
             if ("auto_dirty".equals(triggerType)) {
                 log.info("auto_dirty 触发无待处理条目，仍执行 PCA: categoryId={}", categoryId);
                 recomputePCA(categoryId);
@@ -150,10 +170,15 @@ public class VectorTaskServiceImpl implements VectorTaskService {
 
         // -- Phase 1: BGE-M3 顺序执行 + dispatch 异步 DashScope --
 
+        int bgeSuccess = 0;
+        int bgeFailed = 0;
         List<CompletableFuture<Boolean>> vizFutures = new ArrayList<>();
         for (KnowledgeBase kb : pendingList) {
-            if (computeBgeM3(kb)) {
+            if (computeBgeM3(kb, task.getId())) {
+                bgeSuccess++;
                 vizFutures.add(vizAsyncProcessor.asyncVizCall(kb));
+            } else {
+                bgeFailed++;
             }
         }
 
@@ -192,8 +217,27 @@ public class VectorTaskServiceImpl implements VectorTaskService {
         }
 
         task.setStatus("completed");
+        task.setProcessedCount(bgeSuccess);
+        task.setFailedCount(bgeFailed);
         task.setCompletedAt(LocalDateTime.now());
         taskMapper.updateById(task);
+    }
+
+    // ======================== .docx 文本提取辅助 ========================
+
+    private boolean isEmptyContent(KnowledgeBase kb) {
+        return (kb.getContent() == null || kb.getContent().isEmpty())
+            && (kb.getContentHtml() == null || kb.getContentHtml().isEmpty());
+    }
+
+    private void extractDocxContent(KnowledgeBase kb) {
+        try {
+            String text = DocxTextExtractor.extract(kb.getFilePath());
+            kb.setContent(text);
+            log.info("从 .docx 提取文本: knowledgeId={}, chars={}", kb.getId(), text.length());
+        } catch (Exception e) {
+            log.warn("提取 .docx 文本失败: knowledgeId={}, err={}", kb.getId(), e.getMessage());
+        }
     }
 
     // ======================== BGE-M3 核心 ========================
@@ -203,6 +247,19 @@ public class VectorTaskServiceImpl implements VectorTaskService {
      * @return true 如果向量化成功
      */
     private boolean computeBgeM3(KnowledgeBase kb) {
+        return computeBgeM3(kb, null);
+    }
+
+    /**
+     * BGE-M3 文本向量化，含重试（可指定 taskId 关联批次任务）
+     * @return true 如果向量化成功
+     */
+    private boolean computeBgeM3(KnowledgeBase kb, Long taskId) {
+        // .docx 文件：内容为空时从文件提取文本
+        if (isEmptyContent(kb) && kb.getFilePath() != null && kb.getFilePath().endsWith(".docx")) {
+            extractDocxContent(kb);
+        }
+
         int retryCount = 0;
         while (retryCount <= MAX_RETRIES) {
             try {
@@ -217,7 +274,7 @@ public class VectorTaskServiceImpl implements VectorTaskService {
                 kb.setVectorIds(retrievalResult.getVectorId());
                 knowledgeMapper.updateById(kb);
 
-                updateLog(kb.getId(), "success", retrievalResult.getVectorId(), (int) retrievalTime);
+                updateLog(kb.getId(), "success", retrievalResult.getVectorId(), (int) retrievalTime, taskId);
 
                 log.info("BGE-M3 向量化成功: knowledgeId={}, vectorId={}, cost={}ms",
                     kb.getId(), retrievalResult.getVectorId(), retrievalTime);
@@ -231,7 +288,7 @@ public class VectorTaskServiceImpl implements VectorTaskService {
                 if (retryCount > MAX_RETRIES) {
                     kb.setVectorStatus("failed");
                     knowledgeMapper.updateById(kb);
-                    updateLog(kb.getId(), "failed", e.getMessage(), null);
+                    updateLog(kb.getId(), "failed", e.getMessage(), null, taskId);
                     return false;
                 }
                 try {
@@ -247,14 +304,23 @@ public class VectorTaskServiceImpl implements VectorTaskService {
 
     // ======================== 双向量计算核心（单条同步） ========================
 
+    private boolean computeDualVectors(KnowledgeBase kb) {
+        return computeDualVectors(kb, null);
+    }
+
     /**
      * 对单条知识进行双向量计算：BGE-M3 检索 + DashScope 768d 可视化（同步）
      * processSingle 使用此方法；triggerCategory 改用 computeBgeM3 + 异步 VizAsyncProcessor
      * @return true 如果可视化向量计算成功
      */
-    private boolean computeDualVectors(KnowledgeBase kb) {
-        if (!computeBgeM3(kb)) {
+    private boolean computeDualVectors(KnowledgeBase kb, Long taskId) {
+        if (!computeBgeM3(kb, taskId)) {
             return false;
+        }
+
+        // DashScope 可视化前同样确保有文本内容
+        if (isEmptyContent(kb) && kb.getFilePath() != null && kb.getFilePath().endsWith(".docx")) {
+            extractDocxContent(kb);
         }
 
         // DashScope 可视化（失败不影响主流程）
@@ -319,7 +385,7 @@ public class VectorTaskServiceImpl implements VectorTaskService {
             PCABaseline old = baselineMapper.selectById(categoryId);
             if (old != null) beforeCount = old.getVectorCount();
 
-            DimensionalityReducer.ReductionResult result = reducer.reduce(vectorMap);
+            DimensionalityReducer.ReductionResult result = reducers.get("pca").reduce(vectorMap);
             long cost = System.currentTimeMillis() - start;
             log.info("fullPCA: categoryId={}, totalPoints={}, cost={}ms", categoryId, result.getPoints().size(), cost);
 
@@ -368,7 +434,7 @@ public class VectorTaskServiceImpl implements VectorTaskService {
             log.info("incrementalPCA: categoryId={}, newVectors={}", categoryId, newVectors.size());
 
             // 增量投影（含 PC3）
-            DimensionalityReducer.IncrementalResult inc = reducer.projectIncremental(
+            DimensionalityReducer.IncrementalResult inc = reducers.get("pca").projectIncremental(
                 newVectors,
                 toDoubleArray(baseline.getMeanVector()),
                 toDoubleArray(baseline.getPc1()),
@@ -409,6 +475,61 @@ public class VectorTaskServiceImpl implements VectorTaskService {
     public void recomputePCAFull(Long categoryId) {
         log.info("recomputePCAFull: categoryId={}", categoryId);
         fullPCA(categoryId);
+    }
+
+    /**
+     * 全量重算（指定算法），将结果写入 t_knowledge_dr_coords
+     * @return 新版本号
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public int recomputeDR(Long categoryId, String algorithm) {
+        log.info("recomputeDR start: categoryId={}, algorithm={}", categoryId, algorithm);
+
+        DimensionalityReducer reducer = reducers.get(algorithm);
+        if (reducer == null) {
+            throw new IllegalArgumentException("ALGORITHM_NOT_FOUND:不支持的降维算法: " + algorithm);
+        }
+
+        // 获取该分类所有向量
+        Map<Long, float[]> vectorMap = vectorStore.getVectorMapByCategoryId(categoryId);
+        if (vectorMap.isEmpty()) {
+            throw new IllegalArgumentException("NO_VECTOR_DATA:该分类暂无向量化数据");
+        }
+
+        // 执行降维
+        DimensionalityReducer.ReductionResult result = reducer.reduce(vectorMap);
+
+        // 原子递增版本号
+        drVersionMapper.incrementVersion(categoryId, algorithm);
+        // RETURNING 或 row count 均不可靠，需独立查询获取真实版本号
+        Integer queriedVersion = drVersionMapper.selectCurrentVersion(categoryId, algorithm);
+        if (queriedVersion == null) {
+            log.warn("recomputeDR: 版本查询为空，使用 fallback");
+            queriedVersion = 1;
+        }
+        int newVersion = queriedVersion;
+
+        // 批量写入坐标
+        for (DimensionalityReducer.Point p : result.getPoints()) {
+            DrCoord c = new DrCoord();
+            c.setKnowledgeId(p.getKnowledgeId());
+            c.setCategoryId(categoryId);
+            c.setAlgorithm(algorithm);
+            c.setVersion(newVersion);
+            c.setX(p.getX());
+            c.setY(p.getY());
+            c.setZ(p.getZ());
+            drCoordMapper.upsert(c);
+        }
+
+        // 清理旧版本数据（保留最新 3 个版本）
+        drCoordMapper.deleteOldVersions(categoryId, algorithm, newVersion - 2);
+
+        long cost = System.currentTimeMillis();
+        log.info("recomputeDR done: categoryId={}, algorithm={}, version={}, points={}",
+                categoryId, algorithm, newVersion, result.getPoints().size());
+
+        return newVersion;
     }
 
     // ======================== PCA 辅助方法 ========================
@@ -480,13 +601,35 @@ public class VectorTaskServiceImpl implements VectorTaskService {
     // ======================== 工具方法 ========================
 
     private void updateLog(Long knowledgeId, String status, String result, Integer processTime) {
+        updateLog(knowledgeId, status, result, processTime, null);
+    }
+
+    private void updateLog(Long knowledgeId, String status, String result, Integer processTime, Long taskId) {
         LambdaQueryWrapper<VectorizationLog> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(VectorizationLog::getKnowledgeId, knowledgeId)
                .orderByDesc(VectorizationLog::getCreatedAt)
                .last("LIMIT 1");
         VectorizationLog log = logMapper.selectOne(wrapper);
 
-        if (log != null) {
+        if (log == null) {
+            // triggerCategory 直接处理时可能没有预创建日志，此时新建
+            log = new VectorizationLog();
+            log.setKnowledgeId(knowledgeId);
+            if (taskId != null) {
+                // 从 knowledge 表查 categoryId
+                KnowledgeBase kb = knowledgeMapper.selectById(knowledgeId);
+                if (kb != null) log.setCategoryId(kb.getCategoryId());
+            }
+            log.setStatus(status);
+            if ("success".equals(status)) {
+                log.setVectorId(result);
+            } else {
+                log.setErrorMessage(result);
+            }
+            if (processTime != null) log.setProcessTimeMs(processTime);
+            if (taskId != null) log.setTaskId(taskId);
+            logMapper.insert(log);
+        } else {
             log.setStatus(status);
             if ("success".equals(status)) {
                 log.setVectorId(result);
@@ -496,6 +639,9 @@ public class VectorTaskServiceImpl implements VectorTaskService {
             log.setRetryCount(log.getRetryCount() + 1);
             if (processTime != null) {
                 log.setProcessTimeMs(processTime);
+            }
+            if (taskId != null) {
+                log.setTaskId(taskId);
             }
             logMapper.updateById(log);
         }

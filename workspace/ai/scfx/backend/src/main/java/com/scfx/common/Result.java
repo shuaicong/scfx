@@ -10,6 +10,7 @@ public class Result<T> {
     private Integer code;
     private String message;
     private T data;
+    private String errorCode;
     private Long timestamp;
 
     public Result() {
@@ -21,6 +22,18 @@ public class Result<T> {
         this.message = message;
         this.data = data;
         this.timestamp = System.currentTimeMillis();
+    }
+
+    public Result(Integer code, String message, T data, String errorCode) {
+        this.code = code;
+        this.message = message;
+        this.data = data;
+        this.errorCode = errorCode;
+        this.timestamp = System.currentTimeMillis();
+    }
+
+    public static <T> Result<T> error(Integer code, String message, String errorCode) {
+        return new Result<>(code, message, null, errorCode);
     }
 
     public static <T> Result<T> success() {

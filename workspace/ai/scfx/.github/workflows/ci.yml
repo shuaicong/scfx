@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: Scfx@2024
+          MYSQL_DATABASE: grain_platform
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: workspace/ai/scfx
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+          cache-dependency-path: workspace/ai/scfx/backend/pom.xml
+      - name: Init database
+        run: |
+          mysql -h 127.0.0.1 -u root -pScfx@2024 grain_platform < backend/src/main/resources/schema.sql
+          mysql -h 127.0.0.1 -u root -pScfx@2024 grain_platform < database/data-test-visualization.sql
+      - name: Compile and test
+        run: mvn -B compile test --file backend/pom.xml
+      - name: Package
+        run: mvn -B -DskipTests package --file backend/pom.xml
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workspace/ai/scfx
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: workspace/ai/scfx/frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+        working-directory: workspace/ai/scfx/frontend
+      - name: Type check
+        run: npx vue-tsc --noEmit
+        working-directory: workspace/ai/scfx/frontend
+      - name: Build
+        run: npm run build
+        working-directory: workspace/ai/scfx/frontend

@@ -49,7 +49,6 @@
       </el-table-column>
       <el-table-column label="操作" width="320" fixed="right">
         <template #default="{ row }">
-          <el-button link type="primary" size="small" @click="openEditDialog(row)">编辑</el-button>
           <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
           <el-button link type="primary" size="small" @click="openUploadDialog(row)">上传脚本</el-button>
           <el-button link type="primary" size="small" @click="viewScript(row)" :disabled="!row.hasScript">查看脚本</el-button>
@@ -77,13 +76,13 @@
     <!-- Create/Edit Dialog -->
     <el-dialog
       v-model="formDialogVisible"
-      :title="isEditing ? '编辑数据源' : '新增数据源'"
+      :title="'新增数据源'"
       width="500px"
       @close="resetForm"
     >
       <el-form :model="form" :rules="formRules" ref="formRef" label-width="100px">
         <el-form-item label="标识" prop="code">
-          <el-input v-model="form.code" :disabled="isEditing" placeholder="唯一标识，如 mysteel" />
+          <el-input v-model="form.code" placeholder="唯一标识，如 mysteel" />
         </el-form-item>
         <el-form-item label="名称" prop="name">
           <el-input v-model="form.name" placeholder="显示名称，如 我的钢铁" />
@@ -176,7 +175,6 @@ const pagination = reactive({
 
 // Form dialog state
 const formDialogVisible = ref(false)
-const isEditing = ref(false)
 const submitting = ref(false)
 const formRef = ref<FormInstance>()
 
@@ -192,7 +190,7 @@ const form = reactive({
 const formRules: FormRules = {
   code: [
     { required: true, message: '请输入标识', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_-]+$/, message: '标识只能包含字母、数字、下划线和连字符', trigger: 'blur' }
+    { pattern: /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/, message: '以小写字母开头，只包含小写字母、数字，多个单词用单个连字符分隔', trigger: 'blur' }
   ],
   name: [
     { required: true, message: '请输入名称', trigger: 'blur' }
@@ -253,26 +251,16 @@ async function loadData() {
 
 // Open create dialog
 function openCreateDialog() {
-  isEditing.value = false
-  formDialogVisible.value = true
-}
-
-// Open edit dialog
-function openEditDialog(row: DataSource) {
-  isEditing.value = true
-  form.code = row.code
-  form.name = row.name
-  form.description = row.description || ''
-  form.enabled = row.enabled === 1
+  form.code = ''
+  form.name = ''
+  form.description = ''
+  form.enabled = true
+  formRef.value?.resetFields()
   formDialogVisible.value = true
 }
 
 // Reset form
 function resetForm() {
-  form.code = ''
-  form.name = ''
-  form.description = ''
-  form.enabled = true
   formRef.value?.resetFields()
 }
 
@@ -292,15 +280,10 @@ async function handleSubmit() {
         enabled: form.enabled ? 1 : 0
       }
 
-      if (isEditing.value) {
-        await datasourceApi.update(form.code, data)
-        ElMessage.success('更新成功')
-      } else {
-        await datasourceApi.create(data)
-        ElMessage.success('创建成功')
-      }
-
+      await datasourceApi.create(data)
+      ElMessage.success('创建成功')
       formDialogVisible.value = false
+
       loadData()
     } catch (e: any) {
       console.error('保存失败', e)

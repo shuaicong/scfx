@@ -5,13 +5,13 @@ spring:
   # MySQL数据库
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/grain_platform?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://localhost:3306/grain_platform?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&connectionCollation=utf8mb4_general_ci&sessionVariables=character_set_client=utf8mb4,character_set_connection=utf8mb4,character_set_results=utf8mb4
     username: root
     password: Scfx@2024
     hikari:
       maximum-pool-size: 10
 
-  # 初始化SQL
+  # 初始化SQL（首次建表后设为never）
   sql:
     init:
       mode: never
@@ -21,6 +21,12 @@ spring:
   #   redis:
   #     host: localhost
   #     port: 6379
+
+  # 文件上传限制
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
 
 # MyBatis-Plus配置
 mybatis-plus:
@@ -64,10 +70,13 @@ logging:
 
 # 自定义配置
 collector:
+  sdk-path: ${COLLECTOR_SDK_PATH:${user.home}/workspace/ai/scfx/python-collector-sdk}
   script:
-    path: ${COLLECTOR_SCRIPT_PATH:${user.home}/workspace/ai/scfx/python-collector-sdk}
+    path: ${COLLECTOR_SCRIPT_PATH:${user.home}/workspace/ai/scfx/data/collectors}
 
 app:
+  upload:
+    dir: data/upload       # 上传文件存储根目录（建议生产环境用绝对路径）
   ai-qa-service:
     url: http://localhost:5002
   jwt:
@@ -82,7 +91,7 @@ app:
 pca:
   max-iterations: 100           # 幂迭代最大收敛轮数
   convergence-threshold: 1.0E-6 # 精度阈值，越小迭代越久但越精确
-  dirty-threshold: 20           # 脏数据累计条数，超过此值自动触发增量 PCA
+  dirty-threshold: 1            # 脏数据累计条数（开发阶段设1，每次向量化立即触发PCA）
 
 # 异步线程池配置
 async:

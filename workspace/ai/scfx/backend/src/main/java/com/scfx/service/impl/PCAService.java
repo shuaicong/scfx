@@ -13,7 +13,7 @@ import java.util.*;
  * 实现 DimensionalityReducer 接口，支持算法切换
  */
 @Slf4j
-@Service
+@Service("pca")
 public class PCAService implements DimensionalityReducer {
 
     @Value("${pca.max-iterations:100}")
@@ -24,7 +24,7 @@ public class PCAService implements DimensionalityReducer {
 
     @Override
     public String name() {
-        return "PCA";
+        return "pca";
     }
 
     @Override
@@ -98,7 +98,7 @@ public class PCAService implements DimensionalityReducer {
                     dot(X[i], pc1), dot(X[i], pc2), dot(X[i], pc3)));
         }
 
-        // 归一化
+        // 计算原始坐标范围（不做归一化，保留真实分布）
         double xMin = Double.MAX_VALUE, xMax = -Double.MAX_VALUE;
         double yMin = Double.MAX_VALUE, yMax = -Double.MAX_VALUE;
         double zMin = Double.MAX_VALUE, zMax = -Double.MAX_VALUE;
@@ -110,7 +110,6 @@ public class PCAService implements DimensionalityReducer {
             if (p.getZ() < zMin) zMin = p.getZ();
             if (p.getZ() > zMax) zMax = p.getZ();
         }
-        normalizeToRange(points, xMin, xMax, yMin, yMax, zMin, zMax);
 
         // 均值向量转为 float[] 供持久化
         return new ReductionResult(points, mean, pc1, pc2, pc3,
@@ -160,9 +159,7 @@ public class PCAService implements DimensionalityReducer {
             points.add(new Point(entry.getKey(), px, py, pz));
         }
 
-        // 用更新后的边界做归一化
-        normalizeToRange(points, nxMin, nxMax, nyMin, nyMax, nzMin, nzMax);
-
+        // 不做归一化，保留真实坐标分布
         return new IncrementalResult(points, nxMin, nxMax, nyMin, nyMax);
     }
 
@@ -173,24 +170,6 @@ public class PCAService implements DimensionalityReducer {
             if (v != null) return v.length;
         }
         return -1;
-    }
-
-    private void normalizeToRange(List<Point> points,
-                                   double xMin, double xMax,
-                                   double yMin, double yMax,
-                                   double zMin, double zMax) {
-        for (int i = 0; i < points.size(); i++) {
-            Point p = points.get(i);
-            points.set(i, new Point(p.getKnowledgeId(),
-                    normalize(p.getX(), xMin, xMax),
-                    normalize(p.getY(), yMin, yMax),
-                    normalize(p.getZ(), zMin, zMax)));
-        }
-    }
-
-    private double normalize(double val, double min, double max) {
-        if (Math.abs(max - min) < 1e-12) return 0;
-        return -1.0 + 2.0 * (val - min) / (max - min);
     }
 
     // ======================== 幂迭代 ========================

@@ -6,7 +6,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
 import com.scfx.entity.CollectionScript;
 import com.scfx.entity.TaskExecution;
+import com.scfx.mapper.CollectionLogMapper;
 import com.scfx.mapper.CollectionScriptMapper;
+import com.scfx.mapper.ExecutionItemMapper;
+import com.scfx.mapper.TaskExecutionLogMapper;
 import com.scfx.mapper.TaskExecutionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +41,15 @@ public class CollectionScriptService {
 
     @Autowired
     private TaskExecutionMapper taskExecutionMapper;
+
+    @Autowired
+    private TaskExecutionLogMapper taskExecutionLogMapper;
+
+    @Autowired
+    private ExecutionItemMapper executionItemMapper;
+
+    @Autowired
+    private CollectionLogMapper collectionLogMapper;
 
     /**
      * 立即执行脚本
@@ -278,12 +290,44 @@ public class CollectionScriptService {
     }
 
     /**
-     * 删除脚本
+     * 删除脚本及其关联数据
      */
     @Transactional
     public Result<Void> deleteScript(Long id) {
+        // 1. 查询该脚本的所有执行记录
+        List<TaskExecution> executions = taskExecutionMapper.selectList(
+            new LambdaQueryWrapper<TaskExecution>()
+                .eq(TaskExecution::getScriptId, id));
+        List<String> executionIds = executions.stream()
+            .map(TaskExecution::getExecutionId)
+            .filter(e -> e != null)
+            .collect(Collectors.toList());
+
+        if (!executionIds.isEmpty()) {
+            // 2. 删除执行日志
+            taskExecutionLogMapper.delete(
+                new LambdaQueryWrapper<com.scfx.entity.TaskExecutionLog>()
+                    .in(com.scfx.entity.TaskExecutionLog::getExecutionId, executionIds));
+
+            // 3. 删除执行数据项
+            executionItemMapper.delete(
+                new LambdaQueryWrapper<com.scfx.entity.ExecutionItem>()
+                    .in(com.scfx.entity.ExecutionItem::getExecutionId, executionIds));
+        }
+
+        // 4. 删除执行记录
+        taskExecutionMapper.delete(
+            new LambdaQueryWrapper<TaskExecution>()
+                .eq(TaskExecution::getScriptId, id));
+
+        // 5. 删除采集日志
+        collectionLogMapper.delete(
+            new LambdaQueryWrapper<com.scfx.entity.CollectionLog>()
+                .eq(com.scfx.entity.CollectionLog::getTaskId, id));
+
+        // 6. 删除脚本本身
         scriptMapper.deleteById(id);
-        log.info("删除采集脚本: id={}", id);
+        log.info("删除采集脚本及关联数据: id={}, 关联执行记录={}条", id, executions.size());
         return Result.success();
     }
 

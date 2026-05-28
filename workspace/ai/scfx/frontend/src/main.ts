@@ -11,8 +11,8 @@ import './styles/dark-theme.css'
 const app = createApp(App)
 
 // 注册Element Plus图标
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
+for (const [key, icon] of Object.entries(ElementPlusIconsVue)) {
+  app.component(key, icon)
 }
 
 app.use(createPinia())

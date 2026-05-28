@@ -210,6 +210,13 @@ CREATE TABLE IF NOT EXISTS t_knowledge_base (
     vector_status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/processing/completed/failed',
     vector_ids VARCHAR(500),
     execution_id VARCHAR(50),
+    category_id BIGINT DEFAULT NULL COMMENT '所属分类ID',
+    collection_source VARCHAR(50) DEFAULT NULL COMMENT '采集来源',
+    collection_variety VARCHAR(50) DEFAULT NULL COMMENT '采集品种',
+    collection_report_type VARCHAR(50) DEFAULT NULL COMMENT '报告类型',
+    viz_x DOUBLE DEFAULT NULL COMMENT 'PCA降维X坐标（可视化用）',
+    viz_y DOUBLE DEFAULT NULL COMMENT 'PCA降维Y坐标（可视化用）',
+    viz_z DOUBLE DEFAULT NULL COMMENT 'PCA降维Z坐标（3D预留）',
     created_by VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -397,7 +404,7 @@ CREATE TABLE IF NOT EXISTS t_alert_rule (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     rule_name VARCHAR(100) COMMENT '规则名称',
     rule_type VARCHAR(50) COMMENT '规则类型(CONTINUOUS_FAIL/SERVICE_OFFLINE/ZERO_RESULT/TIMEOUT)',
-    condition JSON COMMENT '条件配置',
+    `condition` JSON COMMENT '条件配置',
     enabled TINYINT(1) DEFAULT 1 COMMENT '是否启用',
     notify_channels JSON COMMENT '通知渠道',
     notify_target VARCHAR(500) COMMENT '通知目标',
@@ -422,22 +429,9 @@ INSERT INTO t_category (name, icon, color, sort_order) VALUES
 ('我的钢铁', '🏭', '#3FB950', 2),
 ('中华粮网', '🌾', '#F0883E', 3);
 
--- 采集脚本关联分类（已有表新增列）
-ALTER TABLE t_collection_script ADD COLUMN IF NOT EXISTS category_id BIGINT DEFAULT NULL COMMENT '关联分类ID（采集结果同步到知识库时自动归类）';
-
 -- =============================================
 -- 向量可视化相关（双向量方案）
 -- =============================================
-
--- 知识库表新增字段（PCA 降维坐标）
-ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS content_html TEXT COMMENT 'HTML格式内容（保留图片标签等）';
-ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS category_id BIGINT DEFAULT NULL COMMENT '所属分类ID';
-ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS collection_source VARCHAR(50) DEFAULT NULL COMMENT '采集来源';
-ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS collection_variety VARCHAR(50) DEFAULT NULL COMMENT '采集品种';
-ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS collection_report_type VARCHAR(50) DEFAULT NULL COMMENT '报告类型';
-ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS viz_x DOUBLE DEFAULT NULL COMMENT 'PCA降维X坐标（可视化用）';
-ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS viz_y DOUBLE DEFAULT NULL COMMENT 'PCA降维Y坐标（可视化用）';
-ALTER TABLE t_knowledge_base ADD COLUMN IF NOT EXISTS viz_z DOUBLE DEFAULT NULL COMMENT 'PCA降维Z坐标（3D预留）';
 
 -- 可视化向量存储表（DashScope 768维向量）
 CREATE TABLE IF NOT EXISTS t_knowledge_viz (
@@ -483,3 +477,22 @@ CREATE TABLE IF NOT EXISTS t_pca_calculation_record (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE INDEX idx_calc_version (category_id, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='PCA计算记录表';
+
+-- 切片表（文档解析后分片存储）
+CREATE TABLE IF NOT EXISTS t_knowledge_chunk (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    knowledge_id BIGINT NOT NULL COMMENT '所属知识ID',
+    category_id BIGINT COMMENT '分类ID',
+    chunk_index INT NOT NULL COMMENT '切片序号（从0开始）',
+    content TEXT NOT NULL COMMENT '切片文本内容',
+    token_count INT DEFAULT NULL COMMENT 'token数',
+    vector_status VARCHAR(20) DEFAULT 'pending' COMMENT '向量化状态: pending/processing/vectorized/failed',
+    vector_id VARCHAR(100) DEFAULT NULL COMMENT '向量ID（DashScope返回）',
+    error_message VARCHAR(500) DEFAULT NULL COMMENT '向量化失败信息',
+    is_active INT DEFAULT 1 COMMENT '1=正常 0=已删除',
+    content_terms VARCHAR(2000) DEFAULT NULL COMMENT '保留字段：全文检索用',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_knowledge_id (knowledge_id),
+    INDEX idx_knowledge_active (knowledge_id, is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识切片表';

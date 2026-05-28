@@ -149,6 +149,20 @@
         <el-form-item label="描述" prop="description">
           <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="数据源描述" />
         </el-form-item>
+        <el-form-item label="配置参数">
+          <div class="config-editor">
+            <div v-for="(item, idx) in editForm.configItems" :key="idx" class="config-row">
+              <el-input v-model="item.key" placeholder="参数名" class="config-key" />
+              <el-input v-model="item.value" :type="isSecretKey(item.key) ? 'password' : 'text'"
+                placeholder="参数值" class="config-value" show-password />
+              <el-button @click="removeConfigItem(idx)" type="danger" :icon="Delete" circle size="small" />
+            </div>
+            <el-button @click="addConfigItem" type="primary" plain size="small">
+              + 添加参数
+            </el-button>
+            <div class="config-tip">示例：采集器需要 username/password 时添加对应参数</div>
+          </div>
+        </el-form-item>
         <el-form-item label="启用" prop="enabled">
           <el-switch v-model="editForm.enabled" />
         </el-form-item>
@@ -183,7 +197,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Back, Document, Warning } from '@element-plus/icons-vue'
+import { Back, Delete, Document, Warning } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { datasourceApi, type DataSource, type ScriptVersion } from '@/api/datasource'
 import { scriptApi, type CollectionScript } from '@/api'
@@ -211,6 +225,7 @@ const formRef = ref<FormInstance>()
 const editForm = reactive({
   name: '',
   description: '',
+  configItems: [] as { key: string; value: string }[],
   enabled: true
 })
 
@@ -328,8 +343,36 @@ function openEditDialog() {
   if (!dataSource.value) return
   editForm.name = dataSource.value.name
   editForm.description = dataSource.value.description || ''
+  // 解析 config JSON 为键值对列表
+  let config: Record<string, any> = {}
+  if (dataSource.value.config) {
+    if (typeof dataSource.value.config === 'string') {
+      try { config = JSON.parse(dataSource.value.config) } catch {}
+    } else {
+      config = dataSource.value.config as Record<string, any>
+    }
+  }
+  editForm.configItems = Object.entries(config).map(([key, value]) => ({
+    key,
+    value: String(value ?? '')
+  }))
+  if (editForm.configItems.length === 0) {
+    editForm.configItems = [{ key: '', value: '' }]
+  }
   editForm.enabled = dataSource.value.enabled === 1
   editDialogVisible.value = true
+}
+
+function isSecretKey(key: string): boolean {
+  return /password|secret|token|key/i.test(key)
+}
+
+function addConfigItem() {
+  editForm.configItems.push({ key: '', value: '' })
+}
+
+function removeConfigItem(idx: number) {
+  editForm.configItems.splice(idx, 1)
 }
 
 async function handleSaveEdit() {
@@ -340,9 +383,18 @@ async function handleSaveEdit() {
 
     submitting.value = true
     try {
-      const data: Partial<DataSource> = {
+      // 构建 config JSON，只保留非空键值对
+      const configObj: Record<string, string> = {}
+      for (const item of editForm.configItems) {
+        if (item.key.trim()) {
+          configObj[item.key.trim()] = item.value
+        }
+      }
+
+      const data: Partial<DataSource & { config: any }> = {
         name: editForm.name,
         description: editForm.description,
+        config: Object.keys(configObj).length > 0 ? JSON.stringify(configObj) : null,
         enabled: editForm.enabled ? 1 : 0
       }
 
@@ -507,6 +559,31 @@ onMounted(() => {
 .tasks-stats {
   display: flex;
   gap: 24px;
+}
+
+.config-editor {
+  width: 100%;
+}
+
+.config-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+  align-items: center;
+}
+
+.config-key {
+  flex: 1;
+}
+
+.config-value {
+  flex: 2;
+}
+
+.config-tip {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+  margin-top: 6px;
 }
 
 .stat-item {

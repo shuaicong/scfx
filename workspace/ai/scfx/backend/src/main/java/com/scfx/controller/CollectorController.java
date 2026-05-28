@@ -7,7 +7,6 @@ import com.scfx.entity.KnowledgeBase;
 import com.scfx.entity.TaskExecution;
 import com.scfx.mapper.ExecutionItemMapper;
 import com.scfx.mapper.KnowledgeCategoryMapper;
-import com.scfx.service.CategoryMappingService;
 import com.scfx.service.CollectionScriptService;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.TaskExecutionService;
@@ -32,7 +31,6 @@ import java.util.Objects;
 public class CollectorController {
 
     private final TaskExecutionService executionService;
-    private final CategoryMappingService categoryMappingService;
     private final KnowledgeBaseService knowledgeBaseService;
     private final ExecutionItemMapper executionItemMapper;
     private final VectorTaskService vectorTaskService;
@@ -152,17 +150,8 @@ public class CollectorController {
             kb.setCollectionReportType((String) request.get("reportType"));
             kb.setVectorStatus("pending");
 
-            // 3. 分类归属：优先使用脚本绑定的分类，其次走映射规则
-            Long categoryId = null;
-            if (script != null && script.getCategoryId() != null) {
-                categoryId = script.getCategoryId();
-            } else {
-                categoryId = categoryMappingService.map(
-                    kb.getCollectionSource(),
-                    kb.getCollectionVariety(),
-                    kb.getCollectionReportType()
-                );
-            }
+            // 3. 分类归属：使用脚本绑定的分类
+            Long categoryId = script != null ? script.getCategoryId() : null;
             kb.setCategoryId(categoryId);
 
             // 4. 内容指纹（null 安全）

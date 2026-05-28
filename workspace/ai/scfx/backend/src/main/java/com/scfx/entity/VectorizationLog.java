@@ -14,6 +14,7 @@ public class VectorizationLog {
 
     private Long knowledgeId;
     private Long categoryId;
+    private Long taskId;              // 关联 t_vectorization_task
     private String status;            // pending/processing/success/failed
     private Integer retryCount;
     private String errorMessage;

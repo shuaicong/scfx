@@ -42,4 +42,7 @@ export const vectorizationApi = {
 
   retry: (knowledgeId: number) =>
     request.post(`/vectorization/retry/${knowledgeId}`),
+
+  taskLogs: (taskId: number) =>
+    request.get<{ data: Array<{ knowledgeId: number; title: string; status: string; errorMessage: string; vectorId: string; processTimeMs: number; retryCount: number }> }>(`/vectorization/tasks/${taskId}/logs`),
 }

@@ -40,4 +40,10 @@ public interface VectorTaskService {
      * 全量重算指定分类的 PCA（手动触发，清理旧基线重新构建）
      */
     void recomputePCAFull(Long categoryId);
+
+    /**
+     * 全量重算（指定算法），结果写入 t_knowledge_dr_coords
+     * @return 新版本号
+     */
+    int recomputeDR(Long categoryId, String algorithm);
 }

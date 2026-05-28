@@ -1,6 +1,9 @@
 package com.scfx.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.scfx.entity.CollectionScript;
 import com.scfx.entity.DataSource;
+import com.scfx.mapper.CollectionScriptMapper;
 import com.scfx.mapper.DataSourceMapper;
 import com.scfx.service.DataSourceService;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +15,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DataSourceServiceImpl implements DataSourceService {
     private final DataSourceMapper mapper;
+    private final CollectionScriptMapper collectionScriptMapper;
 
     @Override
     public List<DataSource> getAll() {
@@ -55,6 +59,13 @@ public class DataSourceServiceImpl implements DataSourceService {
     @Override
     @Transactional
     public void delete(String code) {
+        // 检查是否有绑定的采集任务
+        long taskCount = collectionScriptMapper.selectCount(
+            new LambdaQueryWrapper<CollectionScript>()
+                .eq(CollectionScript::getSource, code));
+        if (taskCount > 0) {
+            throw new RuntimeException("该数据源下有 " + taskCount + " 个采集任务，请先删除任务后再删除数据源");
+        }
         DataSource existing = mapper.findByCode(code);
         if (existing != null) {
             mapper.deleteById(existing.getId());

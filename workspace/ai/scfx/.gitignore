@@ -80,3 +80,10 @@ build/
 
 # 数据目录
 data/
+
+# Python 缓存
+__pycache__/
+*.pyc
+
+# Superpowers 工作区
+.superpowers/

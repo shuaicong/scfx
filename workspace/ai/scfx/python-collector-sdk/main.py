@@ -1,395 +1,238 @@
 #!/usr/bin/env python3
 """
-采集SDK入口示例
+采集SDK CLI
 
-展示如何使用 SDK：
-1. 从环境变量或配置文件加载配置
-2. 创建采集器实例
-3. 运行采集
+从后端动态获取数据源和采集脚本，不再硬编码子命令。
 
 Usage:
-    python main.py                    # 运行示例采集器
-    python main.py --help             # 查看帮助
-    python main.py collect --help      # 查看 collect 子命令帮助
+    python main.py list                        # 列出所有数据源
+    python main.py run <code> [options]         # 运行指定采集器
+    python main.py run <code> --local           # 从本地 dev/collectors/ 加载
 """
 
 import argparse
+import importlib.util
+import inspect
+import json
 import os
+import re
 import sys
-from typing import Optional
+from pathlib import Path
+from urllib.request import Request, urlopen
+from urllib.error import URLError
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from collectorsdk import (
-    ReporterConfig,
-    BaseCollector,
-    Source,
-    Subject,
-    CollectType,
-    CollectObject,
-    parse_publish_time,
-    extract_report_type,
-    extract_variety,
-    clean_html,
-    calculate_md5,
-    get_data_dir,
-    get_cache_dir,
-    to_json,
-    from_json,
-    get_current_datetime,
-    get_current_date_str,
-)
-from collectorsdk.config import load_config
-from collectorsdk.collectors.liangxin import LiangxinCollector
+from collectorsdk import ReporterConfig, BaseCollector
+
+CACHE_DIR = os.path.expanduser("~/.cache/collectors")
+DEV_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dev", "collectors")
+API_BASE_DEFAULT = "http://localhost:8080/api"
 
 
-# ==================== 示例采集器实现 ====================
+def api_get(url):
+    """调用后端 GET API"""
+    req = Request(url)
+    try:
+        with urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except URLError as e:
+        sys.stderr.write(f"API 请求失败: {e}\n")
+        sys.exit(1)
 
-class ExampleCollector(BaseCollector):
+
+def fetch_data_sources(api_base):
+    """从后端获取所有数据源"""
+    result = api_get(f"{api_base}/datasource")
+    if result.get("code") != 200:
+        sys.stderr.write(f"获取数据源失败: {result.get('message')}\n")
+        sys.exit(1)
+    return result["data"]
+
+
+def check_script_exists(api_base, code):
+    """检查数据源是否有已上传的采集脚本"""
+    try:
+        result = api_get(f"{api_base}/datasource/{code}/script?version=0")
+        return result.get("code") == 200 and bool(result.get("data"))
+    except (URLError, json.JSONDecodeError, SystemExit):
+        return False
+
+
+def download_script(api_base, code):
+    """从后端下载脚本到缓存目录"""
+    result = api_get(f"{api_base}/datasource/{code}/script?version=0")
+    if result.get("code") != 200:
+        sys.stderr.write(f"获取脚本失败: {result.get('message')}\n")
+        sys.exit(1)
+
+    content = result["data"]
+    if not content:
+        sys.stderr.write(f"数据源 '{code}' 尚未上传采集脚本\n")
+        sys.exit(1)
+
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    cache_path = os.path.join(CACHE_DIR, f"{code}.py")
+    with open(cache_path, "w", encoding="utf-8") as f:
+        f.write(content)
+    return cache_path
+
+
+def load_collector_module(code, local=False):
+    """加载采集器模块，返回 (module, collector_class)"""
+    if local:
+        module_path = os.path.join(DEV_DIR, f"{code}.py")
+        if not os.path.exists(module_path):
+            sys.stderr.write(f"本地开发目录未找到脚本: {module_path}\n")
+            sys.exit(1)
+    else:
+        module_path = os.path.join(CACHE_DIR, f"{code}.py")
+        if not os.path.exists(module_path):
+            sys.stderr.write(f"脚本未缓存，请先运行: python main.py run {code}\n")
+            sys.exit(1)
+
+    load_dir = os.path.dirname(module_path)
+    if load_dir not in sys.path:
+        sys.path.insert(0, load_dir)
+
+    spec = importlib.util.spec_from_file_location(code, module_path)
+    if spec is None or spec.loader is None:
+        sys.stderr.write(f"无法加载模块: {module_path}\n")
+        sys.exit(1)
+
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    # 查找第一个非抽象 BaseCollector 子类
+    for attr_name in dir(module):
+        cls = getattr(module, attr_name)
+        if (isinstance(cls, type)
+                and issubclass(cls, BaseCollector)
+                and cls is not BaseCollector
+                and not inspect.isabstract(cls)):
+            return module, cls
+
+    sys.stderr.write(f"脚本中未找到 BaseCollector 实现类: {module_path}\n")
+    sys.exit(1)
+
+
+def build_collector_params(collector_class, code, args):
+    """根据 __init__ 签名推断构造参数
+
+    已知的参数名直接匹配，未知参数尝试从环境变量 {CODE}_{NAME} 读取。
     """
-    示例采集器 - 展示SDK基本用法
+    sig = inspect.signature(collector_class.__init__)
+    params = {}
 
-    继承 BaseCollector 自动获得：
-    - 生命周期管理（start → collect → complete/error）
-    - 日志上报（log_info, log_error 等）
-    - 进度上报（report_progress）
-    - 数据上报（submit_report）
-    """
+    KNOWN = {"config", "task_id", "execution_id"}
 
-    def __init__(
-        self,
-        config: ReporterConfig,
-        task_id: int,
-        source: str,
-        subject: str,
-        coll_type: str,
-        obj: str,
-        remark: str,
-    ):
-        super().__init__(config=config, task_id=task_id)
-        self.set_dimensions(
-            source=source,
-            subject=subject,
-            coll_type=coll_type,
-            obj=obj,
-            remark=remark,
-        )
+    for name, param in sig.parameters.items():
+        if name == "self":
+            continue
 
-    def collect(self) -> int:
-        """执行采集逻辑 - 子类实现"""
-        # 示例：模拟采集
-        self.log_info("开始示例采集...")
-
-        # 模拟数据
-        reports = [
-            {
-                "title": "（2026年5月15日）玉米晨报",
-                "url": "https://example.com/corn-morning-20260515",
-                "content": "今日玉米市场报价稳定...",
-                "publish_time": "2026-05-15T08:00:00",
-            },
-            {
-                "title": "玉米日度行情报告",
-                "url": "https://example.com/corn-daily-20260515",
-                "content": "东北地区玉米价格...",
-                "publish_time": "2026-05-15T09:30:00",
-            },
-        ]
-
-        for i, report in enumerate(reports, 1):
-            # 使用SDK工具函数
-            content_hash = calculate_md5(report["content"])
-
-            self.submit_report(
-                title=report["title"],
-                source=self.dimensions.source if self.dimensions else "unknown",
-                url=report["url"],
-                variety=extract_variety(report["title"]),
-                report_type=extract_report_type(report["title"]),
-                content=clean_html(report["content"]),
-                publish_time=report["publish_time"],
+        if name == "config":
+            params[name] = ReporterConfig(
+                api_base=args.api_base or API_BASE_DEFAULT,
+                enabled=not args.no_report,
             )
+        elif name == "task_id":
+            params[name] = args.task_id
+        elif name == "execution_id":
+            params[name] = args.execution_id
+        else:
+            # 尝试环境变量 {CODE}_{NAME}
+            # 数据源编码中的特殊字符替换为下划线，多个连续特殊字符合并为一个下划线
+            safe_code = re.sub(r'[^a-zA-Z0-9]+', '_', code).upper().strip('_')
+            env_key = f"{safe_code}_{name.upper()}"
+            env_val = os.environ.get(env_key)
+            if env_val is not None:
+                # 带类型注解的参数尝试类型转换
+                if param.annotation is not inspect.Parameter.empty and param.annotation is int:
+                    try:
+                        params[name] = int(env_val)
+                    except ValueError:
+                        params[name] = env_val
+                else:
+                    params[name] = env_val
+            elif param.default is not inspect.Parameter.empty:
+                continue  # 有默认值，跳过
+            else:
+                sys.stderr.write(f"缺少必要参数 '{name}'，请设置环境变量 {env_key}\n")
+                sys.exit(1)
 
-            self.log_info(f"已上报第 {i}/{len(reports)} 条: {report['title']}")
-            self.report_progress(i)
-
-        self.log_info(f"采集完成，共 {len(reports)} 条")
-        return len(reports)
-
-
-# ==================== 配置加载 ====================
-
-def load_reporter_config(
-    api_base: Optional[str] = None,
-    enabled: bool = True,
-    config_file: Optional[str] = None,
-) -> ReporterConfig:
-    """
-    加载上报配置
-
-    优先级（从高到低）：
-    1. 传入的 api_base 参数
-    2. 环境变量 COLLECTOR_API_BASE
-    3. 配置文件中的值
-
-    Args:
-        api_base: API基础地址（可选）
-        enabled: 是否启用上报（默认 True）
-        config_file: 配置文件路径（可选）
-
-    Returns:
-        ReporterConfig 实例
-    """
-    if config_file is None:
-        config_file = os.path.join(os.path.dirname(__file__), "config.yaml")
-
-    config = load_config(config_file)
-
-    # 允许覆盖 api_base
-    if api_base:
-        config.api_base = api_base
-
-    # 允许覆盖 enabled
-    config.enabled = enabled
-
-    return config
+    return params
 
 
-# ==================== 运行模式 ====================
+# ── 命令实现 ──────────────────────────────────────────
 
-def run_example_collector(args):
-    """运行示例采集器"""
-    config = load_reporter_config(
-        api_base=args.api_base or os.getenv("COLLECTOR_API_BASE", "http://localhost:8080/api"),
-        enabled=not args.no_report,
-        config_file=args.config,
-    )
+def cmd_list(args):
+    """列出所有数据源及脚本状态"""
+    api_base = args.api_base or API_BASE_DEFAULT
+    sources = fetch_data_sources(api_base)
 
-    # 创建采集器实例
-    collector = ExampleCollector(
-        config=config,
-        task_id=args.task_id,
-        source=Source.LIANGXIN.value,
-        subject=Subject.CORN.value,
-        coll_type=CollectType.LOGIN_CRAWL.value,
-        obj=CollectObject.DAILY_REPORT.value,
-        remark="示例玉米晨报采集",
-    )
+    print(f"\n可用数据源 (API: {api_base}):")
+    print(f"  {'编码':<20} {'名称':<20} {'状态'}")
+    print(f"  {'─' * 54}")
 
-    # 运行采集
-    try:
-        collector.run()
-        return True
-    except Exception as e:
-        return False
+    for ds in sources:
+        code = ds["code"]
+        name = ds.get("name") or ""
+        has = check_script_exists(api_base, code)
+        status = "✅ 有采集脚本" if has else "❌ 未上传脚本"
+        print(f"  {code:<20} {name:<20} {status}")
 
 
-def run_liangxin_collector(args):
-    """运行粮信网采集器"""
-    config = load_reporter_config(
-        api_base=args.api_base,
-        enabled=not args.no_report,
-        config_file=args.config,
-    )
+def cmd_run(args):
+    """运行指定采集器"""
+    code = args.code
+    api_base = args.api_base or API_BASE_DEFAULT
 
-    # 创建粮信网采集器
-    collector = LiangxinCollector(
-        config=config,
-        task_id=args.task_id,
-        execution_id=args.execution_id,
-        username=args.username or os.getenv("LXW_USERNAME", ""),
-        password=args.password or os.getenv("LXW_PASSWORD", ""),
-        report_type=args.report_type,
-    )
+    if not args.local:
+        download_script(api_base, code)
 
-    # 运行采集
-    try:
-        collector.run()
-        return True
-    except Exception as e:
-        sys.stderr.write(f"采集失败: {e}\n")
-        return False
+    module, collector_class = load_collector_module(code, local=args.local)
+    params = build_collector_params(collector_class, code, args)
+
+    collector = collector_class(**params)
+    collector.run()
 
 
-def show_config_info(args):
-    """显示配置信息"""
-    config = load_reporter_config(
-        api_base=args.api_base,
-        config_file=args.config,
-    )
-
-    print("当前配置:")
-    print(f"  api_base: {config.api_base}")
-    print(f"  enabled: {config.enabled}")
-    print(f"  retry_times: {config.retry_times}")
-    print(f"  retry_delay: {config.retry_delay}")
-    print(f"  timeout: {config.timeout}")
-    print(f"  cache_size: {config.cache_size}")
-    print(f"  async_mode: {config.async_mode}")
-
-    # 显示数据目录
-    print(f"\n目录:")
-    print(f"  数据目录: {get_data_dir()}")
-    print(f"  缓存目录: {get_cache_dir()}")
-
-
-def test_utils(args):
-    """测试工具函数"""
-    print("=" * 60)
-    print("测试SDK工具函数")
-    print("=" * 60)
-
-    test_content = "Hello, World! 你好，世界！"
-
-    print(f"\nMD5计算:")
-    print(f"  输入: {test_content}")
-    print(f"  MD5: {calculate_md5(test_content)}")
-
-    print(f"\n报告类型提取:")
-    titles = [
-        "（2026年5月15日）玉米晨报",
-        "玉米日度行情报告",
-        "玉米市场周报",
-        "玉米专题分析",
-        "普通资讯",
-    ]
-    for title in titles:
-        print(f"  {title} -> {extract_report_type(title)}")
-
-    print(f"\n品种提取:")
-    titles = [
-        "玉米价格周报",
-        "小麦市场日评",
-        "大豆期货行情",
-        "稻米市场分析",
-        "其他商品",
-    ]
-    for title in titles:
-        print(f"  {title} -> {extract_variety(title)}")
-
-    print(f"\n时间解析:")
-    times = [
-        "2026-05-15",
-        "2026-05-15 10:30:00",
-        "2026年5月15日",
-        "2026/05/15",
-    ]
-    for t in times:
-        result = parse_publish_time(t)
-        print(f"  {t} -> {result}")
-
-    print(f"\nHTML清理:")
-    html = "<script>alert('xss')</script><p>Hello <b>World</b>!</p>"
-    print(f"  输入: {html}")
-    print(f"  输出: {clean_html(html)}")
-
-    print(f"\n当前时间:")
-    print(f"  日期: {get_current_date_str()}")
-    print(f"  时间: {get_current_datetime().isoformat()}")
-
-    print(f"\nJSON序列化:")
-    data = {"name": "测试", "value": 123, "items": ["a", "b", "c"]}
-    print(f"  输入: {data}")
-    print(f"  JSON: {to_json(data, indent=2)}")
-
-
-# ==================== 主入口 ====================
+# ── 主入口 ─────────────────────────────────────────
 
 def main():
-    """主入口函数"""
     parser = argparse.ArgumentParser(
-        description="采集SDK示例",
+        description="采集SDK CLI - 动态从后端获取数据源和采集脚本",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-示例用法:
-  # 运行示例采集器
-  python main.py example
-
-  # 运行粮信网采集器
-  python main.py liangxin --username 33022 --password qlp707
-
-  # 禁用上报（本地测试）
-  python main.py example --no-report
-
-  # 指定API地址
-  python main.py example --api-base http://localhost:8080/api
-
-  # 显示配置信息
-  python main.py config
-
-  # 测试工具函数
-  python main.py test
+示例:
+  python main.py list                    # 列出数据源
+  python main.py run liangxin             # 运行粮信网采集器
+  LIANGXIN_USERNAME=xxx LIANGXIN_PASSWORD=yyy python main.py run liangxin
+  python main.py run liangxin --local     # 本地开发模式
         """,
     )
+    parser.add_argument("--api-base", default=None, help=f"API 地址 (默认 {API_BASE_DEFAULT})")
 
-    subparsers = parser.add_subparsers(dest="command", help="子命令")
+    sub = parser.add_subparsers(dest="command", help="子命令")
 
-    # example 子命令
-    parser_example = subparsers.add_parser(
-        "example",
-        help="运行示例采集器",
-    )
-    parser_example.add_argument("--execution-id", default=None, help="执行ID")
-    parser_example.add_argument("--task-id", type=int, default=1, help="任务ID")
-    parser_example.add_argument("--source", default=None, help="数据源")
-    parser_example.add_argument("--api-base", default=None, help="API地址")
-    parser_example.add_argument("--config", default=None, help="配置文件路径")
-    parser_example.add_argument("--no-report", action="store_true", help="禁用上报")
+    # list
+    sub.add_parser("list", help="列出所有数据源及脚本状态")
 
-    # liangxin 子命令
-    parser_liangxin = subparsers.add_parser(
-        "liangxin",
-        help="运行粮信网采集器",
-    )
-
-    # liangxinwang 别名（与数据源编码一致）
-    parser_liangxin_wang = subparsers.add_parser(
-        "liangxinwang",
-        help="运行粮信网采集器（liangxin 别名）",
-    )
-    parser_liangxin_wang.add_argument("--execution-id", default=None, help="执行ID")
-    parser_liangxin_wang.add_argument("--task-id", type=int, default=1, help="任务ID")
-    parser_liangxin_wang.add_argument("--source", default=None, help="数据源")
-    parser_liangxin_wang.add_argument("--api-base", default=None, help="API地址")
-    parser_liangxin_wang.add_argument("--username", default=None, help="粮信网用户名")
-    parser_liangxin_wang.add_argument("--password", default=None, help="粮信网密码")
-    parser_liangxin_wang.add_argument("--report-type", choices=["morning", "evening"], default="morning", help="报告类型")
-    parser_liangxin_wang.add_argument("--config", default=None, help="配置文件路径")
-    parser_liangxin_wang.add_argument("--no-report", action="store_true", help="禁用上报")
-    parser_liangxin.add_argument("--execution-id", default=None, help="执行ID")
-    parser_liangxin.add_argument("--task-id", type=int, default=1, help="任务ID")
-    parser_liangxin.add_argument("--source", default=None, help="数据源")
-    parser_liangxin.add_argument("--api-base", default=None, help="API地址")
-    parser_liangxin.add_argument("--username", default=None, help="粮信网用户名")
-    parser_liangxin.add_argument("--password", default=None, help="粮信网密码")
-    parser_liangxin.add_argument("--report-type", choices=["morning", "evening"], default="morning", help="报告类型")
-    parser_liangxin.add_argument("--config", default=None, help="配置文件路径")
-    parser_liangxin.add_argument("--no-report", action="store_true", help="禁用上报")
-
-    # config 子命令
-    parser_config = subparsers.add_parser(
-        "config",
-        help="显示配置信息",
-    )
-    parser_config.add_argument("--api-base", default=os.getenv("COLLECTOR_API_BASE", ""), help="API地址")
-    parser_config.add_argument("--config", default=None, help="配置文件路径")
-
-    # test 子命令
-    subparsers.add_parser("test", help="测试工具函数")
+    # run
+    p = sub.add_parser("run", help="运行指定采集器")
+    p.add_argument("code", help="数据源编码 (如 liangxin)")
+    p.add_argument("--task-id", type=int, default=1, help="任务ID")
+    p.add_argument("--execution-id", default=None, help="执行ID (不传则自动创建)")
+    p.add_argument("--no-report", action="store_true", help="禁用上报（本地调试）")
+    p.add_argument("--local", action="store_true", help="从 dev/collectors/ 加载脚本，不从后端下载")
 
     args = parser.parse_args()
 
-    if args.command == "example":
-        success = run_example_collector(args)
-        sys.exit(0 if success else 1)
-    elif args.command in ("liangxin", "liangxinwang"):
-        success = run_liangxin_collector(args)
-        sys.exit(0 if success else 1)
-    elif args.command == "config":
-        show_config_info(args)
-    elif args.command == "test":
-        test_utils(args)
+    if args.command == "list":
+        cmd_list(args)
+    elif args.command == "run":
+        cmd_run(args)
     else:
         parser.print_help()
 

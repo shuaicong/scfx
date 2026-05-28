@@ -24,13 +24,11 @@
       </div>
 
       <div class="sidebar-footer">
-        <button class="btn btn-secondary" @click="showMappingDialog = true">
+        <button class="btn btn-secondary" @click="goToVisualization">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-            <path d="M2 17l10 5 10-5"/>
-            <path d="M2 12l10 5 10-5"/>
+            <polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/>
           </svg>
-          映射配置
+          可视化
         </button>
       </div>
     </aside>
@@ -89,6 +87,15 @@
           <div class="stat-value">{{ vectorStats.failed }}</div>
           <div class="stat-label">失败</div>
         </div>
+        <div class="stats-actions">
+          <button class="btn btn-secondary" @click="showTaskDialog = true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>
+            </svg>
+            任务记录
+          </button>
+        </div>
       </div>
 
       <div class="list-header">
@@ -98,14 +105,14 @@
         </div>
         <div class="list-header-right">
           <div class="view-toggle">
-            <button :class="{ active: viewMode === 'card' }" @click="viewMode = 'card'">
+            <button :class="{ active: viewMode === 'card' }" @click="switchView('card')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
                 <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
               </svg>
               卡片
             </button>
-            <button :class="{ active: viewMode === 'table' }" @click="viewMode = 'table'">
+            <button :class="{ active: viewMode === 'table' }" @click="switchView('table')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
                 <line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/>
@@ -121,7 +128,6 @@
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
             </svg>
           </button>
-          <button class="btn btn-secondary" @click="goToVisualization">可视化</button>
           <button class="btn btn-primary" @click="showAddDialog = true">+ 新建</button>
         </div>
       </div>
@@ -205,7 +211,7 @@
       </div>
 
       <!-- Card Grid -->
-      <div class="card-grid" id="cardGrid" v-loading="loading" v-show="viewMode === 'card' && !previewVisible">
+      <div class="card-grid" id="cardGrid" v-loading="loading" v-if="viewMode === 'card' && !previewVisible">
         <div
           v-for="item in filteredList"
           :key="item.id"
@@ -253,7 +259,7 @@
       </div>
 
       <!-- Table View -->
-      <div class="table-view" id="tableView" v-show="viewMode === 'table'">
+      <div class="table-view" id="tableView" v-if="viewMode === 'table' && !previewVisible">
         <table class="data-table">
           <thead>
             <tr>
@@ -394,7 +400,10 @@
         </div>
         <div class="preview-meta-item">
           <div class="label">文本块</div>
-          <div class="value">{{ currentPreview.chunkCount || 0 }}</div>
+          <div class="value">
+            {{ currentPreview.chunkCount || 0 }}
+            <el-button text type="primary" size="small" @click="viewChunks(currentPreview.id!, currentPreview.title)" style="margin-left: 4px;">查看</el-button>
+          </div>
         </div>
         <div class="preview-meta-item">
           <div class="label">来源类型</div>
@@ -424,15 +433,20 @@
         <span class="add-tag-btn">+ 添加标签</span>
       </div>
 
-      <div class="preview-content" v-if="currentPreview">
+      <!-- Preview Content: Read-only mode -->
+      <div class="preview-content" v-if="currentPreview && !editing">
         <div class="preview-section">
           <div class="preview-section-title">内容摘要</div>
-          <div class="content-block" v-if="currentPreview.content || currentPreview.contentHtml">
+          <!-- docx-preview container -->
+          <div v-if="isDocxUpload" class="content-block docx-preview-container">
+            <div ref="docxPreviewRef" class="docx-render-area"></div>
+          </div>
+          <div v-else-if="currentPreview.content || currentPreview.contentHtml" class="content-block">
             <h2>{{ currentPreview.title }}</h2>
             <div v-if="currentPreview.contentHtml" class="content-html" v-html="currentPreview.contentHtml"></div>
             <p v-else>{{ currentPreview.content }}</p>
           </div>
-          <div class="content-block" v-else>
+          <div v-else class="content-block">
             <p style="color: var(--text-muted);">暂无内容摘要</p>
           </div>
         </div>
@@ -460,11 +474,40 @@
         </div>
       </div>
 
+      <!-- Preview Content: Edit mode -->
+      <div class="preview-content preview-edit" v-if="currentPreview && editing">
+        <div class="preview-section">
+          <div class="preview-section-title">编辑知识</div>
+          <div class="edit-field">
+            <label>标题</label>
+            <input type="text" v-model="editForm.title" class="edit-input" />
+          </div>
+          <div class="edit-field">
+            <label>来源类型</label>
+            <input type="text" v-model="editForm.sourceType" class="edit-input" />
+          </div>
+          <div class="edit-field">
+            <label>作者</label>
+            <input type="text" v-model="editForm.author" class="edit-input" />
+          </div>
+          <div class="edit-field">
+            <label>内容</label>
+            <textarea v-model="editForm.content" class="edit-textarea" rows="12"></textarea>
+          </div>
+        </div>
+      </div>
+
       <div class="preview-footer" v-if="currentPreview">
-        <button class="btn btn-secondary" @click="showDetailDialog = true">编辑</button>
-        <button class="btn btn-primary" @click="handleRevectorize(currentPreview)" :disabled="currentPreview.revectorizing">
-          {{ currentPreview.revectorizing ? '处理中...' : '向量化' }}
-        </button>
+        <template v-if="editing">
+          <button class="btn btn-secondary" @click="cancelEditing">取消</button>
+          <button class="btn btn-primary" @click="handleSave" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</button>
+        </template>
+        <template v-else>
+          <button class="btn btn-secondary" @click="startEditing">编辑</button>
+          <button class="btn btn-primary" @click="handleRevectorize(currentPreview)" :disabled="currentPreview.revectorizing">
+            {{ currentPreview.revectorizing ? '处理中...' : '向量化' }}
+          </button>
+        </template>
       </div>
     </aside>
   </div>
@@ -474,6 +517,7 @@
     <div class="modal">
       <div class="modal-header">
         <h3>添加知识</h3>
+        <span class="modal-category-badge" v-if="selectedCategoryName">当前分类：{{ selectedCategoryName }}</span>
         <button class="modal-close" @click="showAddDialog = false">✕</button>
       </div>
       <div class="modal-tabs">
@@ -482,6 +526,13 @@
       </div>
       <div class="modal-body">
         <div v-if="addTab === 'upload'">
+          <div class="form-item">
+            <label>所属分类</label>
+            <select class="form-select" v-model="dialogCategoryId">
+              <option value="">请选择分类</option>
+              <option v-for="cat in flatCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+            </select>
+          </div>
           <div class="form-item">
             <label>标题</label>
             <input type="text" v-model="uploadForm.title" placeholder="请输入文档标题" />
@@ -497,14 +548,25 @@
           <div class="form-item">
             <label>选择文件</label>
             <div class="file-upload" @click="triggerFileInput">
-              <input type="file" ref="fileInput" @change="handleFileChange" accept=".pdf,.doc,.docx,.txt,.md" style="display: none;" />
+              <input type="file" ref="fileInput" @change="handleFileChange" accept=".pdf,.doc,.docx,.txt,.md" style="opacity: 0; position: absolute; width: 0; height: 0;" />
               <div class="file-upload-icon">📁</div>
-              <div class="file-upload-text">将文件拖到此处，或<em>点击上传</em></div>
+              <div class="file-upload-text" v-if="!uploadForm.file">将文件拖到此处，或<em>点击上传</em></div>
+              <div class="file-upload-selected" v-else>
+                <span class="file-name">{{ uploadForm.file.name }}</span>
+                <span class="file-size">({{ (uploadForm.file.size / 1024).toFixed(1) }} KB)</span>
+              </div>
               <div class="file-upload-hint">支持 PDF、Word、TXT、Markdown 格式</div>
             </div>
           </div>
         </div>
         <div v-if="addTab === 'manual'">
+          <div class="form-item">
+            <label>所属分类</label>
+            <select class="form-select" v-model="dialogCategoryId">
+              <option value="">请选择分类</option>
+              <option v-for="cat in flatCategories" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
+            </select>
+          </div>
           <div class="form-item">
             <label>标题</label>
             <input type="text" v-model="manualForm.title" placeholder="请输入知识标题" />
@@ -532,65 +594,149 @@
     </div>
   </div>
 
-  <!-- Detail Dialog -->
-  <div class="modal-overlay" v-if="showDetailDialog" @click.self="showDetailDialog = false">
-    <div class="modal modal-lg">
+  <!-- Vectorization Task Dialog -->
+  <div v-if="showTaskDialog" class="modal-overlay" @click.self="showTaskDialog = false">
+    <div class="modal-panel task-dialog">
       <div class="modal-header">
-        <h3>编辑知识</h3>
-        <button class="modal-close" @click="showDetailDialog = false">✕</button>
+        <h3>向量化任务记录</h3>
+        <button class="modal-close" @click="showTaskDialog = false">✕</button>
       </div>
       <div class="modal-body">
-        <div class="detail-grid" v-if="currentPreview?.id">
-          <div class="detail-item">
-            <div class="detail-label">ID</div>
-            <div class="detail-value">{{ currentPreview.id }}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">标题</div>
-            <input type="text" v-model="editForm.title" class="edit-input" />
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">来源名称</div>
-            <div class="detail-value">{{ currentPreview.sourceName || '-' }}</div>
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">来源类型</div>
-            <input type="text" v-model="editForm.sourceType" class="edit-input" />
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">作者</div>
-            <input type="text" v-model="editForm.author" class="edit-input" />
-          </div>
-          <div class="detail-item">
-            <div class="detail-label">发布时间</div>
-            <div class="detail-value">{{ currentPreview.publishTime || '-' }}</div>
-          </div>
-          <div class="detail-item-full">
-            <div class="detail-label">内容</div>
-            <textarea v-model="editForm.content" class="edit-textarea" rows="8"></textarea>
-          </div>
+        <div class="task-list" v-loading="taskLoading">
+          <table class="task-table" v-if="tasks.length > 0">
+            <thead>
+              <tr>
+                <th style="width:30px"></th>
+                <th>触发时间</th>
+                <th>触发方式</th>
+                <th>分类</th>
+                <th>进度</th>
+                <th>失败</th>
+                <th>耗时</th>
+                <th>状态</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="task in tasks" :key="task.id">
+                <tr class="task-row" @click="toggleTaskLogs(task.id)">
+                  <td class="task-expand">
+                    <span class="expand-arrow" :class="{ expanded: expandedTaskId === task.id }">▶</span>
+                  </td>
+                  <td class="task-time">{{ formatTime(task.createdAt) }}</td>
+                  <td>
+                    <span class="task-trigger" :class="'trigger-' + (task.triggerType || 'manual')">
+                      {{ triggerLabel(task.triggerType) }}
+                    </span>
+                  </td>
+                  <td>{{ categoryName(task.categoryId) }}</td>
+                  <td>{{ task.processedCount ?? 0 }} / {{ task.totalCount ?? 0 }}</td>
+                  <td>
+                    <span v-if="(task.failedCount ?? 0) > 0" class="task-failed">{{ task.failedCount }}</span>
+                    <span v-else class="task-none">-</span>
+                  </td>
+                  <td class="task-time">{{ duration(task.createdAt, task.completedAt) }}</td>
+                  <td>
+                    <span class="task-status" :class="'status-' + task.status">
+                      {{ statusLabel(task.status) }}
+                    </span>
+                  </td>
+                </tr>
+                <tr v-if="expandedTaskId === task.id" class="task-detail-row">
+                  <td colspan="8">
+                    <div class="task-detail" v-loading="loadingTaskLogs">
+                      <table class="task-sub-table" v-if="taskLogsMap[task.id]?.length">
+                        <thead>
+                          <tr>
+                            <th style="width:60px">知识ID</th>
+                            <th>标题</th>
+                            <th style="width:80px">状态</th>
+                            <th style="width:80px">耗时</th>
+                            <th>错误信息</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr v-for="log in taskLogsMap[task.id]" :key="log.knowledgeId">
+                            <td>{{ log.knowledgeId }}</td>
+                            <td class="task-log-title">{{ log.title || '-' }}</td>
+                            <td>
+                              <span class="task-status" :class="'status-' + (log.status === 'success' ? 'completed' : log.status)">
+                                {{ log.status === 'success' ? '成功' : log.status === 'failed' ? '失败' : log.status }}
+                              </span>
+                            </td>
+                            <td class="task-time">{{ log.processTimeMs != null ? log.processTimeMs + 'ms' : '-' }}</td>
+                            <td class="task-error">{{ log.errorMessage || '-' }}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div v-else class="task-empty">暂无详细记录</div>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+          <div v-else-if="!taskLoading" class="task-empty">暂无任务记录</div>
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" @click="showDetailDialog = false">取消</button>
-        <button class="btn btn-primary" @click="handleSave" :disabled="saving">{{ saving ? '保存中...' : '保存' }}</button>
+        <el-pagination
+          v-if="taskTotal > taskPageSize"
+          v-model:current-page="taskPage"
+          :page-size="taskPageSize"
+          :total="taskTotal"
+          layout="prev, pager, next"
+          small
+          @current-change="loadTasks"
+        />
+        <span v-else style="font-size: 12px; color: #999;">共 {{ taskTotal }} 条</span>
       </div>
     </div>
-
-    <!-- Category Mapping Dialog -->
-    <CategoryMappingDialog v-model="showMappingDialog" />
   </div>
 </div>
+
+<!-- 切片查看抽屉 -->
+<el-drawer v-model="chunkDrawerVisible" :title="chunkDrawerTitle" size="500px" destroy-on-close>
+  <template #default>
+    <div v-if="chunks.length === 0" style="text-align: center; padding: 40px; color: #999">
+      暂无切片数据
+    </div>
+    <div v-else class="chunk-list">
+      <el-card
+        v-for="(chunk, i) in chunks"
+        :key="chunk.id"
+        class="chunk-card"
+        :class="{ 'chunk-failed': chunk.vectorStatus === 'failed' }"
+      >
+        <template #header>
+          <div class="chunk-header">
+            <span class="chunk-index">切片 #{{ i + 1 }}</span>
+            <el-tag
+              :type="chunk.vectorStatus === 'vectorized' ? 'success' : chunk.vectorStatus === 'failed' ? 'danger' : 'info'"
+              size="small"
+            >
+              {{ chunk.vectorStatus === 'vectorized' ? '已向量化' : chunk.vectorStatus === 'failed' ? '失败' : '待处理' }}
+            </el-tag>
+            <span class="chunk-tokens">{{ chunk.tokenCount || '?' }} tokens</span>
+          </div>
+        </template>
+        <p class="chunk-content">{{ chunk.content }}</p>
+        <div v-if="chunk.errorMessage" class="chunk-error">
+          {{ chunk.errorMessage }}
+        </div>
+      </el-card>
+    </div>
+  </template>
+</el-drawer>
 </template>
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { knowledgeApi } from '@/api/knowledge'
 import { categoryApi, type Category } from '@/api/category'
 import { vectorizationApi } from '@/api/vectorization'
 import CategoryTree from '@/components/CategoryTree.vue'
-import CategoryMappingDialog from '@/components/CategoryMappingDialog.vue'
+import { renderAsync } from 'docx-preview'
 
 const route = useRoute()
 const router = useRouter()
@@ -607,6 +753,7 @@ interface KnowledgeItem {
   createdAt?: string
   content?: string
   contentHtml?: string
+  fileType?: string
   tags?: string[]
   revectorizing?: boolean
   score?: number
@@ -665,6 +812,7 @@ const sidebarWidth = ref(280)
 const listCollapsed = ref(false)
 const viewMode = ref('table')
 const previewVisible = ref(false)
+const editing = ref(false)
 const previewFullscreen = ref(false)
 const sourceDropdownOpen = ref(false)
 const statusDropdownOpen = ref(false)
@@ -727,6 +875,17 @@ const vectorStats = reactive({
 })
 const vectorLoading = ref(false)
 
+// Vectorization task list
+const tasks = ref<any[]>([])
+const taskLoading = ref(false)
+const taskPage = ref(1)
+const taskPageSize = ref(20)
+const taskTotal = ref(0)
+const categoryNameMap = ref<Record<number, string>>({})
+const expandedTaskId = ref<number | null>(null)
+const taskLogsMap = ref<Record<number, any[]>>({})
+const loadingTaskLogs = ref(false)
+
 // Vectorization config (mock mode detection)
 const vectorConfig = reactive({
   enabled: true,
@@ -765,6 +924,9 @@ const visiblePages = computed(() => {
   return pages
 })
 
+const selectedCategoryName = computed(() =>
+  selectedCategoryId.value ? categoryName(selectedCategoryId.value) : '')
+
 const isAllSelected = computed(() =>
   list.value.length > 0 && list.value.every(item => selectedItems.value.includes(item.id!))
 )
@@ -773,10 +935,30 @@ const isAllSelected = computed(() =>
 const currentPreview = ref<KnowledgeItem | null>(null)
 const relatedItems = ref<KnowledgeItem[]>([])
 
+// docx-preview
+const docxPreviewRef = ref<HTMLDivElement>()
+const isDocxUpload = computed(() => currentPreview.value?.fileType === 'docx')
+
+async function renderDocxPreview(id: number) {
+  await nextTick()
+  if (!docxPreviewRef.value) {
+    console.warn('docxPreviewRef not found after nextTick')
+    return
+  }
+  try {
+    const resp = await fetch(knowledgeApi.getDownloadUrl(id))
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const blob = await resp.blob()
+    await renderAsync(blob, docxPreviewRef.value)
+  } catch (e) {
+    console.error('docx preview failed', e)
+    ElMessage.error('文档预览加载失败')
+  }
+}
+
 // Dialogs
 const showAddDialog = ref(false)
-const showDetailDialog = ref(false)
-const showMappingDialog = ref(false)
+const showTaskDialog = ref(false)
 const addTab = ref('upload')
 const fileInput = ref<HTMLInputElement>()
 
@@ -819,11 +1001,26 @@ const clearBreadcrumb = () => {
   loadData()
 }
 
+const dialogCategoryId = ref<number | ''>('')
+const flatCategories = computed(() => {
+  const walk = (cats: Category[]): Category[] => cats.flatMap(c => [c, ...walk(c.children || [])])
+  return walk(categories.value)
+})
+
+// Sync dialogCategoryId from sidebar selection
+watch(showAddDialog, (val) => {
+  if (val && selectedCategoryId.value) {
+    dialogCategoryId.value = selectedCategoryId.value
+  } else if (!val) {
+    dialogCategoryId.value = ''
+  }
+})
+
 const uploadForm = reactive({
   title: '',
   source: '',
   author: '',
-  file: null as File | null
+  file: null as File | null,
 })
 
 const manualForm = reactive({
@@ -835,6 +1032,7 @@ const manualForm = reactive({
 
 const uploading = ref(false)
 const submitting = ref(false)
+const uploadProgress = ref(0)
 const saving = ref(false)
 
 const editForm = reactive({
@@ -893,6 +1091,7 @@ onMounted(() => {
   loadData()
   loadVectorStats()
   loadVectorConfig()
+  loadCategories()
   // Poll vectorization stats every 10 seconds
   statsTimer.value = setInterval(() => {
     loadVectorStats()
@@ -902,6 +1101,20 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', clickHandler)
   if (statsTimer.value) clearInterval(statsTimer.value)
+})
+
+// Load categories for name mapping
+async function loadCategories() {
+  try {
+    const res: any = await categoryApi.tree()
+    const cats = res.data?.data || []
+    initCategoryNameMap(cats)
+  } catch { /* ignore */ }
+}
+
+// Open task dialog → load tasks
+watch(showTaskDialog, (val) => {
+  if (val) loadTasks()
 })
 
 // Methods
@@ -915,6 +1128,13 @@ function toggleList() {
 
 function goToVisualization() {
   router.push('/knowledge/visualization')
+}
+
+function switchView(mode: string) {
+  viewMode.value = mode
+  if (previewVisible.value) {
+    closePreview()
+  }
 }
 
 function selectSource(key: string) {
@@ -1017,6 +1237,88 @@ async function loadVectorConfig() {
   }
 }
 
+// Vectorization task list
+async function loadTasks() {
+  taskLoading.value = true
+  try {
+    const res: any = await vectorizationApi.getTasks(taskPage.value, taskPageSize.value)
+    if (res.code === 200) {
+      tasks.value = res.data?.records || res.data || []
+      taskTotal.value = res.data?.total || res.data?.length || 0
+    }
+  } catch (e) {
+    console.error('加载任务记录失败', e)
+  } finally {
+    taskLoading.value = false
+  }
+}
+
+async function toggleTaskLogs(taskId: number) {
+  if (expandedTaskId.value === taskId) {
+    expandedTaskId.value = null
+    return
+  }
+  expandedTaskId.value = taskId
+  if (taskLogsMap.value[taskId]) return  // already loaded
+  loadingTaskLogs.value = true
+  try {
+    const res: any = await vectorizationApi.taskLogs(taskId)
+    if (res.code === 200) {
+      taskLogsMap.value[taskId] = res.data || []
+    }
+  } catch (e) {
+    console.error('加载任务详情失败', e)
+  } finally {
+    loadingTaskLogs.value = false
+  }
+}
+
+function triggerLabel(type: string | undefined | null): string {
+  const map: Record<string, string> = { manual: '手动', auto: '自动', auto_dirty: '单条触发', cron: '定时' }
+  return map[type || ''] || type || '手动'
+}
+
+function statusLabel(status: string | undefined | null): string {
+  const map: Record<string, string> = { pending: '等待中', processing: '处理中', completed: '已完成' }
+  return map[status || ''] || status || '-'
+}
+
+function categoryName(id: number | undefined | null): string {
+  if (id == null) return '-'
+  return categoryNameMap.value[id] || `#${id}`
+}
+
+function formatTime(t: string | undefined | null): string {
+  if (!t) return '-'
+  try {
+    const d = new Date(t)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+  } catch { return t }
+}
+
+function duration(start: string | undefined | null, end: string | undefined | null): string {
+  if (!start || !end) return '-'
+  try {
+    const ms = new Date(end).getTime() - new Date(start).getTime()
+    if (ms < 1000) return `${ms}ms`
+    if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`
+    return `${Math.floor(ms / 60000)}m ${Math.floor((ms % 60000) / 1000)}s`
+  } catch { return '-' }
+}
+
+function initCategoryNameMap(cats: any[]) {
+  const map: Record<number, string> = {}
+  const walk = (list: any[]) => {
+    for (const c of list) {
+      if (c.id != null) map[c.id] = c.name || `#${c.id}`
+      if (c.children) walk(c.children)
+    }
+  }
+  walk(cats)
+  categoryNameMap.value = map
+}
+
 function handleCardClick(event: Event, item: KnowledgeItem) {
   if ((event.target as HTMLElement).closest('.card-checkbox') ||
       (event.target as HTMLElement).closest('.actions')) {
@@ -1059,6 +1361,10 @@ async function viewDetail(item: KnowledgeItem) {
     editForm.content = currentPreview.value.content || ''
     editForm.sourceType = currentPreview.value.sourceType || ''
     editForm.author = currentPreview.value.author || ''
+    // 对 .docx 文件：使用 docx-preview 渲染
+    if (item.fileType === 'docx' && item.id) {
+      await renderDocxPreview(item.id)
+    }
   } catch (e) {
     currentPreview.value = item
     previewVisible.value = true
@@ -1066,6 +1372,9 @@ async function viewDetail(item: KnowledgeItem) {
     editForm.content = item.content || ''
     editForm.sourceType = item.sourceType || ''
     editForm.author = item.author || ''
+    if (item.fileType === 'docx' && item.id) {
+      renderDocxPreview(item.id).catch(() => {})
+    }
   }
 }
 
@@ -1086,7 +1395,7 @@ async function handleSave() {
       currentPreview.value.sourceType = editForm.sourceType
       currentPreview.value.author = editForm.author
     }
-    showDetailDialog.value = false
+    editing.value = false
     loadData()
   } catch (e) {
     console.error('保存失败', e)
@@ -1096,8 +1405,21 @@ async function handleSave() {
   }
 }
 
+function startEditing() {
+  editForm.title = currentPreview.value?.title || ''
+  editForm.content = currentPreview.value?.content || ''
+  editForm.sourceType = currentPreview.value?.sourceType || ''
+  editForm.author = currentPreview.value?.author || ''
+  editing.value = true
+}
+
+function cancelEditing() {
+  editing.value = false
+}
+
 function closePreview() {
   previewVisible.value = false
+  editing.value = false
   currentPreview.value = null
 }
 
@@ -1220,15 +1542,22 @@ async function handleUpload() {
     ElMessage.warning('请选择文件')
     return
   }
+  if (!dialogCategoryId.value) {
+    ElMessage.warning('请选择分类')
+    return
+  }
 
   uploading.value = true
+  uploadProgress.value = 0
   try {
-    const formData = new FormData()
-    formData.append('title', uploadForm.title)
-    formData.append('source', uploadForm.source || '')
-    formData.append('author', uploadForm.author || '')
-    formData.append('file', uploadForm.file)
-    await knowledgeApi.upload(formData)
+    const idempotentKey = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    await knowledgeApi.uploadDocument(
+      uploadForm.file,
+      dialogCategoryId.value as number,
+      uploadForm.title,
+      idempotentKey,
+      (pct: number) => { uploadProgress.value = pct }
+    )
     ElMessage.success('上传成功')
     showAddDialog.value = false
     loadData()
@@ -1256,7 +1585,8 @@ async function handleManualAdd() {
       title: manualForm.title,
       content: manualForm.content,
       source: manualForm.source || undefined,
-      author: manualForm.author || undefined
+      author: manualForm.author || undefined,
+      categoryId: dialogCategoryId.value || undefined
     })
     ElMessage.success('添加成功')
     showAddDialog.value = false
@@ -1341,11 +1671,36 @@ async function batchDelete() {
   }
 }
 
+// ======================== 切片抽屉 ========================
+
+const chunkDrawerVisible = ref(false)
+const chunkDrawerTitle = ref('')
+const chunks = ref<any[]>([])
+
+async function viewChunks(knowledgeId: number, title: string) {
+  chunkDrawerTitle.value = `切片查看 - ${title}`
+  chunkDrawerVisible.value = true
+  chunks.value = []
+  try {
+    const res = await knowledgeApi.getChunks(knowledgeId)
+    chunks.value = (res as any).data || []
+  } catch {
+    ElMessage.error('加载切片失败')
+    chunks.value = []
+  }
+}
+
 // Mock data for testing
 
 </script>
 
 <style scoped>
+.knowledge-wrapper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
 .knowledge-container {
   display: flex;
   height: 100%;
@@ -1596,6 +1951,7 @@ async function batchDelete() {
 .list-area.list-collapsed {
   width: 0;
   min-width: 0;
+  flex: none;
   overflow: visible;
 }
 
@@ -1845,6 +2201,7 @@ async function batchDelete() {
 /* Card Grid */
 .card-grid {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   padding: 20px;
   display: grid;
@@ -2075,6 +2432,7 @@ async function batchDelete() {
 /* Table View */
 .table-view {
   flex: 1;
+  min-height: 0;
   overflow: auto;
   padding: 0 20px 20px;
 }
@@ -2501,6 +2859,43 @@ async function batchDelete() {
   padding: 20px;
 }
 
+.preview-edit .edit-field {
+  margin-bottom: 16px;
+}
+
+.preview-edit .edit-field label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.preview-edit .edit-field input,
+.preview-edit .edit-field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+}
+
+.preview-edit .edit-field input:focus,
+.preview-edit .edit-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.preview-edit .edit-field textarea {
+  resize: vertical;
+  min-height: 200px;
+  font-family: inherit;
+  line-height: 1.6;
+}
+
 .preview-section {
   margin-bottom: 24px;
 }
@@ -2582,6 +2977,21 @@ async function batchDelete() {
 
 .content-html table tr:nth-child(even) {
   background: var(--bg-primary, #fafafa);
+}
+
+/* docx-preview */
+.docx-preview-container {
+  padding: 0;
+  overflow: auto;
+}
+.docx-render-area {
+  min-height: 300px;
+}
+.docx-render-area :deep(.docx-wrapper) {
+  padding: 20px;
+}
+.docx-render-area :deep(.docx-wrapper p) {
+  margin-bottom: 8px;
 }
 
 .related-list {
@@ -2676,6 +3086,12 @@ async function batchDelete() {
   width: 700px;
 }
 
+.modal-panel {
+  background: var(--bg-secondary);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
 .modal-header {
   display: flex;
   align-items: center;
@@ -2687,6 +3103,14 @@ async function batchDelete() {
 .modal-header h3 {
   font-size: 16px;
   font-weight: 600;
+}
+
+.modal-category-badge {
+  font-size: 12px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  padding: 2px 10px;
+  border-radius: 4px;
 }
 
 .modal-close {
@@ -2764,6 +3188,7 @@ async function batchDelete() {
 }
 
 .form-item input,
+.form-item select,
 .form-item textarea {
   width: 100%;
   padding: 10px 12px;
@@ -2773,6 +3198,11 @@ async function batchDelete() {
   color: var(--text-primary);
   font-size: 13px;
   transition: border-color 0.15s;
+}
+
+.form-item select {
+  cursor: pointer;
+  appearance: auto;
 }
 
 .form-item input:focus,
@@ -2814,6 +3244,20 @@ async function batchDelete() {
 .file-upload-text em {
   color: var(--accent);
   font-style: normal;
+}
+
+.file-upload-selected {
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+.file-upload-selected .file-name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+.file-upload-selected .file-size {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-left: 6px;
 }
 
 .file-upload-hint {
@@ -3051,5 +3495,175 @@ async function batchDelete() {
 .vector-stats .stat-label {
   font-size: 13px;
   opacity: 0.9;
+}
+.stats-actions {
+  display: flex;
+  align-items: center;
+  padding-left: 12px;
+}
+
+/* Task dialog */
+.task-dialog {
+  max-width: 800px;
+}
+.task-list {
+  min-height: 100px;
+}
+.task-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.task-table th {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--border-color);
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.task-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+.task-table tbody tr:hover {
+  background: var(--bg-hover);
+}
+.task-time {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.task-trigger {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+.trigger-manual { background: #e8f5e9; color: #2e7d32; }
+.trigger-auto { background: #e3f2fd; color: #1565c0; }
+.trigger-auto_dirty { background: #fff3e0; color: #e65100; }
+.trigger-cron { background: #f3e5f5; color: #7b1fa2; }
+.task-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+.status-completed { background: #e8f5e9; color: #2e7d32; }
+.status-processing { background: #e3f2fd; color: #1565c0; }
+.status-pending { background: #f5f5f5; color: #757575; }
+.task-failed {
+  display: inline-block;
+  background: #ffebee;
+  color: #c62828;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.task-none { color: #ccc; }
+.task-empty {
+  text-align: center;
+  padding: 40px 0;
+  color: #999;
+}
+.task-row {
+  cursor: pointer;
+}
+.task-row:hover td {
+  background: var(--bg-hover, #f5f7fa);
+}
+.task-expand {
+  text-align: center;
+}
+.expand-arrow {
+  display: inline-block;
+  font-size: 10px;
+  color: #999;
+  transition: transform 0.15s;
+}
+.expand-arrow.expanded {
+  transform: rotate(90deg);
+}
+.task-detail-row td {
+  padding: 0 !important;
+  background: var(--bg-secondary, #fafbfc);
+}
+.task-detail {
+  padding: 12px 16px 12px 46px;
+  min-height: 60px;
+}
+.task-sub-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.task-sub-table th {
+  text-align: left;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.task-sub-table td {
+  padding: 6px 8px !important;
+  border-bottom: 1px solid var(--border-color);
+}
+.task-log-title {
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-error {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--el-color-danger, #e53e3e);
+  font-size: 12px;
+}
+
+/* ======================== 切片抽屉 ======================== */
+.chunk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chunk-card {
+  border-left: 3px solid #409eff;
+}
+.chunk-card.chunk-failed {
+  border-left-color: #f56c6c;
+}
+.chunk-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.chunk-index {
+  font-weight: 600;
+  font-size: 14px;
+}
+.chunk-tokens {
+  font-size: 12px;
+  color: #999;
+  margin-left: auto;
+}
+.chunk-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #333;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+.chunk-error {
+  color: #f56c6c;
+  font-size: 12px;
+  margin-top: 4px;
 }
 </style>

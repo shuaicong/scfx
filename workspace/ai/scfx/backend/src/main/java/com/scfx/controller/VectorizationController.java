@@ -3,9 +3,13 @@ package com.scfx.controller;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
+import com.scfx.entity.KnowledgeBase;
 import com.scfx.entity.PCACalculationRecord;
+import com.scfx.entity.VectorizationLog;
 import com.scfx.entity.VectorizationTask;
+import com.scfx.mapper.KnowledgeBaseMapper;
 import com.scfx.mapper.PCACalculationRecordMapper;
+import com.scfx.mapper.VectorizationLogMapper;
 import com.scfx.service.VectorMetrics;
 import com.scfx.service.VectorProperties;
 import com.scfx.service.VectorTaskService;
@@ -15,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/vectorization")
@@ -25,6 +30,8 @@ public class VectorizationController {
     private final VectorProperties vectorProperties;
     private final VectorMetrics vectorMetrics;
     private final PCACalculationRecordMapper calcRecordMapper;
+    private final VectorizationLogMapper vectorizationLogMapper;
+    private final KnowledgeBaseMapper knowledgeBaseMapper;
 
     // 获取向量化配置状态
     @GetMapping("/config")
@@ -95,6 +102,31 @@ public class VectorizationController {
     public Result<Void> retry(@PathVariable Long knowledgeId) {
         vectorTaskService.retry(knowledgeId);
         return Result.success();
+    }
+
+    // 获取某次任务的详细处理记录
+    @GetMapping("/tasks/{taskId}/logs")
+    public Result<List<Map<String, Object>>> taskLogs(@PathVariable Long taskId) {
+        List<VectorizationLog> logs = vectorizationLogMapper.selectList(
+            new LambdaQueryWrapper<VectorizationLog>()
+                .eq(VectorizationLog::getTaskId, taskId)
+                .orderByAsc(VectorizationLog::getKnowledgeId));
+
+        List<Map<String, Object>> result = logs.stream().map(log -> {
+            Map<String, Object> item = new HashMap<>();
+            item.put("knowledgeId", log.getKnowledgeId());
+            item.put("status", log.getStatus());
+            item.put("errorMessage", log.getErrorMessage());
+            item.put("vectorId", log.getVectorId());
+            item.put("processTimeMs", log.getProcessTimeMs());
+            item.put("retryCount", log.getRetryCount());
+            // 查询知识标题
+            KnowledgeBase kb = knowledgeBaseMapper.selectById(log.getKnowledgeId());
+            item.put("title", kb != null ? kb.getTitle() : null);
+            return item;
+        }).collect(Collectors.toList());
+
+        return Result.success(result);
     }
 
     // 获取 PCA 版本历史

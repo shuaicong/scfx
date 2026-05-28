@@ -11,6 +11,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/datasource")
@@ -18,6 +19,19 @@ import java.util.Map;
 public class DataSourceController {
     private final DataSourceService dataSourceService;
     private final CollectorScriptVersionService scriptVersionService;
+
+    // 编码规则：以小写字母开头，只能包含小写字母、数字、单个连字符，不能以连字符结尾
+    private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][a-z0-9]*(-[a-z0-9]+)*$");
+
+    private String validateCode(String code) {
+        if (code == null || code.isEmpty()) {
+            return "数据源编码不能为空";
+        }
+        if (!CODE_PATTERN.matcher(code).matches()) {
+            return "数据源编码只能以小写字母开头，包含小写字母、数字，多个单词用单个连字符分隔（如 liangxin-yumi-morning）";
+        }
+        return null;
+    }
 
     @GetMapping
     public Result<List<DataSource>> getAll() {
@@ -35,18 +49,30 @@ public class DataSourceController {
 
     @PostMapping
     public Result<DataSource> create(@RequestBody DataSource dataSource) {
+        String error = validateCode(dataSource.getCode());
+        if (error != null) {
+            return Result.error(error);
+        }
         return Result.success(dataSourceService.create(dataSource));
     }
 
     @PutMapping("/{code}")
     public Result<DataSource> update(@PathVariable String code, @RequestBody DataSource dataSource) {
-        return Result.success(dataSourceService.update(code, dataSource));
+        try {
+            return Result.success(dataSourceService.update(code, dataSource));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     @DeleteMapping("/{code}")
     public Result<Void> delete(@PathVariable String code) {
-        dataSourceService.delete(code);
-        return Result.success();
+        try {
+            dataSourceService.delete(code);
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     @PostMapping("/{code}/enable")
