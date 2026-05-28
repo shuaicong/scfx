@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>mammoth.js 浏览器测试</title>
+  <style>
+    body { font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+    #result { border: 1px solid #ccc; padding: 16px; border-radius: 8px; margin-top: 16px; min-height: 100px; }
+    #output { background: #f5f5f5; padding: 16px; border-radius: 8px; margin-top: 8px; white-space: pre-wrap; word-break: break-all; }
+    h1 { color: #333; }
+    .pass { color: green; }
+    .fail { color: red; }
+    .info { color: #666; }
+    .log-line { padding: 4px 0; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+  <h1>mammoth.js 浏览器测试</h1>
+  <input type="file" id="fileInput" accept=".docx">
+  <button id="testBtn" onclick="runTest()">测试内置文档</button>
+  <button id="clearBtn" onclick="clearResult()">清空</button>
+  <div id="log"></div>
+  <div id="output">等待测试...</div>
+
+  <script>
+    const logDiv = document.getElementById('log')
+    const outputDiv = document.getElementById('output')
+    const fileInput = document.getElementById('fileInput')
+
+    function log(msg, type = 'info') {
+      const div = document.createElement('div')
+      div.className = 'log-line'
+      div.innerHTML = `<span class="${type}">${type === 'pass' ? '✅' : type === 'fail' ? '❌' : 'ℹ️'}</span> ${msg}`
+      logDiv.appendChild(div)
+    }
+
+    function clearResult() {
+      logDiv.innerHTML = ''
+      outputDiv.textContent = '已清空'
+    }
+
+    // 检查 Buffer polyfill
+    log('检查 Buffer 全局变量...')
+    if (typeof Buffer !== 'undefined') {
+      log(`Buffer 已定义，Buffer.from 可用: ${typeof Buffer.from === 'function'}`, 'pass')
+    } else {
+      log('Buffer 未定义！mammoth.js 可能无法正常工作', 'fail')
+    }
+
+    // 检查 mammoth 是否可加载
+    log('加载 mammoth.js...')
+    import('mammoth').then(mod => {
+      log(`mammoth 加载成功`, 'pass')
+      log(`convertToHtml 可用: ${typeof mod.convertToHtml === 'function'}`, 'pass')
+      log(`images 可用: ${typeof mod.images !== 'undefined'}`, 'pass')
+
+      window.mammoth = mod
+
+      // 监听文件选择
+      fileInput.addEventListener('change', async (e) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        log(`选择了文件: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`)
+        await parseDocx(file)
+      })
+
+    }).catch(err => {
+      log(`mammoth 加载失败: ${err.message}`, 'fail')
+    })
+
+    // 通过 fetch 加载预置 .docx 并测试
+    async function runTest() {
+        clearResult()
+        const file = fileInput.files?.[0]
+        if (!file) {
+            log('请先选择一个 .docx 文件', 'fail')
+            return
+        }
+        await parseDocx(file)
+    }
+
+    async function parseDocx(file) {
+      if (!window.mammoth) {
+        log('mammoth 尚未加载完成', 'fail')
+        return
+      }
+
+      try {
+        log('开始解析...')
+        const arrayBuffer = await file.arrayBuffer()
+        log(`文件已读取: ${(arrayBuffer.byteLength / 1024).toFixed(1)} KB`, 'pass')
+
+        const result = await window.mammoth.convertToHtml({
+          arrayBuffer,
+          convertImage: window.mammoth.images.imgElement(async (image) => {
+            try {
+              const content = await image.read()
+              // 检查 Buffer 是否在 image.read() 后可访问
+              log(`图片读取成功: ${(content.byteLength / 1024).toFixed(1)} KB`, 'pass')
+              return { src: 'data:image;base64,' + btoa(String.fromCharCode(...new Uint8Array(content))) }
+            } catch (imgErr) {
+              log(`图片处理失败: ${imgErr.message}`, 'fail')
+              return {}
+            }
+          }),
+        })
+
+        log(`解析成功! HTML 长度: ${result.value.length} 字符`, 'pass')
+        log(`包含 <h1>: ${result.value.includes('<h1>')}`)
+        log(`包含 <strong>: ${result.value.includes('<strong>')}`)
+        log(`包含 <p>: ${result.value.includes('<p>')}`)
+
+        outputDiv.innerHTML = result.value
+      } catch (err) {
+        log(`解析失败: ${err.message}`, 'fail')
+        log(`错误详情: ${err.stack}`, 'fail')
+        outputDiv.textContent = `错误: ${err.message}`
+      }
+    }
+  </script>
+</body>
+</html>

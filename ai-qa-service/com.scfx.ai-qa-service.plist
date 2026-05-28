@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.scfx.ai-qa-service</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>cd /Users/hucong/workspace/ai/scfx/ai-qa-service && /Users/hucong/miniconda3/envs/py311/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 5002</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>SILICON_FLOW_API_KEY</key>
+        <string>sk-zsdbsodwzydxcipkgzincbbewbfqkfitbexxrudhliyesnvz</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/hucong/workspace/ai/scfx/ai-qa-service/service.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/hucong/workspace/ai/scfx/ai-qa-service/service.error.log</string>
+</dict>
+</plist>

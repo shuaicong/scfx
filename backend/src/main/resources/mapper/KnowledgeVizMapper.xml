@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scfx.mapper.KnowledgeVizMapper">
+    <resultMap id="BaseResultMap" type="com.scfx.entity.KnowledgeViz">
+        <id column="id" property="id"/>
+        <result column="knowledge_id" property="knowledgeId"/>
+        <result column="viz_status" property="vizStatus"/>
+        <result column="vector_768" property="vector768" typeHandler="com.scfx.handler.FloatArrayTypeHandler"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+    </resultMap>
+
+    <select id="selectByCategoryId" resultMap="BaseResultMap">
+        SELECT v.* FROM t_knowledge_viz v
+        JOIN t_knowledge_base kb ON v.knowledge_id = kb.id
+        WHERE kb.category_id = #{categoryId}
+    </select>
+
+    <select id="selectByKnowledgeId" resultMap="BaseResultMap">
+        SELECT * FROM t_knowledge_viz
+        WHERE knowledge_id = #{knowledgeId}
+        LIMIT 1
+    </select>
+
+    <select id="selectByCategoryIdAndVizStatus" resultMap="BaseResultMap">
+        SELECT v.* FROM t_knowledge_viz v
+        JOIN t_knowledge_base kb ON v.knowledge_id = kb.id
+        WHERE kb.category_id = #{categoryId}
+        AND v.viz_status = #{vizStatus}
+    </select>
+</mapper>

@@ -1,0 +1,123 @@
+spring:
+  application:
+    name: grain-platform
+
+  # MySQL数据库
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/grain_platform?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&connectionCollation=utf8mb4_general_ci&sessionVariables=character_set_client=utf8mb4,character_set_connection=utf8mb4,character_set_results=utf8mb4
+    username: root
+    password: Scfx@2024
+    hikari:
+      maximum-pool-size: 10
+
+  # 初始化SQL（首次建表后设为never）
+  sql:
+    init:
+      mode: never
+
+  # Redis配置（可选，开发时可注释掉）
+  # data:
+  #   redis:
+  #     host: localhost
+  #     port: 6379
+
+  # 文件上传限制
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+
+# MyBatis-Plus配置
+mybatis-plus:
+  mapper-locations: classpath:mapper/**/*.xml
+  type-aliases-package: com.scfx.entity
+  type-handlers-package: com.scfx.handler
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 服务器配置
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+    encoding:
+      charset: UTF-8
+      enabled: true
+      force: true
+      force-request: true
+  tomcat:
+    uri-encoding: UTF-8
+
+# Actuator配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+# 日志配置
+logging:
+  level:
+    com.scfx: DEBUG
+
+# 自定义配置
+collector:
+  sdk-path: ${COLLECTOR_SDK_PATH:${user.home}/workspace/ai/scfx/python-collector-sdk}
+  script:
+    path: ${COLLECTOR_SCRIPT_PATH:${user.home}/workspace/ai/scfx/data/collectors}
+
+app:
+  upload:
+    dir: data/upload       # 上传文件存储根目录（建议生产环境用绝对路径）
+  ai-qa-service:
+    url: http://localhost:5002
+  jwt:
+    secret: grain-platform-secret-key-2024-hainan-reserve-group
+    expiration: 86400000
+
+  collection:
+    cookie-dir: data/sessions
+    data-dir: data/raw
+
+# PCA 降维配置
+pca:
+  max-iterations: 100           # 幂迭代最大收敛轮数
+  convergence-threshold: 1.0E-6 # 精度阈值，越小迭代越久但越精确
+  dirty-threshold: 1            # 脏数据累计条数（开发阶段设1，每次向量化立即触发PCA）
+
+# 异步线程池配置
+async:
+  pool:
+    core-size: 2
+    max-size: 5
+    queue-capacity: 50
+
+# 向量库配置
+vector:
+  enabled: true   # true: 使用真实向量库, false: 使用 Mock
+
+  # 硅基流动（纯文本向量化，BGE-M3，免费）
+  siliconflow:
+    api-key: sk-zsdbsodwzydxcipkgzincbbewbfqkfitbexxrudhliyesnvz
+    api-url: https://api.siliconflow.cn/v1/embeddings
+    model: BAAI/bge-m3
+    dimensions: 1024
+    connect-timeout: 5000      # 连接超时（毫秒）
+    read-timeout: 30000        # 读取超时（毫秒）
+
+  # 阿里云百炼 DashScope（多模态向量化，文本+图片）
+  dashscope:
+    api-key: sk-e0383efc6c3148f59c80c11c3624d985
+    api-url: https://dashscope.aliyuncs.com/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding
+    model: tongyi-embedding-vision-flash-2026-03-06
+    dimensions: 768
+    connect-timeout: 5000      # 连接超时（毫秒）
+    read-timeout: 30000        # 读取超时（毫秒）

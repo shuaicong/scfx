@@ -1,0 +1,3031 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>创建采集任务 - 原型预览</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-card: #21262d;
+      --bg-hover: #30363d;
+      --border-color: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --accent-blue: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-orange: #f0883e;
+      --accent-purple: #a371f7;
+      --accent-red: #f85149;
+      --accent-yellow: #d29922;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .back-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      transition: all 0.2s ease;
+    }
+
+    .back-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+    }
+
+    .header-subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-left: auto;
+    }
+
+    /* Page Layout */
+    .page-container {
+      display: flex;
+      min-height: calc(100vh - 69px);
+    }
+
+    /* Sidebar */
+    .sidebar {
+      width: 280px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      padding: 24px 0;
+      flex-shrink: 0;
+    }
+
+    .nav-section {
+      margin-bottom: 24px;
+    }
+
+    .nav-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0 20px;
+      margin-bottom: 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 20px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border-left: 3px solid transparent;
+    }
+
+    .nav-item:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .nav-item.active {
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent-blue);
+      border-left-color: var(--accent-blue);
+    }
+
+    .nav-item .icon {
+      font-size: 18px;
+    }
+
+    .nav-item .count {
+      margin-left: auto;
+      background: var(--bg-hover);
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+
+    .nav-item.active .count {
+      background: rgba(88, 166, 255, 0.2);
+    }
+
+    /* Main Content */
+    .main-content {
+      flex: 1;
+      padding: 32px 48px;
+      overflow-y: auto;
+    }
+
+    .page-title {
+      font-size: 24px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .page-desc {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+
+    /* Form Sections */
+    .form-section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 28px 32px;
+      margin-bottom: 24px;
+    }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .section-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .section-icon.basic { background: rgba(88, 166, 255, 0.15); }
+    .section-icon.script { background: rgba(163, 113, 247, 0.15); }
+    .section-icon.trigger { background: rgba(240, 136, 62, 0.15); }
+    .section-icon.env { background: rgba(63, 185, 80, 0.15); }
+
+    .section-title {
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .section-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* Form Grid */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+    }
+
+    .form-grid.full {
+      grid-template-columns: 1fr;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .form-group.full {
+      grid-column: 1 / -1;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .form-label .required {
+      color: var(--accent-red);
+    }
+
+    .form-input {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px 16px;
+      font-size: 14px;
+      color: var(--text-primary);
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .form-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+    }
+
+    .form-input::placeholder {
+      color: var(--text-secondary);
+      opacity: 0.5;
+    }
+
+    textarea.form-input {
+      min-height: 100px;
+      resize: vertical;
+    }
+
+    /* Radio Group */
+    .radio-group {
+      display: flex;
+      gap: 12px;
+    }
+
+    .radio-option {
+      flex: 1;
+      position: relative;
+    }
+
+    .radio-option input {
+      position: absolute;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .radio-label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 14px 20px;
+      background: var(--bg-primary);
+      border: 2px solid var(--border-color);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .radio-label:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .radio-option input:checked + .radio-label {
+      border-color: var(--accent-blue);
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent-blue);
+    }
+
+    .radio-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 2px solid var(--border-color);
+      position: relative;
+      transition: all 0.2s ease;
+    }
+
+    .radio-option input:checked + .radio-label .radio-dot {
+      border-color: var(--accent-blue);
+    }
+
+    .radio-option input:checked + .radio-label .radio-dot::after {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-blue);
+    }
+
+    /* Script Editor */
+    .script-container {
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .script-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .script-tab {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      background: transparent;
+      color: var(--text-secondary);
+      border: none;
+      transition: all 0.2s ease;
+    }
+
+    .script-tab:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .script-tab.active {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+
+    .script-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+    }
+
+    .script-btn {
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+    }
+
+    .script-btn:hover {
+      background: var(--border-color);
+    }
+
+    .script-editor {
+      background: var(--bg-primary);
+      min-height: 400px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-primary);
+      resize: vertical;
+      width: 100%;
+      border: none;
+      outline: none;
+      display: block;
+    }
+
+    .script-editor::placeholder {
+      color: var(--text-secondary);
+      opacity: 0.5;
+    }
+
+    /* Editor with Line Numbers */
+    .editor-container {
+      display: flex;
+      background: var(--bg-primary);
+      border-radius: 0 0 12px 12px;
+      overflow: hidden;
+    }
+
+    .line-numbers {
+      background: var(--bg-card);
+      padding: 16px 12px;
+      text-align: right;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      opacity: 0.5;
+      user-select: none;
+      min-width: 50px;
+      border-right: 1px solid var(--border-color);
+    }
+
+    .line-numbers span {
+      display: block;
+    }
+
+    .editor-wrapper {
+      flex: 1;
+      position: relative;
+    }
+
+    .editor-wrapper .script-editor {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      padding-left: 16px;
+      padding-right: 16px;
+      padding-top: 16px;
+      padding-bottom: 16px;
+      background: transparent;
+      caret-color: var(--accent-blue);
+    }
+
+    /* File Upload */
+    .upload-zone {
+      border: 2px dashed var(--border-color);
+      border-radius: 12px;
+      padding: 48px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .upload-zone:hover {
+      border-color: var(--accent-blue);
+      background: rgba(88, 166, 255, 0.05);
+    }
+
+    .upload-zone.dragover {
+      border-color: var(--accent-blue);
+      background: rgba(88, 166, 255, 0.1);
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+
+    .upload-text {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+
+    .upload-hint {
+      font-size: 12px;
+      color: var(--text-secondary);
+      opacity: 0.7;
+    }
+
+    /* Trigger Config */
+    .trigger-config {
+      margin-top: 20px;
+    }
+
+    .trigger-panel {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 24px;
+      display: none;
+    }
+
+    .trigger-panel.active {
+      display: block;
+    }
+
+    /* Single Trigger */
+    .datetime-picker {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .date-picker {
+      position: relative;
+    }
+
+    .date-display {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 180px;
+    }
+
+    .date-display:hover {
+      border-color: var(--accent-blue);
+    }
+
+    .date-display .icon {
+      font-size: 18px;
+      opacity: 0.7;
+    }
+
+    .date-display .text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .time-picker {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .time-segment {
+      position: relative;
+    }
+
+    .time-display {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      min-width: 80px;
+    }
+
+    .time-display:hover {
+      border-color: var(--accent-blue);
+    }
+
+    .time-display .value {
+      font-size: 14px;
+      font-weight: 500;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .time-separator {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      padding: 0 4px;
+    }
+
+    .time-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 8px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .time-dropdown.show {
+      display: block;
+    }
+
+    .time-option {
+      padding: 10px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-family: 'JetBrains Mono', monospace;
+      transition: all 0.15s ease;
+    }
+
+    .time-option:hover {
+      background: var(--bg-hover);
+    }
+
+    .time-option.selected {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent-blue);
+    }
+
+    /* Cycle Trigger */
+    .cycle-options {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .cycle-option {
+      padding: 10px 20px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .cycle-option:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .cycle-option.active {
+      background: rgba(88, 166, 255, 0.1);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    .sub-options {
+      margin-top: 16px;
+      padding-left: 20px;
+    }
+
+    .weekdays {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .weekday {
+      width: 40px;
+      height: 40px;
+      border-radius: 8px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .weekday:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .weekday.active {
+      background: rgba(88, 166, 255, 0.1);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    .monthly-options {
+      display: flex;
+      gap: 12px;
+      margin-top: 12px;
+      align-items: center;
+    }
+
+    .monthly-hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: rgba(88, 166, 255, 0.08);
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      border-radius: 8px;
+      margin-bottom: 16px;
+    }
+
+    .monthly-hint .hint-icon {
+      font-size: 14px;
+    }
+
+    .monthly-hint .hint-text {
+      font-size: 12px;
+      color: var(--accent-blue);
+    }
+
+    /* End Condition */
+    .end-condition {
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .end-condition-title {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .end-options {
+      display: flex;
+      gap: 12px;
+    }
+
+    .end-option {
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .end-option:hover {
+      border-color: var(--text-secondary);
+    }
+
+    .end-option.active {
+      background: rgba(88, 166, 255, 0.1);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    .end-sub {
+      margin-top: 12px;
+      margin-left: 20px;
+    }
+
+    /* Preview */
+    .trigger-preview {
+      margin-top: 24px;
+      padding: 16px;
+      background: rgba(88, 166, 255, 0.05);
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      border-radius: 10px;
+    }
+
+    .preview-title {
+      font-size: 12px;
+      color: var(--accent-blue);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .preview-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .preview-item {
+      font-size: 13px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .preview-item .num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--bg-hover);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* Cron Simple */
+    .cron-simple {
+      max-width: 600px;
+    }
+
+    .cron-input-group {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .cron-simple-input {
+      flex: 1;
+      padding: 14px 18px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      letter-spacing: 1px;
+    }
+
+    .cron-simple-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .cron-simple-btn {
+      padding: 14px 28px;
+      background: var(--accent-green);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .cron-simple-btn:hover {
+      background: #4cc764;
+      transform: translateY(-1px);
+    }
+
+    .cron-result-simple {
+      margin-bottom: 24px;
+    }
+
+    .cron-expr-display {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      letter-spacing: 3px;
+    }
+
+    .cron-next5 {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .next5-title {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .next5-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .next5-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 16px;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      font-size: 14px;
+    }
+
+    .next5-item .num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      background: var(--accent-blue);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .next5-item .time {
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* Cron Builder V2 */
+    .cron-builder-v2 {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 24px;
+    }
+
+    /* Tabs */
+    .cron-tabs {
+      display: flex;
+      gap: 4px;
+      margin-bottom: 20px;
+      background: var(--bg-secondary);
+      padding: 4px;
+      border-radius: 10px;
+    }
+
+    .cron-tab {
+      flex: 1;
+      padding: 12px 16px;
+      text-align: center;
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .cron-tab:hover {
+      color: var(--text-primary);
+    }
+
+    .cron-tab.active {
+      background: var(--accent-blue);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(88, 166, 255, 0.3);
+    }
+
+    .cron-tab-content {
+      margin-bottom: 20px;
+    }
+
+    /* Mode Selector */
+    .cron-mode-selector {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .cron-mode {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .cron-mode:hover {
+      border-color: var(--accent-blue);
+      color: var(--text-primary);
+    }
+
+    .cron-mode.active {
+      background: rgba(88, 166, 255, 0.15);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    .cron-mode input {
+      display: none;
+    }
+
+    /* Mode Panel */
+    .cron-mode-panel {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-radius: 10px;
+    }
+
+    .cron-mode-panel span {
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    .cron-mode-panel select,
+    .cron-mode-panel input[type="number"] {
+      padding: 8px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+
+    .cron-mode-panel input[type="number"] {
+      width: 70px;
+      text-align: center;
+    }
+
+    /* Checkbox Grid */
+    .cron-checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 8px;
+    }
+
+    .cron-checkbox-grid label {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .cron-checkbox-grid label:hover {
+      border-color: var(--accent-blue);
+      color: var(--text-primary);
+    }
+
+    .cron-checkbox-grid input {
+      display: none;
+    }
+
+    .cron-checkbox-grid label.checked {
+      background: rgba(88, 166, 255, 0.2);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    .cron-month-grid {
+      grid-template-columns: repeat(6, 1fr);
+    }
+
+    .cron-week-grid {
+      grid-template-columns: repeat(7, 1fr);
+    }
+
+    /* Expression Result V2 */
+    .cron-result-v2 {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      background: linear-gradient(135deg, rgba(88, 166, 255, 0.1), rgba(163, 113, 247, 0.1));
+      border: 1px solid var(--accent-blue);
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+
+    .cron-expr-display {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .cron-expr-label {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    .cron-expr-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      letter-spacing: 2px;
+    }
+
+    .cron-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .cron-action-btn {
+      padding: 8px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .cron-action-btn:hover {
+      border-color: var(--accent-blue);
+      color: var(--text-primary);
+    }
+
+    .cron-action-btn.primary {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+
+    .cron-action-btn.primary:hover {
+      background: #4a9eff;
+    }
+
+    /* Manual Input V2 */
+    .cron-manual-v2 {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .cron-input-v2 {
+      flex: 1;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+    }
+
+    .cron-input-v2:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .cron-parse-btn-v2 {
+      padding: 12px 24px;
+      background: var(--accent-green);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .cron-parse-btn-v2:hover {
+      background: #4cc764;
+      transform: translateY(-1px);
+    }
+
+    /* Preview */
+    .trigger-preview {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .preview-title {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .preview-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .preview-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .preview-item .num {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      background: var(--accent-blue);
+      color: #fff;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .preview-item .time {
+      color: var(--text-primary);
+    }
+
+    /* Cron Presets Dropdown */
+    .cron-presets-dropdown {
+      position: relative;
+    }
+
+    .cron-presets-menu {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      margin-top: 4px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 8px;
+      min-width: 160px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      z-index: 100;
+      display: none;
+    }
+
+    .cron-presets-menu.show {
+      display: block;
+    }
+
+    .cron-presets-menu .preset-option {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .cron-presets-menu .preset-option:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .cron-presets-menu .preset-option .desc {
+      font-size: 11px;
+      color: var(--text-secondary);
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+
+    /* Cron Builder */
+    .cron-presets {
+      margin-bottom: 20px;
+    }
+
+    .preset-list {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .preset-item {
+      padding: 8px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .preset-item:hover {
+      border-color: var(--accent-blue);
+      background: rgba(88, 166, 255, 0.1);
+    }
+
+    .cron-builder {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .cron-fields {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .cron-field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .cron-field label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .cron-select-wrapper select {
+      width: 100%;
+      padding: 10px 12px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-primary);
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+
+    .cron-select-wrapper select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .cron-result {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-radius: 8px;
+    }
+
+    .cron-label {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .cron-expr {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--accent-blue);
+      background: var(--bg-primary);
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+
+    .cron-manual {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .cron-input {
+      flex: 1;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--text-primary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .cron-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .cron-parse-btn {
+      padding: 10px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .cron-parse-btn:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent-blue);
+    }
+
+    /* Environment Config */
+    .env-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .env-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .env-item label {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .env-item input {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: var(--text-primary);
+      font-family: inherit;
+    }
+
+    .env-item input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    /* Actions */
+    .page-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .btn {
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border: none;
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(88, 166, 255, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(88, 166, 255, 0.4);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: var(--bg-card);
+      border: 1px solid var(--accent-green);
+      color: var(--accent-green);
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      box-shadow: 0 10px 40px rgba(63, 185, 80, 0.3);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 2000;
+    }
+
+    .toast.error {
+      border-color: var(--accent-red);
+      color: var(--accent-red);
+      box-shadow: 0 10px 40px rgba(248, 81, 73, 0.3);
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: var(--bg-secondary);
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+
+    /* Hidden */
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <button class="back-btn">←</button>
+    <span class="header-title">采集任务管理</span>
+    <span class="header-subtitle">创建新任务</span>
+  </div>
+
+  <div class="page-container">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="nav-section">
+        <div class="nav-title">任务管理</div>
+        <div class="nav-item active">
+          <span class="icon">📋</span>
+          <span>创建任务</span>
+        </div>
+        <div class="nav-item">
+          <span class="icon">📜</span>
+          <span>任务列表</span>
+          <span class="count">12</span>
+        </div>
+        <div class="nav-item">
+          <span class="icon">▶</span>
+          <span>执行记录</span>
+          <span class="count">3</span>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-title">脚本管理</div>
+        <div class="nav-item">
+          <span class="icon">📁</span>
+          <span>脚本库</span>
+        </div>
+        <div class="nav-item">
+          <span class="icon">🐳</span>
+          <span>容器管理</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <h1 class="page-title">创建采集任务</h1>
+      <p class="page-desc">配置任务基本信息、脚本内容和触发规则</p>
+
+      <!-- Basic Info -->
+      <div class="form-section">
+        <div class="section-header">
+          <div class="section-icon basic">📋</div>
+          <div>
+            <div class="section-title">基本信息</div>
+            <div class="section-desc">设置任务名称和描述</div>
+          </div>
+        </div>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label class="form-label">任务名称 <span class="required">*</span></label>
+            <input type="text" class="form-input" placeholder="例如：粮信网玉米晨报采集" id="taskName">
+          </div>
+          <div class="form-group full">
+            <label class="form-label">任务描述</label>
+            <textarea class="form-input" placeholder="描述任务的具体采集内容..." id="taskDesc"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Script Config -->
+      <div class="form-section">
+        <div class="section-header">
+          <div class="section-icon script">📝</div>
+          <div>
+            <div class="section-title">脚本配置</div>
+            <div class="section-desc">上传或编写采集脚本</div>
+          </div>
+        </div>
+
+        <!-- Script Type -->
+        <div class="form-group full">
+          <label class="form-label">脚本类型 <span class="required">*</span></label>
+          <div class="radio-group">
+            <div class="radio-option">
+              <input type="radio" name="scriptType" value="single" id="typeSingle" checked onchange="onScriptTypeChange()">
+              <label class="radio-label" for="typeSingle">
+                <span class="radio-dot"></span>
+                单文件脚本
+              </label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" name="scriptType" value="multi" id="typeMulti" onchange="onScriptTypeChange()">
+              <label class="radio-label" for="typeMulti">
+                <span class="radio-dot"></span>
+                多文件包
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Single File Editor -->
+        <div class="form-group full" id="singleFilePanel">
+          <div class="script-container">
+            <div class="script-toolbar">
+              <button class="script-tab active" onclick="switchScriptTab('editor')">编辑器</button>
+              <button class="script-tab" onclick="switchScriptTab('upload')">上传文件</button>
+              <div class="script-actions">
+                <button class="script-btn" id="formatBtn" onclick="formatCode()">✨ 格式化</button>
+              </div>
+            </div>
+
+            <!-- Editor Tab -->
+            <div id="editorTab">
+              <div class="editor-container">
+                <div class="line-numbers" id="lineNumbers">
+                  <span>1</span>
+                </div>
+                <div class="editor-wrapper">
+                  <textarea class="script-editor" placeholder="# 在此编写采集脚本...
+import requests
+from bs4 import BeautifulSoup
+
+def crawl():
+    url = 'https://example.com'
+    response = requests.get(url)
+    return response.text
+" id="scriptEditor" oninput="updateLineNumbers()"></textarea>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload Tab -->
+            <div id="uploadTab" class="hidden">
+              <div class="upload-zone" onclick="document.getElementById('fileInput').click()" id="uploadZone">
+                <div class="upload-icon">📤</div>
+                <div class="upload-text">点击或拖拽文件到此处上传</div>
+                <div class="upload-hint">支持 .py 文件</div>
+              </div>
+              <input type="file" id="fileInput" accept=".py" style="display:none" onchange="handleFileUpload(this)">
+            </div>
+          </div>
+        </div>
+
+        <!-- Multi File Upload -->
+        <div class="form-group full hidden" id="multiFilePanel">
+          <div class="upload-zone" onclick="document.getElementById('zipInput').click()" id="zipUploadZone">
+            <div class="upload-icon">📦</div>
+            <div class="upload-text">点击或拖拽 .zip 文件上传</div>
+            <div class="upload-hint">支持多文件采集项目压缩包</div>
+          </div>
+          <input type="file" id="zipInput" accept=".zip" style="display:none" onchange="handleZipUpload(this)">
+          <div class="form-group" style="margin-top: 16px;">
+            <label class="form-label">入口文件 <span class="required">*</span></label>
+            <input type="text" class="form-input" placeholder="例如：main.py、run.py" id="entryFile">
+            <span style="font-size: 12px; color: var(--text-secondary); margin-top: 4px;">输入入口文件名，系统自动识别完整路径</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trigger Config -->
+      <div class="form-section">
+        <div class="section-header">
+          <div class="section-icon trigger">⏰</div>
+          <div>
+            <div class="section-title">触发配置</div>
+            <div class="section-desc">设置任务执行的时间和频率</div>
+          </div>
+        </div>
+
+        <!-- Trigger Type -->
+        <div class="form-group full">
+          <label class="form-label">触发类型</label>
+          <div class="radio-group">
+            <div class="radio-option">
+              <input type="radio" name="triggerType" value="once" id="triggerOnce" checked onchange="onTriggerChange()">
+              <label class="radio-label" for="triggerOnce">
+                <span class="radio-dot"></span>
+                单次触发
+              </label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" name="triggerType" value="cycle" id="triggerCycle" onchange="onTriggerChange()">
+              <label class="radio-label" for="triggerCycle">
+                <span class="radio-dot"></span>
+                周期触发
+              </label>
+            </div>
+            <div class="radio-option">
+              <input type="radio" name="triggerType" value="cron" id="triggerCron" onchange="onTriggerChange()">
+              <label class="radio-label" for="triggerCron">
+                <span class="radio-dot"></span>
+                Cron 表达式
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Trigger Config Panels -->
+        <div class="trigger-config">
+          <!-- Once Trigger -->
+          <div class="trigger-panel active" id="oncePanel">
+            <div class="form-group">
+              <label class="form-label">执行时间 <span class="required">*</span></label>
+              <div class="datetime-picker">
+                <div class="date-picker">
+                  <div class="date-display" onclick="toggleDatePicker(this)">
+                    <span class="icon">📅</span>
+                    <span class="text" id="onceDateText">2026-04-30</span>
+                  </div>
+                  <input type="date" id="onceDate" style="position:absolute;opacity:0;pointer-events:none;" onchange="updateDateText(this, 'onceDateText')">
+                </div>
+                <div class="time-picker">
+                  <div class="time-segment">
+                    <div class="time-display" onclick="toggleTimeDropdown(this, 'onceHour', 23)">
+                      <span class="value" id="onceHourText">08</span>
+                    </div>
+                    <div class="time-dropdown" id="onceHourDropdown"></div>
+                    <input type="hidden" id="onceHour" value="8">
+                  </div>
+                  <span class="time-separator">:</span>
+                  <div class="time-segment">
+                    <div class="time-display" onclick="toggleTimeDropdown(this, 'onceMinute', 59)">
+                      <span class="value" id="onceMinuteText">00</span>
+                    </div>
+                    <div class="time-dropdown" id="onceMinuteDropdown"></div>
+                    <input type="hidden" id="onceMinute" value="0">
+                  </div>
+                  <span class="time-separator">:</span>
+                  <div class="time-segment">
+                    <div class="time-display" onclick="toggleTimeDropdown(this, 'onceSecond', 59)">
+                      <span class="value" id="onceSecondText">00</span>
+                    </div>
+                    <div class="time-dropdown" id="onceSecondDropdown"></div>
+                    <input type="hidden" id="onceSecond" value="0">
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cycle Trigger -->
+          <div class="trigger-panel" id="cyclePanel">
+            <!-- Repeat Type -->
+            <div class="form-group">
+              <label class="form-label">重复频率</label>
+              <div class="cycle-options">
+                <div class="cycle-option active" data-value="daily" onclick="onCycleTypeChange(this)">每天</div>
+                <div class="cycle-option" data-value="weekly" onclick="onCycleTypeChange(this)">每周</div>
+                <div class="cycle-option" data-value="monthly" onclick="onCycleTypeChange(this)">每月</div>
+              </div>
+            </div>
+
+            <!-- Daily Options -->
+            <div class="sub-options" id="dailyOptions">
+              <label class="form-label">触发时间</label>
+              <div class="time-picker">
+                <div class="time-segment">
+                  <div class="time-display" onclick="toggleTimeDropdown(this, 'dailyHour', 23)">
+                    <span class="value" id="dailyHourText">08</span>
+                  </div>
+                  <div class="time-dropdown" id="dailyHourDropdown"></div>
+                  <input type="hidden" id="dailyHour" value="8">
+                </div>
+                <span class="time-separator">:</span>
+                <div class="time-segment">
+                  <div class="time-display" onclick="toggleTimeDropdown(this, 'dailyMinute', 59)">
+                    <span class="value" id="dailyMinuteText">00</span>
+                  </div>
+                  <div class="time-dropdown" id="dailyMinuteDropdown"></div>
+                  <input type="hidden" id="dailyMinute" value="0">
+                </div>
+                <span class="time-separator">:</span>
+                <div class="time-segment">
+                  <div class="time-display" onclick="toggleTimeDropdown(this, 'dailySecond', 59)">
+                    <span class="value" id="dailySecondText">00</span>
+                  </div>
+                  <div class="time-dropdown" id="dailySecondDropdown"></div>
+                  <input type="hidden" id="dailySecond" value="0">
+                </div>
+              </div>
+            </div>
+
+            <!-- Weekly Options -->
+            <div class="sub-options hidden" id="weeklyOptions">
+              <label class="form-label">选择星期</label>
+              <div class="weekdays">
+                <div class="weekday" data-day="1">一</div>
+                <div class="weekday" data-day="2">二</div>
+                <div class="weekday" data-day="3">三</div>
+                <div class="weekday" data-day="4">四</div>
+                <div class="weekday" data-day="5">五</div>
+                <div class="weekday" data-day="6">六</div>
+                <div class="weekday active" data-day="0">日</div>
+              </div>
+              <label class="form-label" style="margin-top: 12px;">触发时间</label>
+              <div class="time-picker">
+                <div class="time-segment">
+                  <div class="time-display" onclick="toggleTimeDropdown(this, 'weeklyHour', 23)">
+                    <span class="value" id="weeklyHourText">08</span>
+                  </div>
+                  <div class="time-dropdown" id="weeklyHourDropdown"></div>
+                  <input type="hidden" id="weeklyHour" value="8">
+                </div>
+                <span class="time-separator">:</span>
+                <div class="time-segment">
+                  <div class="time-display" onclick="toggleTimeDropdown(this, 'weeklyMinute', 59)">
+                    <span class="value" id="weeklyMinuteText">00</span>
+                  </div>
+                  <div class="time-dropdown" id="weeklyMinuteDropdown"></div>
+                  <input type="hidden" id="weeklyMinute" value="0">
+                </div>
+                <span class="time-separator">:</span>
+                <div class="time-segment">
+                  <div class="time-display" onclick="toggleTimeDropdown(this, 'weeklySecond', 59)">
+                    <span class="value" id="weeklySecondText">00</span>
+                  </div>
+                  <div class="time-dropdown" id="weeklySecondDropdown"></div>
+                  <input type="hidden" id="weeklySecond" value="0">
+                </div>
+              </div>
+            </div>
+
+            <!-- Monthly Options -->
+            <div class="sub-options hidden" id="monthlyOptions">
+              <div class="monthly-hint">
+                <span class="hint-icon">ℹ️</span>
+                <span class="hint-text">当月无指定日期时，自动调整为当月最后一天</span>
+              </div>
+              <label class="form-label">选择日期</label>
+              <div class="monthly-options">
+                <div class="time-segment">
+                  <div class="time-display" onclick="toggleTimeDropdown(this, 'monthlyDay', 31, 1)">
+                    <span class="value" id="monthlyDayText">01</span>
+                  </div>
+                  <div class="time-dropdown" id="monthlyDayDropdown"></div>
+                  <input type="hidden" id="monthlyDay" value="1">
+                </div>
+                <span style="margin: 0 8px; color: var(--text-secondary);">日</span>
+                <div class="time-picker">
+                  <div class="time-segment">
+                    <div class="time-display" onclick="toggleTimeDropdown(this, 'monthlyHour', 23)">
+                      <span class="value" id="monthlyHourText">08</span>
+                    </div>
+                    <div class="time-dropdown" id="monthlyHourDropdown"></div>
+                    <input type="hidden" id="monthlyHour" value="8">
+                  </div>
+                  <span class="time-separator">:</span>
+                  <div class="time-segment">
+                    <div class="time-display" onclick="toggleTimeDropdown(this, 'monthlyMinute', 59)">
+                      <span class="value" id="monthlyMinuteText">00</span>
+                    </div>
+                    <div class="time-dropdown" id="monthlyMinuteDropdown"></div>
+                    <input type="hidden" id="monthlyMinute" value="0">
+                  </div>
+                  <span class="time-separator">:</span>
+                  <div class="time-segment">
+                    <div class="time-display" onclick="toggleTimeDropdown(this, 'monthlySecond', 59)">
+                      <span class="value" id="monthlySecondText">00</span>
+                    </div>
+                    <div class="time-dropdown" id="monthlySecondDropdown"></div>
+                    <input type="hidden" id="monthlySecond" value="0">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- End Condition -->
+            <div class="end-condition">
+              <div class="end-condition-title">结束条件</div>
+              <div class="end-options">
+                <div class="end-option active" data-value="never" onclick="onEndTypeChange(this)">永不结束</div>
+                <div class="end-option" data-value="date" onclick="onEndTypeChange(this)">于指定日结束</div>
+                <div class="end-option" data-value="count" onclick="onEndTypeChange(this)">重复一定次数后结束</div>
+              </div>
+              <div class="end-sub hidden" id="endDatePanel">
+                <input type="date" class="form-input" style="width: 200px; margin-top: 12px;" id="endDate">
+              </div>
+              <div class="end-sub hidden" id="endCountPanel">
+                <input type="number" class="form-input" style="width: 100px; margin-top: 12px;" id="endCount" value="10" min="1">
+                <span style="margin-left: 8px; color: var(--text-secondary);">次</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Cron Trigger -->
+          <div class="trigger-panel" id="cronPanel">
+            <div class="cron-simple">
+              <div class="cron-input-group">
+                <input type="text" class="cron-simple-input" id="cronSimpleInput" placeholder="输入 Cron 表达式，如: 0 0 8 * * *" value="0 0 8 * * *">
+                <button class="cron-simple-btn" onclick="calculateCronNext5()">计算</button>
+              </div>
+              <div class="cron-result-simple">
+                <code class="cron-expr-display" id="cronExprSimple">0 0 8 * * *</code>
+              </div>
+              <div class="cron-next5">
+                <div class="next5-title">未来5次触发时间</div>
+                <div class="next5-list" id="cronNext5List">
+                  <div class="next5-item"><span class="num">1</span><span class="time">--</span></div>
+                  <div class="next5-item"><span class="num">2</span><span class="time">--</span></div>
+                  <div class="next5-item"><span class="num">3</span><span class="time">--</span></div>
+                  <div class="next5-item"><span class="num">4</span><span class="time">--</span></div>
+                  <div class="next5-item"><span class="num">5</span><span class="time">--</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions -->
+      <div class="page-actions">
+        <button class="btn btn-secondary" onclick="cancel()">取消</button>
+        <button class="btn btn-primary" onclick="saveOnly()">💾 保存</button>
+        <button class="btn btn-primary" onclick="saveAndExecute()">🚀 保存并启动</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // Script Type Change
+    function onScriptTypeChange() {
+      const type = document.querySelector('input[name="scriptType"]:checked').value;
+      document.getElementById('singleFilePanel').classList.toggle('hidden', type !== 'single');
+      document.getElementById('multiFilePanel').classList.toggle('hidden', type !== 'multi');
+
+      // 互斥处理
+      if (type === 'single') {
+        // 清空多文件包
+        document.getElementById('zipInput').value = '';
+        document.getElementById('entryFile').value = '';
+        document.getElementById('zipUploadZone').querySelector('.upload-text').textContent = '点击或拖拽 .zip 文件上传';
+      } else {
+        // 清空编辑器
+        document.getElementById('scriptEditor').value = '';
+        document.getElementById('fileInput').value = '';
+      }
+    }
+
+    // Script Tab Switch
+    function switchScriptTab(tab) {
+      document.querySelectorAll('.script-tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('editorTab').classList.toggle('hidden', tab !== 'editor');
+      document.getElementById('uploadTab').classList.toggle('hidden', tab !== 'upload');
+      // 切换到上传文件时隐藏格式化按钮
+      document.getElementById('formatBtn').classList.toggle('hidden', tab !== 'editor');
+    }
+
+    // File Upload
+    function handleFileUpload(input) {
+      const file = input.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('scriptEditor').value = e.target.result;
+          // 自动切换到编辑器
+          switchScriptTab('editor');
+          // 设置编辑器tab为active
+          document.querySelectorAll('.script-tab')[0].classList.add('active');
+          document.querySelectorAll('.script-tab')[1].classList.remove('active');
+          // 更新行号
+          updateLineNumbers();
+          showToast('文件上传成功');
+        };
+        reader.readAsText(file);
+      }
+    }
+
+    function handleZipUpload(input) {
+      const file = input.files[0];
+      if (file) {
+        document.getElementById('zipUploadZone').querySelector('.upload-text').textContent = file.name;
+        showToast('压缩包上传成功');
+      }
+    }
+
+    // Date Picker
+    function toggleDatePicker(el) {
+      el.parentElement.querySelector('input[type="date"]').showPicker?.() || el.parentElement.querySelector('input[type="date"]').click();
+    }
+
+    function updateDateText(input, textId) {
+      document.getElementById(textId).textContent = input.value;
+    }
+
+    // Time Dropdown
+    let activeDropdown = null;
+
+    function toggleTimeDropdown(el, fieldId, max, min = 0) {
+      const dropdown = el.parentElement.querySelector('.time-dropdown');
+      const hiddenInput = document.getElementById(fieldId);
+      const valueText = el.querySelector('.value');
+
+      // Close any open dropdown first
+      if (activeDropdown && activeDropdown !== dropdown) {
+        activeDropdown.classList.remove('show');
+      }
+
+      // If clicking the same dropdown, toggle it
+      if (dropdown.classList.contains('show')) {
+        dropdown.classList.remove('show');
+        activeDropdown = null;
+        return;
+      }
+
+      // Populate dropdown if empty
+      if (dropdown.innerHTML === '') {
+        for (let i = min; i <= max; i++) {
+          const option = document.createElement('div');
+          option.className = 'time-option';
+          option.textContent = String(i).padStart(2, '0');
+          option.onclick = function(e) {
+            e.stopPropagation();
+            hiddenInput.value = i;
+            valueText.textContent = String(i).padStart(2, '0');
+            dropdown.classList.remove('show');
+            activeDropdown = null;
+          };
+          dropdown.appendChild(option);
+        }
+      }
+
+      // Mark current selection
+      dropdown.querySelectorAll('.time-option').forEach(opt => {
+        opt.classList.toggle('selected', opt.textContent === valueText.textContent);
+      });
+
+      dropdown.classList.add('show');
+      activeDropdown = dropdown;
+    }
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+      if (activeDropdown && !e.target.closest('.time-segment')) {
+        activeDropdown.classList.remove('show');
+        activeDropdown = null;
+      }
+    });
+
+    // Update Line Numbers
+    function updateLineNumbers() {
+      const editor = document.getElementById('scriptEditor');
+      const lineNumbers = document.getElementById('lineNumbers');
+      const lines = editor.value.split('\n').length;
+      lineNumbers.innerHTML = '';
+      for (let i = 1; i <= lines; i++) {
+        lineNumbers.innerHTML += '<span>' + i + '</span>';
+      }
+    }
+
+    // Trigger Type Change
+    function onTriggerChange() {
+      const type = document.querySelector('input[name="triggerType"]:checked').value;
+      document.querySelectorAll('.trigger-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(type + 'Panel').classList.add('active');
+    }
+
+    // Cycle Type Change
+    function onCycleTypeChange(el) {
+      document.querySelectorAll('.cycle-option').forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+      const type = el.dataset.value;
+      document.getElementById('dailyOptions').classList.toggle('hidden', type !== 'daily');
+      document.getElementById('weeklyOptions').classList.toggle('hidden', type !== 'weekly');
+      document.getElementById('monthlyOptions').classList.toggle('hidden', type !== 'monthly');
+    }
+
+    // Cron Presets
+    function setCronPreset(preset) {
+      const presets = {
+        everyMinute: { second: '0', minute: '*', hour: '*', day: '*', month: '*', week: '*' },
+        everyHour: { second: '0', minute: '0', hour: '*', day: '*', month: '*', week: '*' },
+        daily: { second: '0', minute: '0', hour: '8', day: '*', month: '*', week: '*' },
+        weekly: { second: '0', minute: '0', hour: '8', day: '*', month: '*', week: '1' },
+        monthly: { second: '0', minute: '0', hour: '8', day: '1', month: '*', week: '*' }
+      };
+
+      const config = presets[preset];
+      if (config) {
+        document.getElementById('cronSecond').value = config.second;
+        document.getElementById('cronMinute').value = config.minute;
+        document.getElementById('cronHour').value = config.hour;
+        document.getElementById('cronDay').value = config.day;
+        document.getElementById('cronMonth').value = config.month;
+        document.getElementById('cronWeek').value = config.week;
+        updateCronExpr();
+      }
+    }
+
+    // Update Cron Expression
+    function updateCronExpr() {
+      const second = document.getElementById('cronSecond').value;
+      const minute = document.getElementById('cronMinute').value;
+      const hour = document.getElementById('cronHour').value;
+      const day = document.getElementById('cronDay').value;
+      const month = document.getElementById('cronMonth').value;
+      const week = document.getElementById('cronWeek').value;
+
+      const expr = `${second} ${minute} ${hour} ${day} ${month} ${week}`;
+      document.getElementById('cronExpr').textContent = expr;
+      document.getElementById('cronManualInput').value = expr;
+
+      // Update preview
+      updateCronPreview(second, minute, hour, day, month, week);
+    }
+
+    // Parse Cron Expression to UI
+    function parseCronExpr() {
+      const input = document.getElementById('cronManualInput').value.trim();
+      if (!input) return;
+
+      const parts = input.split(/\s+/);
+      if (parts.length !== 6) {
+        showToast('Cron 表达式格式错误，需要6个字段');
+        return;
+      }
+
+      const [second, minute, hour, day, month, week] = parts;
+
+      // Set values by iterating through options
+      const setIfExists = (id, value) => {
+        const select = document.getElementById(id);
+        for (let opt of select.options) {
+          if (opt.value === value) {
+            select.value = value;
+            break;
+          }
+        }
+      };
+
+      setIfExists('cronSecond', second);
+      setIfExists('cronMinute', minute);
+      setIfExists('cronHour', hour);
+      setIfExists('cronDay', day);
+      setIfExists('cronMonth', month);
+      setIfExists('cronWeek', week);
+
+      document.getElementById('cronExpr').textContent = input;
+      updateCronPreview(second, minute, hour, day, month, week);
+      showToast('Cron 表达式解析成功');
+    }
+
+    // Update Cron Preview
+    function updateCronPreview(second, minute, hour, day, month, week) {
+      const previewList = document.getElementById('cronPreview');
+      const items = previewList.querySelectorAll('.preview-item');
+
+      const now = new Date();
+      const times = [];
+
+      // Simple next 5 calculation
+      let current = new Date(now);
+      current.setMilliseconds(0);
+
+      let count = 0;
+      while (count < 5) {
+        // Add 1 second
+        current = new Date(current.getTime() + 1000);
+
+        const s = current.getSeconds();
+        const m = current.getMinutes();
+        const h = current.getHours();
+        const d = current.getDate();
+        const mon = current.getMonth() + 1;
+        const w = current.getDay();
+
+        let match = true;
+
+        // Second matching
+        if (second !== '*' && parseInt(second) !== s) match = false;
+
+        // Minute matching
+        if (minute !== '*' && !minute.startsWith('*/') && parseInt(minute) !== m) match = false;
+        if (minute.startsWith('*/')) {
+          const interval = parseInt(minute.slice(2));
+          if (m % interval !== 0) match = false;
+        }
+
+        // Hour matching
+        if (hour !== '*' && parseInt(hour) !== h) match = false;
+
+        // Day matching
+        if (day !== '*' && day !== 'L' && parseInt(day) !== d) match = false;
+
+        // Month matching
+        if (month !== '*' && parseInt(month) !== mon) match = false;
+
+        // Week matching
+        if (week !== '*' && week !== '1-5' && week !== '0,6') {
+          if (week === '0' && w !== 0) match = false;
+          if (week === '1' && w !== 1) match = false;
+          if (week === '2' && w !== 2) match = false;
+          if (week === '3' && w !== 3) match = false;
+          if (week === '4' && w !== 4) match = false;
+          if (week === '5' && w !== 5) match = false;
+          if (week === '6' && w !== 6) match = false;
+          if (week === '1-5' && (w === 0 || w === 6)) match = false;
+          if (week === '0,6' && (w !== 0 && w !== 6)) match = false;
+        }
+
+        if (match) {
+          const y = current.getFullYear();
+          const mo = String(current.getMonth() + 1).padStart(2, '0');
+          const dStr = String(current.getDate()).padStart(2, '0');
+          const hStr = String(current.getHours()).padStart(2, '0');
+          const mi = String(current.getMinutes()).padStart(2, '0');
+          const sStr = String(current.getSeconds()).padStart(2, '0');
+          const timeStr = `${y}-${mo}-${dStr} ${hStr}:${mi}:${sStr}`;
+          times.push(timeStr);
+          count++;
+        }
+
+        // Prevent infinite loop
+        if (current.getTime() - now.getTime() > 365 * 24 * 60 * 60 * 1000) break;
+      }
+
+      items.forEach((item, i) => {
+        item.querySelector('span:last-child').textContent = times[i] || '--';
+      });
+    }
+
+    // Weekday Selection
+    document.querySelectorAll('.weekday').forEach(d => {
+      d.addEventListener('click', function() {
+        this.classList.toggle('active');
+      });
+    });
+
+    // End Condition Change
+    function onEndTypeChange(el) {
+      document.querySelectorAll('.end-option').forEach(o => o.classList.remove('active'));
+      el.classList.add('active');
+      const type = el.dataset.value;
+      document.getElementById('endDatePanel').classList.toggle('hidden', type !== 'date');
+      document.getElementById('endCountPanel').classList.toggle('hidden', type !== 'count');
+    }
+
+    // Cron Builder V2 Functions
+    let cronState = {
+      second: { mode: 'every' },
+      minute: { mode: 'every' },
+      hour: { mode: 'every' },
+      day: { mode: 'every' },
+      month: { mode: 'every' },
+      week: { mode: 'every' }
+    };
+
+    function switchCronTab(field) {
+      document.querySelectorAll('.cron-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.cron-tab[data-field="${field}"]`).classList.add('active');
+
+      document.querySelectorAll('.cron-tab-content').forEach(p => p.classList.add('hidden'));
+      document.getElementById(`cron${field.charAt(0).toUpperCase() + field.slice(1)}Panel`).classList.remove('hidden');
+    }
+
+    function selectCronMode(el, field, mode) {
+      const panel = el.closest('.cron-tab-content');
+      panel.querySelectorAll('.cron-mode').forEach(m => m.classList.remove('active'));
+      el.classList.add('active');
+      el.querySelector('input').checked = true;
+
+      cronState[field].mode = mode;
+
+      // Hide all panels for this field
+      panel.querySelectorAll('.cron-mode-panel').forEach(p => p.classList.add('hidden'));
+
+      // Show selected panel
+      const modePanel = document.getElementById(`${field}-${mode}-panel`);
+      if (modePanel) modePanel.classList.remove('hidden');
+
+      updateCronExprV2();
+    }
+
+    function initCheckboxGrid(gridId, values, field) {
+      const grid = document.getElementById(gridId);
+      if (!grid) return;
+
+      grid.innerHTML = '';
+      values.forEach(v => {
+        const label = document.createElement('label');
+        label.innerHTML = `<input type="checkbox" value="${v.value}" onchange="updateCronExprV2()"> ${v.label}`;
+        label.onclick = () => {
+          label.classList.toggle('checked');
+          updateCronExprV2();
+        };
+        grid.appendChild(label);
+      });
+    }
+
+    function updateCronExprV2() {
+      const buildField = (field) => {
+        const mode = cronState[field].mode;
+        if (mode === 'every') return '*';
+        if (mode === 'range') {
+          const start = document.getElementById(`${field}-range-start`)?.value;
+          const end = document.getElementById(`${field}-range-end`)?.value;
+          return start && end ? `${start}-${end}` : '*';
+        }
+        if (mode === 'interval') {
+          const start = document.getElementById(`${field}-interval-start`)?.value;
+          const step = document.getElementById(`${field}-interval-step`)?.value;
+          return start && step ? `${start}/${step}` : '*';
+        }
+        if (mode === 'specific') {
+          const grid = document.getElementById(`${field}-grid`);
+          if (!grid) return '*';
+          const checked = Array.from(grid.querySelectorAll('label.checked input')).map(i => i.value);
+          return checked.length > 0 ? checked.join(',') : '*';
+        }
+        if (mode === 'last') return 'L';
+        if (mode === 'nearest') return 'W';
+        return '*';
+      };
+
+      const second = buildField('second');
+      const minute = buildField('minute');
+      const hour = buildField('hour');
+      const day = buildField('day');
+      const month = buildField('month');
+      const week = buildField('week');
+
+      const expr = `${second} ${minute} ${hour} ${day} ${month} ${week}`;
+      document.getElementById('cronExprV2').textContent = expr;
+      document.getElementById('cronManualInputV2').value = expr;
+
+      updateCronPreviewV2(expr);
+    }
+
+    function parseCronExprV2() {
+      const input = document.getElementById('cronManualInputV2').value.trim();
+      if (!input) return;
+
+      const parts = input.split(/\s+/);
+      if (parts.length !== 6) {
+        showToast('Cron 表达式格式错误，需要6个字段');
+        return;
+      }
+
+      const [second, minute, hour, day, month, week] = parts;
+
+      // Parse each field and update UI
+      const parseField = (field, value) => {
+        const modeRadio = document.querySelector(`input[name="${field}Mode"]`);
+        if (!modeRadio) return;
+
+        let mode = 'every';
+        let panelToShow = null;
+
+        if (value === '*') {
+          mode = 'every';
+        } else if (value.includes('-')) {
+          mode = 'range';
+          panelToShow = `${field}-range-panel`;
+          const [start, end] = value.split('-');
+          const startEl = document.getElementById(`${field}-range-start`);
+          const endEl = document.getElementById(`${field}-range-end`);
+          if (startEl) startEl.value = start;
+          if (endEl) endEl.value = end;
+        } else if (value.includes('/')) {
+          mode = 'interval';
+          panelToShow = `${field}-interval-panel`;
+          const [start, step] = value.split('/');
+          const startEl = document.getElementById(`${field}-interval-start`);
+          const stepEl = document.getElementById(`${field}-interval-step`);
+          if (startEl) startEl.value = start;
+          if (stepEl) stepEl.value = step;
+        } else if (value === 'L') {
+          mode = 'last';
+        } else if (value === 'W') {
+          mode = 'nearest';
+        } else if (value.includes(',')) {
+          mode = 'specific';
+          panelToShow = `${field}-specific-panel`;
+          const values = value.split(',');
+          const grid = document.getElementById(`${field}-grid`);
+          if (grid) {
+            grid.querySelectorAll('label').forEach(label => {
+              const cb = label.querySelector('input');
+              if (values.includes(cb.value)) {
+                label.classList.add('checked');
+                cb.checked = true;
+              } else {
+                label.classList.remove('checked');
+                cb.checked = false;
+              }
+            });
+          }
+        } else {
+          mode = 'specific';
+          panelToShow = `${field}-specific-panel`;
+          const grid = document.getElementById(`${field}-grid`);
+          if (grid) {
+            grid.querySelectorAll('label').forEach(label => {
+              const cb = label.querySelector('input');
+              if (cb.value === value) {
+                label.classList.add('checked');
+                cb.checked = true;
+              } else {
+                label.classList.remove('checked');
+                cb.checked = false;
+              }
+            });
+          }
+        }
+
+        cronState[field].mode = mode;
+
+        // Update radio buttons
+        const panel = document.getElementById(`cron${field.charAt(0).toUpperCase() + field.slice(1)}Panel`);
+        if (panel) {
+          panel.querySelectorAll('.cron-mode').forEach(m => m.classList.remove('active'));
+          panel.querySelectorAll('.cron-mode-panel').forEach(p => p.classList.add('hidden'));
+
+          const radio = panel.querySelector(`input[value="${mode}"]`);
+          if (radio) {
+            radio.checked = true;
+            radio.closest('label').classList.add('active');
+          }
+
+          if (panelToShow) {
+            const p = document.getElementById(panelToShow);
+            if (p) p.classList.remove('hidden');
+          }
+        }
+      };
+
+      parseField('second', second);
+      parseField('minute', minute);
+      parseField('hour', hour);
+      parseField('day', day);
+      parseField('month', month);
+      parseField('week', week);
+
+      updateCronPreviewV2(input);
+      showToast('Cron 表达式解析成功');
+    }
+
+    function updateCronPreviewV2(expr) {
+      const previewList = document.getElementById('cronPreviewV2');
+      if (!previewList) return;
+
+      const parts = expr.split(/\s+/);
+      if (parts.length !== 6) return;
+
+      const [second, minute, hour, day, month, week] = parts;
+      const items = previewList.querySelectorAll('.preview-item');
+      const now = new Date();
+      const times = [];
+
+      let current = new Date(now);
+      current.setMilliseconds(0);
+      current.setSeconds(current.getSeconds() + 1);
+
+      let count = 0;
+      while (count < 5) {
+        const s = current.getSeconds();
+        const m = current.getMinutes();
+        const h = current.getHours();
+        const d = current.getDate();
+        const mon = current.getMonth() + 1;
+        const w = current.getDay();
+
+        let match = true;
+
+        if (second !== '*' && !matchCronValue(second, s)) match = false;
+        if (minute !== '*' && !matchCronValue(minute, m)) match = false;
+        if (hour !== '*' && !matchCronValue(hour, h)) match = false;
+        if (day !== '*' && day !== 'L' && day !== 'W' && !matchCronValue(day, d)) match = false;
+        if (month !== '*' && !matchCronValue(month, mon)) match = false;
+        if (week !== '*' && !matchCronValue(week, w)) match = false;
+
+        if (match) {
+          const y = current.getFullYear();
+          const mo = String(current.getMonth() + 1).padStart(2, '0');
+          const dStr = String(current.getDate()).padStart(2, '0');
+          const hStr = String(current.getHours()).padStart(2, '0');
+          const mi = String(current.getMinutes()).padStart(2, '0');
+          const sStr = String(current.getSeconds()).padStart(2, '0');
+          times.push(`${y}-${mo}-${dStr} ${hStr}:${mi}:${sStr}`);
+          count++;
+        }
+
+        current = new Date(current.getTime() + 1000);
+        if (current.getTime() - now.getTime() > 365 * 24 * 60 * 60 * 1000) break;
+      }
+
+      items.forEach((item, i) => {
+        const span = item.querySelector('span:last-child');
+        if (span) {
+          if (times[i]) {
+            span.textContent = times[i];
+            span.className = 'time';
+          } else {
+            span.textContent = '--';
+            span.className = '';
+          }
+        }
+      });
+    }
+
+    function matchCronValue(pattern, value) {
+      if (!pattern || pattern === '*' || pattern === '?') return true;
+
+      // 逗号分隔的列表
+      if (pattern.includes(',')) {
+        return pattern.split(',').some(p => matchCronValue(p.trim(), value));
+      }
+
+      // 范围
+      if (pattern.includes('-')) {
+        const [start, end] = pattern.split('-').map(Number);
+        return value >= start && value <= end;
+      }
+
+      // 间隔
+      if (pattern.includes('/')) {
+        const parts = pattern.split('/');
+        const start = parts[0] === '*' ? 0 : parseInt(parts[0]);
+        const step = parseInt(parts[1]);
+        return (value - start) % step === 0;
+      }
+
+      // 单一值
+      return parseInt(pattern) === value;
+    }
+
+    // Simple Cron - Calculate Next 5
+    function calculateCronNext5() {
+      const input = document.getElementById('cronSimpleInput').value.trim();
+      if (!input) {
+        showToast('请输入 Cron 表达式');
+        return;
+      }
+
+      const parts = input.split(/\s+/);
+      const fieldCount = parts.length;
+
+      // Quartz Cron 格式:
+      // 6字段: 秒 分 时 日 月 周
+      // 7字段: 秒 分 时 日 月 周 年
+      // 也支持标准5字段: 分 时 日 月 周
+
+      let second, minute, hour, day, month, week, year;
+
+      if (fieldCount === 5) {
+        // 分 时 日 月 周
+        [minute, hour, day, month, week] = parts;
+        second = '0';
+      } else if (fieldCount === 6) {
+        // 秒 分 时 日 月 周
+        [second, minute, hour, day, month, week] = parts;
+      } else if (fieldCount === 7) {
+        // 秒 分 时 日 月 周 年
+        [second, minute, hour, day, month, week, year] = parts;
+      } else if (fieldCount === 8) {
+        // 秒 分 时 日 月 周 ? 年 (Spring/Quartz 扩展)
+        second = parts[0];
+        minute = parts[1];
+        hour = parts[2];
+        day = parts[3];
+        month = parts[4];
+        week = parts[5]; // 通常是 ?
+        year = parts[7];
+      }
+
+      document.getElementById('cronExprSimple').textContent = input;
+
+      const list = document.getElementById('cronNext5List');
+      const items = list.querySelectorAll('.next5-item');
+      const now = new Date();
+      const times = [];
+
+      let current = new Date(now);
+      current.setMilliseconds(0);
+      current.setSeconds(current.getSeconds() + 1);
+
+      let count = 0;
+      while (count < 5) {
+        const s = current.getSeconds();
+        const m = current.getMinutes();
+        const h = current.getHours();
+        const d = current.getDate();
+        const mon = current.getMonth() + 1; // 1-12
+        const w = current.getDay(); // 0=周日, 1=周一, ..., 6=周六
+        const y = current.getFullYear();
+
+        let match = true;
+
+        // 秒匹配
+        if (!matchCronValue(second, s)) match = false;
+
+        // 分钟匹配
+        if (!matchCronValue(minute, m)) match = false;
+
+        // 小时匹配
+        if (!matchCronValue(hour, h)) match = false;
+
+        // 日匹配: * 任意, ? 不指定, L 最后一日
+        if (day === 'L') {
+          const lastDay = new Date(y, mon, 0).getDate();
+          if (d !== lastDay) match = false;
+        } else if (day === 'LW' || day === 'WL') {
+          // 月最后一个工作日 (周一至周五)
+          const lastDay = new Date(y, mon, 0).getDate();
+          let lastWorkday = lastDay;
+          while (true) {
+            const dow = new Date(y, mon - 1, lastWorkday).getDay();
+            if (dow >= 1 && dow <= 5) break;
+            lastWorkday--;
+          }
+          if (d !== lastWorkday) match = false;
+        } else if (day.endsWith('W')) {
+          // 最近工作日，如 15W
+          const targetDay = parseInt(day.slice(0, -1));
+          const targetDate = new Date(y, mon - 1, targetDay);
+          const dayOfWeek = targetDate.getDay();
+          let actualDay = targetDay;
+          if (dayOfWeek === 0) actualDay = targetDay + 1; // 周日 -> 周一
+          else if (dayOfWeek === 6) actualDay = targetDay - 1; // 周六 -> 周五
+          if (d !== actualDay) match = false;
+        } else if (day.startsWith('L-')) {
+          // 倒数第N天，如 L-5 表示倒数第5天
+          const offset = parseInt(day.slice(2));
+          const lastDay = new Date(y, mon, 0).getDate();
+          if (d !== lastDay - offset) match = false;
+        } else if (day !== '*' && day !== '?') {
+          if (!matchCronValue(day, d)) match = false;
+        }
+
+        // 月匹配
+        if (!matchCronValue(month, mon)) match = false;
+
+        // 周匹配:
+        // * = 任意, ? = 不指定
+        // 1-7 或 0=周日, 1=周一...
+        // 6L = 最后一个周六, 1L = 最后一个周日
+        // 2#3 = 第3个星期一
+        if (week === 'L') {
+          // 最后一个周日...简化
+        } else if (week.includes('#')) {
+          // 第N个星期几，如 1#3 = 第3个周一 (1=周一, 7=周日)
+          const [weekDayNum, nth] = week.split('#').map(Number);
+          // 计算第 nth 个 weekDayNum 是几号
+          let targetDate = 1;
+          let found = 0;
+          for (let dd = 1; dd <= 31; dd++) {
+            const dow = new Date(y, mon - 1, dd).getDay();
+            const convertedDow = dow === 0 ? 7 : dow; // 周日=7
+            if (convertedDow === weekDayNum) {
+              found++;
+              if (found === nth) {
+                targetDate = dd;
+                break;
+              }
+            }
+          }
+          if (d !== targetDate) match = false;
+        } else if (week.endsWith('L')) {
+          // 最后一个星期X，如 6L = 最后一个周六
+          const weekDayNum = parseInt(week.slice(0, -1));
+          const lastDayOfMonth = new Date(y, mon, 0).getDate();
+          let lastOccurrence = lastDayOfMonth;
+          while (true) {
+            const dow = new Date(y, mon - 1, lastOccurrence).getDay();
+            const convertedDow = dow === 0 ? 7 : dow;
+            if (convertedDow === weekDayNum) break;
+            lastOccurrence--;
+            if (lastOccurrence < 1) break;
+          }
+          if (d !== lastOccurrence) match = false;
+        } else if (week !== '*' && week !== '?') {
+          // 周字段: 1=周一, 2=周二, ..., 7=周日 (Quartz convention)
+          // JS getDay(): 0=周日, 1=周一, ..., 6=周六
+          const weekValue = w === 0 ? 7 : w;
+          if (!matchCronValue(week, weekValue)) match = false;
+        }
+
+        // 年匹配 (如果指定)
+        if (year && year !== '*' && !matchCronValue(year, y)) match = false;
+
+        // 日和周互斥检查
+        const daySpecified = day && day !== '*' && day !== '?';
+        const weekSpecified = week && week !== '*' && week !== '?';
+        if (daySpecified && weekSpecified) {
+          match = false; // Quartz 规则: 不能同时指定
+        }
+
+        if (match) {
+          const mo = String(current.getMonth() + 1).padStart(2, '0');
+          const dStr = String(current.getDate()).padStart(2, '0');
+          const hStr = String(current.getHours()).padStart(2, '0');
+          const mi = String(current.getMinutes()).padStart(2, '0');
+          const sStr = String(current.getSeconds()).padStart(2, '0');
+          times.push(`${y}-${mo}-${dStr} ${hStr}:${mi}:${sStr}`);
+          count++;
+        }
+
+        current = new Date(current.getTime() + 1000);
+        if (current.getTime() - now.getTime() > 365 * 24 * 60 * 60 * 1000) break;
+      }
+
+      items.forEach((item, i) => {
+        const span = item.querySelector('span.time');
+        if (span) {
+          span.textContent = times[i] || '--';
+        }
+      });
+    }
+
+    // Initialize cron simple on load
+    document.addEventListener('DOMContentLoaded', function() {
+      calculateCronNext5();
+    });
+
+    function generateCronPreset() {
+      const menu = document.querySelector('.cron-presets-menu');
+      if (menu) menu.classList.toggle('show');
+    }
+
+    function applyCronPreset(preset) {
+      const presets = {
+        everyMinute: { second: '0', minute: '*', hour: '*', day: '*', month: '*', week: '*' },
+        everyHour: { second: '0', minute: '0', hour: '*', day: '*', month: '*', week: '*' },
+        daily: { second: '0', minute: '0', hour: '8', day: '*', month: '*', week: '*' },
+        weekly: { second: '0', minute: '0', hour: '8', day: '*', month: '*', week: '1' },
+        monthly: { second: '0', minute: '0', hour: '8', day: '1', month: '*', week: '*' }
+      };
+
+      const config = presets[preset];
+      if (config) {
+        // Reset all fields to 'every' mode first
+        ['second', 'minute', 'hour', 'day', 'month', 'week'].forEach(field => {
+          cronState[field].mode = 'every';
+        });
+
+        // Apply the preset values
+        document.getElementById('cronManualInputV2').value = `${config.second} ${config.minute} ${config.hour} ${config.day} ${config.month} ${config.week}`;
+        parseCronExprV2();
+
+        // Close menu
+        const menu = document.querySelector('.cron-presets-menu');
+        if (menu) menu.classList.remove('show');
+      }
+    }
+
+    // Close presets menu when clicking outside
+    document.addEventListener('click', function(e) {
+      if (!e.target.closest('.cron-presets-dropdown')) {
+        const menu = document.querySelector('.cron-presets-menu');
+        if (menu) menu.classList.remove('show');
+      }
+    });
+
+    // Initialize checkbox grids on load
+
+    // Initialize checkbox grids on load
+    document.addEventListener('DOMContentLoaded', function() {
+      // Second grid: 0-59
+      initCheckboxGrid('second-grid',
+        Array.from({length: 60}, (_, i) => ({value: i, label: String(i).padStart(2, '0')})),
+        'second'
+      );
+
+      // Minute grid: 0-59
+      initCheckboxGrid('minute-grid',
+        Array.from({length: 60}, (_, i) => ({value: i, label: String(i).padStart(2, '0')})),
+        'minute'
+      );
+
+      // Hour grid: 0-23
+      initCheckboxGrid('hour-grid',
+        Array.from({length: 24}, (_, i) => ({value: i, label: String(i).padStart(2, '0')})),
+        'hour'
+      );
+
+      // Day grid: 1-31
+      initCheckboxGrid('day-grid',
+        Array.from({length: 31}, (_, i) => ({value: i + 1, label: String(i + 1)})),
+        'day'
+      );
+
+      // Month grid: 1-12
+      initCheckboxGrid('month-grid',
+        [
+          {value: 1, label: '一月'}, {value: 2, label: '二月'}, {value: 3, label: '三月'},
+          {value: 4, label: '四月'}, {value: 5, label: '五月'}, {value: 6, label: '六月'},
+          {value: 7, label: '七月'}, {value: 8, label: '八月'}, {value: 9, label: '九月'},
+          {value: 10, label: '十月'}, {value: 11, label: '十一月'}, {value: 12, label: '十二月'}
+        ],
+        'month'
+      );
+
+      // Week grid: 0-6
+      initCheckboxGrid('week-grid',
+        [
+          {value: 0, label: '周日'}, {value: 1, label: '周一'}, {value: 2, label: '周二'},
+          {value: 3, label: '周三'}, {value: 4, label: '周四'}, {value: 5, label: '周五'},
+          {value: 6, label: '周六'}
+        ],
+        'week'
+      );
+
+      // Set default expression
+      updateCronExprV2();
+    });
+
+    // Format Code
+    function formatCode() {
+      showToast('代码格式化（需后端支持）');
+    }
+
+    // Cancel
+    function cancel() {
+      if (confirm('确定要取消创建任务吗？')) {
+        history.back();
+      }
+    }
+
+    // Save Only
+    function saveOnly() {
+      if (!validateForm()) return;
+      showToast('任务保存成功');
+      setTimeout(() => {
+        // 跳转到任务列表页面
+        window.location.href = '/scripts';
+      }, 1500);
+    }
+
+    // Save and Execute
+    function saveAndExecute() {
+      if (!validateForm()) return;
+      showToast('任务保存并启动执行');
+      setTimeout(() => {
+        // 跳转到任务列表页面
+        window.location.href = '/scripts';
+      }, 1500);
+    }
+
+    // Validate Form
+    function validateForm() {
+      // 任务名称
+      const taskName = document.getElementById('taskName').value.trim();
+      if (!taskName) {
+        showToast('请填写任务名称', true);
+        document.getElementById('taskName').focus();
+        return false;
+      }
+
+      // 脚本类型
+      const scriptType = document.querySelector('input[name="scriptType"]:checked').value;
+
+      if (scriptType === 'single') {
+        // 单文件脚本 - 检查编辑器内容或上传文件
+        const editorContent = document.getElementById('scriptEditor').value.trim();
+        const fileInput = document.getElementById('fileInput');
+        if (!editorContent && (!fileInput.files || fileInput.files.length === 0)) {
+          showToast('请上传脚本文件或编写脚本内容', true);
+          return false;
+        }
+        if (editorContent && !editorContent.includes('def ') && !editorContent.includes('import ')) {
+          showToast('脚本内容必须是有效的 Python 代码', true);
+          return false;
+        }
+      } else {
+        // 多文件包 - 检查 zip 文件和入口文件
+        const zipInput = document.getElementById('zipInput');
+        if (!zipInput.files || zipInput.files.length === 0) {
+          showToast('请上传多文件包压缩文件', true);
+          return false;
+        }
+        const zipFile = zipInput.files[0];
+        if (!zipFile.name.endsWith('.zip')) {
+          showToast('压缩文件必须是 .zip 格式', true);
+          return false;
+        }
+        const entryFile = document.getElementById('entryFile').value.trim();
+        if (!entryFile) {
+          showToast('请填写入口文件名称', true);
+          document.getElementById('entryFile').focus();
+          return false;
+        }
+        if (!entryFile.endsWith('.py')) {
+          showToast('入口文件必须是 .py 文件', true);
+          return false;
+        }
+      }
+
+      // 触发类型
+      const triggerType = document.querySelector('input[name="triggerType"]:checked').value;
+
+      if (triggerType === 'once') {
+        // 单次触发 - 检查时间
+        const onceDate = document.getElementById('onceDate').value;
+        const onceHour = document.getElementById('onceHour').value;
+        const onceMinute = document.getElementById('onceMinute').value;
+        const onceSecond = document.getElementById('onceSecond').value;
+        if (!onceDate || !onceHour || !onceMinute || !onceSecond) {
+          showToast('请设置执行时间', true);
+          return false;
+        }
+      } else if (triggerType === 'cycle') {
+        // 周期触发 - 检查周期类型和时间
+        const cycleType = document.querySelector('.cycle-option.active')?.dataset.value;
+        if (!cycleType) {
+          showToast('请选择重复频率', true);
+          return false;
+        }
+      } else if (triggerType === 'cron') {
+        // Cron 表达式 - 检查表达式
+        const cronInput = document.getElementById('cronSimpleInput').value.trim();
+        if (!cronInput) {
+          showToast('请输入 Cron 表达式', true);
+          document.getElementById('cronSimpleInput').focus();
+          return false;
+        }
+        const parts = cronInput.split(/\s+/);
+        if (parts.length < 5 || parts.length > 8) {
+          showToast('Cron 表达式格式错误', true);
+          return false;
+        }
+      }
+
+      return true;
+    }
+
+    // Toast
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.toggle('error', isError);
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // Initialize dates and times
+    document.addEventListener('DOMContentLoaded', function() {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+
+      // Set time to current time + 2 minutes
+      const futureTime = new Date(now.getTime() + 2 * 60 * 1000);
+      const hour = futureTime.getHours();
+      const minute = futureTime.getMinutes();
+      const second = futureTime.getSeconds();
+
+      document.getElementById('onceDate').value = dateStr;
+      document.getElementById('onceDateText').textContent = dateStr;
+      document.getElementById('endDate').value = dateStr;
+
+      // Initialize time values to current time + 3 minutes
+      document.getElementById('onceHour').value = hour;
+      document.getElementById('onceHourText').textContent = String(hour).padStart(2, '0');
+      document.getElementById('onceMinute').value = minute;
+      document.getElementById('onceMinuteText').textContent = String(minute).padStart(2, '0');
+      document.getElementById('onceSecond').value = second;
+      document.getElementById('onceSecondText').textContent = String(second).padStart(2, '0');
+
+      // Initialize cycle trigger times
+      document.getElementById('dailyHour').value = hour;
+      document.getElementById('dailyHourText').textContent = String(hour).padStart(2, '0');
+      document.getElementById('dailyMinute').value = minute;
+      document.getElementById('dailyMinuteText').textContent = String(minute).padStart(2, '0');
+      document.getElementById('dailySecond').value = second;
+      document.getElementById('dailySecondText').textContent = String(second).padStart(2, '0');
+
+      document.getElementById('weeklyHour').value = hour;
+      document.getElementById('weeklyHourText').textContent = String(hour).padStart(2, '0');
+      document.getElementById('weeklyMinute').value = minute;
+      document.getElementById('weeklyMinuteText').textContent = String(minute).padStart(2, '0');
+      document.getElementById('weeklySecond').value = second;
+      document.getElementById('weeklySecondText').textContent = String(second).padStart(2, '0');
+
+      // Initialize weekly to current weekday
+      const currentWeekday = now.getDay(); // 0=周日, 1=周一, ..., 6=周六
+      document.querySelectorAll('.weekday').forEach(d => d.classList.remove('active'));
+      document.querySelector(`.weekday[data-day="${currentWeekday}"]`)?.classList.add('active');
+
+      document.getElementById('monthlyHour').value = hour;
+      document.getElementById('monthlyHourText').textContent = String(hour).padStart(2, '0');
+      document.getElementById('monthlyMinute').value = minute;
+      document.getElementById('monthlyMinuteText').textContent = String(minute).padStart(2, '0');
+      document.getElementById('monthlySecond').value = second;
+      document.getElementById('monthlySecondText').textContent = String(second).padStart(2, '0');
+
+      // Initialize monthly day to current day, or last day of month if exceeds
+      const currentDay = now.getDate();
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const monthlyDay = Math.min(currentDay, lastDayOfMonth);
+      document.getElementById('monthlyDay').value = monthlyDay;
+      document.getElementById('monthlyDayText').textContent = String(monthlyDay).padStart(2, '0');
+
+      // Initialize line numbers
+      updateLineNumbers();
+
+      // Initialize cron preview
+      updateCronExpr();
+    });
+  </script>
+</body>
+</html>

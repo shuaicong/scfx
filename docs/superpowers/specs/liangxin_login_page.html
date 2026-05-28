@@ -1,0 +1,341 @@
+<!-- 粮信网登录页面 -->
+<!-- 采集时间: 2026-05-14T15:03:36.414815 -->
+
+
+<!DOCTYPE html><html><head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+
+
+    
+    
+    
+     <title>粮信网登录页面</title>
+    
+    
+    
+
+<meta name="author" content="http://www.jinnong.cn">
+<meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+<meta http-equiv="Expires" content="0">
+<meta http-equiv="Cache-Control" content="no-cache">
+<meta http-equiv="Cache-Control" content="no-store">
+<link href="/jinnong/static/jinnongprice/newlogin/css/bootstrap.min.css" rel="stylesheet">
+<link type="text/css" href="/jinnong/static/jinnongprice/newlogin/css/common.css" rel="stylesheet">
+<script src="https://www.fert.cn/newfert/js/jquery.min.js"></script>
+<script src="/jinnong/static/jinnongprice/newlogin/js/bootstrap.min.js"></script>
+<link href="/jinnong/static/jinnongprice/newlogin/css/jquery.validate.min.css" type="text/css" rel="stylesheet">
+<script src="/jinnong/static/jinnongprice/newlogin/js/jquery.validate.min.js" type="text/javascript"></script>
+<style>
+.not-audit{ top: 0; height: 48px;}
+.not-audit .tanhao{ margin-top: 16px;}
+.not-audit .red-warn-p{ 
+width: 90%;
+    margin: 6px 4px;
+    line-height: 17px;
+font-size: 15px;
+vertical-align: middle;
+display: table-cell;
+}
+.validateCode-box{ margin-top: 12px;}
+.auto-login-div{ margin: 16px auto 0;}
+.bottom-ser-phone-2{ margin-bottom: 20px;}
+body{ margin: 0; padding: 0;}
+			p,h1,h2,h3,ul{ margin: 0; padding: 0; font-weight: normal;}
+			ul li,ol,ol li{ list-style:none;}
+			a{ text-decoration:none}
+			.prompt-box{ 
+				position: fixed; top: 30%; left: 35%; right: 35%;
+				width: 576px; background: #FFFFFF; padding: 12px; border-radius: 10px;
+				text-align: center; overflow: hidden; z-index: 999;
+			}
+			.cancel-btnbox{ overflow: hidden;}
+			.cancel-btn{ float: right;}
+			.prompt-h1{ font-size: 24px; margin-bottom: 8px;}
+			.prompt-span{ color: #065dd4;}
+			.prompt-h2{ font-size: 25px;}
+			.prompt-ul{ 
+				overflow: hidden; text-align: center;
+				width: 80%; margin: 30px auto 0;
+			}
+			.prompt-li{ float: left; width: 33%;}
+			.prompt-li p{ font-size: 18px; color: #000000;}
+			.prompt-h3{ font-size: 16px; color: #717171; margin: 10px 0 30px;}
+			.prompt-btnbox{ width: 60%; display: inline-block; margin-bottom: 10px;}
+			.prompt-btnbox p{ 
+				font-size: 24px; color: #FFFFFF; background: #08a04b; 
+				border-radius: 10px; padding: 12px 0;
+			}
+			.prompt-block{ position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+			background: rgba(0,0,0,0.5); z-index: 99;}
+</style>
+<script type="text/javascript">
+
+		$(document).ready(function() {
+			$("#loginForm").validate({
+				rules: {
+					validateCode: {remote: "/jinnong/servlet/validateCodeServlet"}
+				},
+				messages: {
+					username: {required: "请填写用户名."},password: {required: "请填写密码."},
+					validateCode: {remote: "验证码不正确.", required: "请填写验证码."}
+				},
+				errorLabelContainer: "#messageBox",
+				errorPlacement: function(error, element) {
+					error.appendTo($("#loginError").parent());
+				} 
+			});
+		});
+		// 如果在框架或在对话框中，则弹出提示并跳转到首页
+		if(self.frameElement && self.frameElement.tagName == "IFRAME" || $('#left').length > 0 || $('.jbox').length > 0){
+			alert('登录超时或者账号已在其它地方登录。请重新登录，谢谢！');
+			top.location = "/jinnong/a";
+		}
+	</script></head>
+
+		
+<body class="login-body" style="">
+<div class="prompt-box" style="display:none;" id="browser_ie">
+			<div class="cancel-btnbox">
+				<img class="cancel-btn btn-hidden" src="/jinnong/static/jinnongprice/newlogin/images/cancel-btn.png">
+			</div>
+			<h1 class="prompt-h1">您正在使用<span class="prompt-span" style="
+    font-size: 24px;">QQ浏览器</span>，可能导致网站<span class="prompt-span" style="
+    font-size: 24px;">无法正常访问</span></h1>
+			<h2 class="prompt-h2">推荐使用下列浏览器访问本站</h2>
+			<ul class="prompt-ul">
+				<li class="prompt-li">
+					<a href="https://browser.360.cn/" target="_blank">
+						<img src="/jinnong/static/jinnongprice/newlogin/images/360-logo.jpg">
+						<p>360安全浏览器</p>
+					</a>
+				</li>
+				<li class="prompt-li">
+					<a href="https://www.google.cn/chrome/" target="_blank">
+						<img src="/jinnong/static/jinnongprice/newlogin/images/Chrome-logo.jpg">
+						<p>Chrome（谷歌）</p>
+					</a>
+				</li>
+				<li class="prompt-li">
+					<a href="https://www.firefox.com.cn/download/" target="_blank">
+						<img src="/jinnong/static/jinnongprice/newlogin/images/Firefox-logo.jpg">
+						<p>Firefox（火狐）</p>
+					</a>
+				</li>
+			</ul>
+			<h3 class="prompt-h3">（点击浏览器名称或图标即可进行下载安装）</h3>
+			<div class="prompt-btnbox">
+				<a>
+					<p class="btn-hidden">知道了</p>
+				</a>
+			</div>
+		</div>
+		<div class="prompt-block" style="display:none;"></div>
+<script type="text/javascript">
+		var u = navigator.userAgent;
+
+		if(u.indexOf('QQBrowse') > -1){ 
+	
+				$("#browser_ie").show();
+				$(".prompt-block").show();
+				
+		}
+</script>
+    <div class="login-logo">
+      
+	    
+	    
+	    
+	    <a href="http://www.chinagrain.cn" class="login-logo-1">粮信网</a><span class="login-logo-2">欢迎登陆</span>
+	    
+	    
+	    
+	  
+    </div>
+
+    <div class="login-bg">
+      <div class="login-bg-con">
+
+       <form id="loginForm" class="form-signin" action="/jinnong/a/login" method="post" novalidate="novalidate">
+	   <input type="hidden" name="paramType" value="">
+       <input type="hidden" name="orderid" value="">
+         <h1>账户密码登录</h1>
+        
+         <div class="normal-remind-height">
+          
+           <!--正常显示-->
+           <p class="normal-remind">
+            
+			    
+			    
+			    
+			    	粮信网
+			    
+			    
+			    
+			  
+           		会员登录入口
+           </p>
+          
+           <!--五次密码输入错误弹出--> 
+           <div id="warn" class="red-warn not-audit red-warn-a">
+             <i class="tanhao">!</i><p class="red-warn-p" id="errormsg">频繁出错，账户锁定5分钟，请尝试<a href="http://my.fert.cn/Huafeichangepwd1.htm" class="find-password">找回密码</a></p>
+           </div>
+          
+           <!--用户名或密码错误-->
+           <div class="red-warn red-warn-b">
+             <i class="tanhao">!</i><p class="red-warn-p">用户名或密码错误，请重新输入</p>
+           </div> 
+          
+           <!--用户名为空或者用户名/手机号--> 
+           <div class="red-warn red-warn-c">
+             <i class="tanhao">!</i><p class="red-warn-p">请输入用户名</p>
+           </div> 
+          
+           <!--密码为空或者登录密码--> 
+           <div class="red-warn  red-warn-d">
+             <i class="tanhao">!</i><p class="red-warn-p">请输入密码</p>
+           </div> 
+         </div>
+        
+         <div class="account-name loginWindowInner">
+           <input type="text" id="username" name="username" placeholder="用户名/手机号" class="txt-account txt-ac-common" maxlength="32">
+         </div>
+        
+         <div class="account-password loginWindowInner" id="pwd">
+          <!-- <p class="password-p">登录密码</p>-->
+          <input type="password" id="password" name="password" placeholder="登录密码" class="txt-password txt-ac-common" maxlength="40">
+         </div>
+         
+         <div class="auto-login-div">
+           <div class="auto-login-div-left">     
+             <input type="checkbox" id="rememberMe" name="rememberMe" class="ck"><span class="auto-login">记住密码</span>
+           </div>           
+           <div class="auto-login-div-right">
+              
+              	
+			    
+		    	
+			    <a href="http://my.chinagrain.cn/jinnong/Liangyouregpage.htm" class="forget-pass" style="color:#08a04b">免费注册</a>
+		    	
+		    	
+			    
+			  
+              
+              	
+			    
+		    	
+		    	
+		    	
+			    
+			  
+           </div> 
+         </div>
+         
+         <input type="submit" name="submi-login" class="submi-login" value="登录">
+         
+    
+    
+    
+    <p class="bottom-ser-phone-2">
+              	 <img src="/jinnong/jinnong/images/vx11.jpg" height="20px">
+			    <a href="https://open.weixin.qq.com/connect/qrconnect?appid=wx22527b99f6f3068c&amp;redirect_uri=https%3A%2F%2Fmy.chinagrain.cn%2Fjinnong%2Flywxlogin_calback.htm&amp;response_type=code&amp;scope=snsapi_login&amp;state=jinnong1128#wechat_redirect">微信登录</a>
+			    </p>
+    
+    
+    
+
+         <p class="bottom-ser-phone-2">客户服务电话:0451-88001128&nbsp;&nbsp;88001138</p>
+       </form>
+      </div>
+    </div>
+
+<script type="text/javascript">
+//登陆窗口边框的变化
+$(function(){
+	 $(".txt-ac-common").focus(function(){
+		$(this).parents(".loginWindowInner").css("border","1px solid #2b8436");
+		$(this).attr("value","");
+	  });
+	 $(".txt-ac-common").blur(function(){
+		$(this).parents(".loginWindowInner").css("border","1px solid #e5e5e5");
+	  });
+});
+</script>
+
+  <script type="text/javascript">
+  var tag = true;
+  function sub(){
+  		tag = true;
+  		var username = $("#username").val();
+  		var password = $("#password").val();
+  		if(password == null || password == '' || password == '登录密码'){
+  			$("#errormsg").empty();
+  			$("#errormsg").append("请输入密码");
+  			$("#warn").removeClass("red-warn-a");
+  			tag = false;
+  		}
+  		if(username == null || username == '' || username == '用户名/手机号'){
+  			$("#errormsg").empty();
+  			$("#errormsg").append("请输入用户名");
+  			$("#warn").removeClass("red-warn-a");
+  			tag = false;
+  		}
+  		if(tag){
+  			$("#loginForm").submit();
+  		}
+  }
+  if(tag && false){
+		$("#errormsg").empty();
+		$("#errormsg").append('');
+		$("#warn").removeClass("red-warn-a");
+		$("#warn").css("display","table");
+  }
+  $(function(){
+
+	//登陆窗口边框的变化
+	 $('#username').bind({
+	  		 focus:function(){
+	              $(this).parents(".loginWindowInner").css("border","1px solid #2b8436");
+				  if(this.value == '用户名/手机号'){
+						 this.value = "";
+						 $(this).css("color","#000000");
+						 };			  
+	  			 },
+	  		 blur:function(){
+	              $(this).parents(".loginWindowInner").css("border","1px solid #c5c5c5");
+	  			 if(this.value == ""){			 
+	  				 this.value = '用户名/手机号';
+					 $(this).css("color","#a4a4a4");
+	  				 }	
+	  			  }
+	      });
+	   $(document).on('focus','#pwd',function(){
+			  $(".password-p").hide();
+			  $(this).css("border","1px solid #2b8436");
+			 }) 
+		 $(document).on('click','.password-p',function(){
+			  $(this).hide()
+			  $("#password").focus();
+			  $('#pwd').css("border","1px solid #2b8436");
+			 }) 			 
+		 $(document).on('blur','#pwd',function(){
+			 if($(this).find("input").val()==""||null){
+				 $(".password-p").show()
+				 }
+			  $(this).css("border","1px solid #c5c5c5");
+			 }) 
+
+      });
+   </script>
+<script>
+			$(function() {
+				$('.btn-hidden').click(function() { //点击a标签
+					if ($('.prompt-box').css('display') == 'block') { //如果当前显示
+						$(".prompt-box,.prompt-block").css("display", "none");
+					}
+				})
+			})
+		</script>
+  
+ </body></html>

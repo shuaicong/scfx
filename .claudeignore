@@ -1,0 +1,82 @@
+# ======================
+# 1. 依赖与包管理
+# ======================
+node_modules/
+vendor/
+.pnpm-store/
+.yarn/
+.npm/
+bower_components/
+
+# ======================
+# 2. 构建产物与输出目录
+# ======================
+dist/
+build/
+out/
+output/
+.next/
+.nuxt/
+.vuepress/dist/
+.umi/
+.turbo/
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# ======================
+# 3. 版本控制与IDE配置
+# ======================
+.git/
+.github/
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ======================
+# 4. 日志与临时文件
+# ======================
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.tmp
+*.temp
+.temp/
+tmp/
+
+# ======================
+# 5. 环境变量与敏感文件
+# ======================
+.env
+.env.*
+!.env.example
+!.env.local.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.key
+*.pem
+*.crt
+*.pfx
+
+# ======================
+# 6. 数据库与缓存文件
+# ======================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+.cache/
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo

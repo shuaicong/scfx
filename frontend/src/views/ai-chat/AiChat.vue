@@ -1,0 +1,970 @@
+<template>
+  <div class="ai-chat-page">
+    <!-- 顶部导航 -->
+    <div class="chat-header">
+      <div class="header-left">
+        <button class="back-btn" @click="goBack">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span>返回</span>
+        </button>
+        <div class="header-title">
+          <div class="title-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+              <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2Z" fill="url(#ai-gradient)" opacity="0.2"/>
+              <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20Z" fill="url(#ai-gradient)"/>
+              <path d="M12 6C8.69 6 6 8.69 6 12C6 15.31 8.69 18 12 18C15.31 18 18 15.31 18 12" stroke="url(#ai-gradient)" stroke-width="1.5" stroke-linecap="round"/>
+              <circle cx="12" cy="12" r="2" fill="url(#ai-gradient)"/>
+              <defs>
+                <linearGradient id="ai-gradient" x1="2" y1="2" x2="22" y2="22">
+                  <stop stop-color="#f5c87a"/>
+                  <stop offset="1" stop-color="#d4a574"/>
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <span class="title-text">AI 知识问答</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <div class="data-sources">
+          <span class="sources-label">数据来源</span>
+          <div class="source-tags">
+            <span
+              v-for="source in availableSources"
+              :key="source"
+              class="source-tag"
+              :class="{ active: selectedSources.includes(source) }"
+              @click="toggleSource(source)"
+            >
+              {{ source }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="chat-content">
+      <!-- 欢迎信息 -->
+      <div v-if="messages.length === 0" class="welcome-section">
+        <div class="welcome-icon">
+          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+            <circle cx="32" cy="32" r="30" stroke="url(#welcome-gradient)" stroke-width="2" opacity="0.3"/>
+            <circle cx="32" cy="32" r="20" stroke="url(#welcome-gradient)" stroke-width="2" opacity="0.5"/>
+            <circle cx="32" cy="32" r="10" fill="url(#welcome-gradient)" opacity="0.8"/>
+            <path d="M32 12V20M32 44V52M12 32H20M44 32H52" stroke="url(#welcome-gradient)" stroke-width="2" stroke-linecap="round"/>
+            <defs>
+              <linearGradient id="welcome-gradient" x1="2" y1="2" x2="62" y2="62">
+                <stop stop-color="#f5c87a"/>
+                <stop offset="1" stop-color="#d4a574"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </div>
+        <h2 class="welcome-title">您好，我是农业情报助手</h2>
+        <p class="welcome-desc">基于采集的粮信网、我的钢铁、中华粮网等数据源，为您解答农业市场相关问题</p>
+        <div class="suggestion-chips">
+          <div
+            v-for="suggestion in suggestions"
+            :key="suggestion"
+            class="suggestion-chip"
+            @click="askQuestion(suggestion)"
+          >
+            {{ suggestion }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 消息列表 -->
+      <div v-else class="messages-container" ref="messagesContainer">
+        <div
+          v-for="(msg, index) in messages"
+          :key="index"
+          class="message-item"
+          :class="msg.role"
+        >
+          <div class="message-avatar">
+            <div v-if="msg.role === 'user'" class="avatar user-avatar">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M8 8C9.6 8 10.67 6.93 10.67 5.33C10.67 3.73 9.6 2.67 8 2.67C6.4 2.67 5.33 3.73 5.33 5.33C5.33 6.93 6.4 8 8 8Z" fill="currentColor"/>
+                <path d="M3.33 14C3.33 11.05 5.6 8.67 8.5 8.67V8.67C11.4 8.67 13.67 11.05 13.67 14V14.67H3.33V14Z" fill="currentColor"/>
+              </svg>
+            </div>
+            <div v-else class="avatar ai-avatar">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6" fill="currentColor" opacity="0.2"/>
+                <circle cx="8" cy="8" r="3" fill="currentColor"/>
+              </svg>
+            </div>
+          </div>
+          <div class="message-body">
+            <MessageContent
+              :content="msg.content"
+              :sources="msg.references"
+              @preview="previewDocument"
+            />
+          </div>
+        </div>
+
+        <!-- Loading indicator -->
+        <div v-if="isLoading" class="message-item assistant">
+          <div class="message-avatar">
+            <div class="avatar ai-avatar">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="8" r="6" fill="currentColor" opacity="0.2"/>
+                <circle cx="8" cy="8" r="3" fill="currentColor"/>
+              </svg>
+            </div>
+          </div>
+          <div class="message-body">
+            <!-- 思考过程展示 -->
+            <div v-if="thinkingMessages.length > 0" class="thinking-section">
+              <div v-for="(msg, i) in thinkingMessages" :key="i" class="thinking-item">
+                <span class="thinking-dot"></span>
+                <span class="thinking-text">{{ msg }}</span>
+              </div>
+            </div>
+            <!-- 打字效果 -->
+            <div v-else class="typing-indicator">
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部输入区 -->
+    <div class="chat-input-area">
+      <div class="input-options">
+        <button
+          class="deep-thinking-btn"
+          :class="{ active: deepThinkingEnabled }"
+          @click="deepThinkingEnabled = !deepThinkingEnabled"
+        >
+          <span class="btn-icon">💭</span>
+          <span class="btn-text">深度思考</span>
+        </button>
+        <button
+          class="internet-search-btn"
+          :class="{ active: internetSearchEnabled }"
+          @click="internetSearchEnabled = !internetSearchEnabled"
+        >
+          <span class="btn-icon">🌐</span>
+          <span class="btn-text">联网搜索</span>
+        </button>
+      </div>
+      <div class="input-wrapper">
+        <input
+          v-model="question"
+          type="text"
+          class="chat-input"
+          placeholder="输入您的问题..."
+          :disabled="isLoading"
+          @keyup.enter="askQuestion(question)"
+        />
+        <button
+          class="send-btn"
+          :class="{ active: question.trim() }"
+          :disabled="!question.trim() || isLoading"
+          @click="askQuestion(question)"
+        >
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M18 10L2 2L6 10L2 18L18 10Z" fill="currentColor"/>
+          </svg>
+        </button>
+      </div>
+      <div class="input-hint">
+        <span>基于{{ availableSources.join('、') }}等数据源回答</span>
+      </div>
+    </div>
+
+    <!-- 报告详情弹窗 -->
+    <el-dialog
+      v-model="showReportDialog"
+      :title="currentReport?.title"
+      width="800px"
+      class="report-dialog"
+    >
+      <div v-if="currentReport" class="report-content">
+        <div class="report-meta">
+          <span class="meta-item">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M7 4V7H10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            {{ currentReport.publish_time }}
+          </span>
+          <span class="meta-item">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1C3.69 1 1 3.69 1 7C1 10.31 3.69 13 7 13C10.31 13 13 10.31 13 7C13 3.69 10.31 1 7 1Z" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M7 4V7L9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            {{ currentReport.source }}
+          </span>
+        </div>
+        <div class="report-body" v-html="currentReport.content"></div>
+      </div>
+    </el-dialog>
+
+    <!-- 文档预览弹窗 -->
+    <DocumentPreview
+      v-model="showDocPreview"
+      :url="previewDocUrl"
+      :title="previewDocTitle"
+    />
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
+import { aiChatApi, type ChatMessage, type ChatReference, type SearchResult, type ChatStreamResponse, type Source } from '@/api/ai-chat'
+import MessageContent from './components/MessageContent.vue'
+import DocumentPreview from './components/DocumentPreview.vue'
+
+const router = useRouter()
+
+// 状态
+const question = ref('')
+const messages = ref<ChatMessage[]>([])
+const isLoading = ref(false)
+const messagesContainer = ref<HTMLElement | null>(null)
+const showReportDialog = ref(false)
+const currentReport = ref<SearchResult | null>(null)
+const showDocPreview = ref(false)
+const previewDocUrl = ref('')
+const previewDocTitle = ref('')
+const thinkingMessages = ref<string[]>([])  // 思考过程消息
+const deepThinkingEnabled = ref(false)  // 深度思考开关
+const internetSearchEnabled = ref(true)  // 联网搜索开关
+
+// 数据源
+const availableSources = ['粮信网', '我的钢铁', '中华粮网', 'USDA', '气象数据']
+const selectedSources = ref<string[]>([])
+
+// 建议问题
+const suggestions = [
+  '今天玉米价格是多少？',
+  '最近小麦市场行情如何？',
+  '大豆进口情况分析',
+  'USDA 最新供需报告'
+]
+
+// 切换数据源筛选
+const toggleSource = (source: string) => {
+  const index = selectedSources.value.indexOf(source)
+  if (index === -1) {
+    selectedSources.value.push(source)
+  } else {
+    selectedSources.value.splice(index, 1)
+  }
+}
+
+// 返回
+const goBack = () => {
+  router.push('/dashboard')
+}
+
+// 提问
+const askQuestion = async (q: string) => {
+  if (!q.trim() || isLoading.value) return
+
+  const userMessage: ChatMessage = {
+    role: 'user',
+    content: q,
+    timestamp: new Date().toISOString()
+  }
+  messages.value.push(userMessage)
+  question.value = ''
+  isLoading.value = true
+
+  await nextTick()
+  scrollToBottom()
+
+  // 创建 AI 消息占位，用于流式更新
+  const aiMessage: ChatMessage = {
+    role: 'assistant',
+    content: '',
+    references: [],
+    timestamp: new Date().toISOString()
+  }
+  messages.value.push(aiMessage)
+  thinkingMessages.value = []  // 清空思考消息
+
+  try {
+    const stream = await aiChatApi.chatStream({
+      question: q,
+      top_k: 5,
+      source_filter: selectedSources.value.length > 0 ? selectedSources.value : undefined,
+      deep_thinking: deepThinkingEnabled.value,
+      use_internet: internetSearchEnabled.value
+    })
+
+    if (!stream) {
+      throw new Error('Stream response error')
+    }
+
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let currentContent = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6)
+          if (!jsonStr.trim()) continue
+
+          try {
+            const data: ChatStreamResponse = JSON.parse(jsonStr)
+
+            if (data.type === 'text' && data.content) {
+              currentContent += data.content
+              aiMessage.content = currentContent
+              aiMessage.references = aiMessage.references || []
+              await nextTick()
+              scrollToBottom()
+            } else if ((data.type === 'sources' || data.type === 'source') && data.sources) {
+              // 转换 Source 到 ChatReference
+              const references: ChatReference[] = data.sources.map((s: Source) => ({
+                report_id: s.url || Math.random().toString(),
+                title: s.title || s.name || '未知来源',
+                source: s.source || s.name || '未知来源',
+                publish_time: s.publish_time || '',
+                similarity: 0.9,
+                url: s.url
+              }))
+              aiMessage.references = references
+
+              // 在回答末尾追加来源链接
+              const sourcesText = '\n\n---\n**来源：**\n' + data.sources.map((s: Source, i: number) => {
+                const name = s.title || s.name || '未知来源'
+                const url = s.url || ''
+                if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+                  return `${i + 1}. [${name}](${url})`
+                } else if (url) {
+                  return `${i + 1}. ${name}`
+                }
+                return `${i + 1}. ${name}`
+              }).join('\n')
+              currentContent += sourcesText
+              aiMessage.content = currentContent
+            } else if (data.type === 'done') {
+              // 流式结束
+              thinkingMessages.value = []  // 清空思考过程
+            } else if (data.type === 'error') {
+              ElMessage.error(data.error || 'AI 服务错误')
+            } else if (data.type === 'thinking' && data.content) {
+              // 思考过程消息
+              thinkingMessages.value.push(data.content)
+              await nextTick()
+              scrollToBottom()
+            }
+          } catch (e) {
+            // 忽略解析错误
+          }
+        }
+      }
+    }
+  } catch (error: any) {
+    ElMessage.error('AI 服务暂时不可用，请稍后重试')
+    console.error('Chat error:', error)
+    // 移除空的 AI 消息
+    if (aiMessage.content === '') {
+      messages.value.pop()
+    }
+  } finally {
+    isLoading.value = false
+    await nextTick()
+    scrollToBottom()
+  }
+}
+
+// 滚动到底部
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+  }
+}
+
+// 预览文档或跳转链接
+const previewDocument = (url: string, title?: string) => {
+  if (!url) return
+
+  // 判断是否是外部链接
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    // 外部链接，新窗口打开
+    window.open(url, '_blank')
+  } else {
+    // 内部文档，预览弹窗
+    previewDocUrl.value = url
+    previewDocTitle.value = title || '文档预览'
+    showDocPreview.value = true
+  }
+}
+</script>
+
+<style scoped>
+.ai-chat-page {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #0f1419 0%, #1a1f2e 100%);
+}
+
+/* 顶部导航 */
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #8b949e;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.back-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #e6edf3;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.title-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f5c87a;
+  letter-spacing: 0.5px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.data-sources {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sources-label {
+  font-size: 12px;
+  color: #6e7681;
+}
+
+.source-tags {
+  display: flex;
+  gap: 8px;
+}
+
+.source-tag {
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  font-size: 12px;
+  color: #8b949e;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.source-tag:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.source-tag.active {
+  background: rgba(245, 200, 122, 0.15);
+  border-color: rgba(245, 200, 122, 0.3);
+  color: #f5c87a;
+}
+
+/* 主内容区 */
+.chat-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+
+/* 欢迎区 */
+.welcome-section {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+}
+
+.welcome-icon {
+  margin-bottom: 24px;
+  animation: pulse 3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.8; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
+.welcome-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #f5f7fa;
+  margin: 0 0 12px 0;
+}
+
+.welcome-desc {
+  font-size: 14px;
+  color: #6e7681;
+  margin: 0 0 32px 0;
+  max-width: 400px;
+}
+
+.suggestion-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  max-width: 600px;
+}
+
+.suggestion-chip {
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  font-size: 13px;
+  color: #8b949e;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.suggestion-chip:hover {
+  background: rgba(245, 200, 122, 0.1);
+  border-color: rgba(245, 200, 122, 0.3);
+  color: #f5c87a;
+}
+
+/* 消息列表 */
+.messages-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.message-item {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.message-item.user {
+  flex-direction: row-reverse;
+}
+
+.message-avatar {
+  flex-shrink: 0;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-avatar {
+  background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
+  color: #fff;
+}
+
+.ai-avatar {
+  background: linear-gradient(135deg, #f5c87a 0%, #d4a574 100%);
+  color: #1a1f2e;
+}
+
+.message-body {
+  flex: 1;
+  max-width: 70%;
+}
+
+.message-item.user .message-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.message-content {
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  border-top-left-radius: 4px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e6edf3;
+}
+
+.message-item.user .message-content {
+  background: linear-gradient(135deg, #58a6ff 0%, #1f6feb 100%);
+  border-color: transparent;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 4px;
+}
+
+/* 引用来源 */
+.references-section {
+  margin-top: 16px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+
+.references-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #f5c87a;
+  margin-bottom: 12px;
+}
+
+.references-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.reference-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.reference-item:hover {
+  background: rgba(245, 200, 122, 0.08);
+  border-color: rgba(245, 200, 122, 0.2);
+}
+
+.ref-number {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(245, 200, 122, 0.15);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #f5c87a;
+}
+
+.ref-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ref-title {
+  font-size: 13px;
+  color: #e6edf3;
+}
+
+.ref-meta {
+  font-size: 11px;
+  color: #6e7681;
+}
+
+.ref-similarity {
+  font-size: 12px;
+  font-weight: 500;
+  color: #3fb950;
+}
+
+/* Loading 动画 */
+.typing-indicator {
+  display: flex;
+  gap: 4px;
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  border-top-left-radius: 4px;
+}
+
+.typing-indicator span {
+  width: 8px;
+  height: 8px;
+  background: #6e7681;
+  border-radius: 50%;
+  animation: typing 1.4s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typing {
+  0%, 100% { opacity: 0.4; transform: translateY(0); }
+  50% { opacity: 1; transform: translateY(-4px); }
+}
+
+/* 思考过程展示 */
+.thinking-section {
+  padding: 14px 18px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 16px;
+  border-top-left-radius: 4px;
+}
+
+.thinking-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+  color: #8b949e;
+}
+
+.thinking-dot {
+  width: 6px;
+  height: 6px;
+  background: #f5c87a;
+  border-radius: 50%;
+  animation: thinking-pulse 1.5s ease-in-out infinite;
+}
+
+.thinking-text {
+  color: #c9d1d9;
+}
+
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+/* 底部输入区 */
+.chat-input-area {
+  padding: 16px 24px 24px;
+  background: rgba(255, 255, 255, 0.02);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.input-options {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 800px;
+  margin: 0 auto 12px auto;
+}
+
+.deep-thinking-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  font-size: 13px;
+  color: #8b949e;
+  cursor: pointer;
+  transition: all 0.25s ease;
+}
+
+.deep-thinking-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #c9d1d9;
+}
+
+.deep-thinking-btn.active {
+  background: linear-gradient(135deg, #f5c87a 0%, #d4a574 100%);
+  border-color: transparent;
+  color: #1a1f2e;
+  font-weight: 500;
+}
+
+.deep-thinking-btn.active .btn-icon {
+  animation: thinking-bounce 0.6s ease infinite;
+}
+
+@keyframes thinking-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.internet-search-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  color: #8b949e;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.internet-search-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #c9d1d9;
+}
+
+.internet-search-btn.active {
+  background: rgba(56, 139, 253, 0.15);
+  border-color: rgba(56, 139, 253, 0.4);
+  color: #58a6ff;
+}
+
+.internet-search-btn .btn-icon {
+  font-size: 14px;
+}
+
+.input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  transition: all 0.2s;
+}
+
+.input-wrapper:focus-within {
+  border-color: rgba(245, 200, 122, 0.4);
+  box-shadow: 0 0 0 4px rgba(245, 200, 122, 0.1);
+}
+
+.chat-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: #e6edf3;
+}
+
+.chat-input::placeholder {
+  color: #6e7681;
+}
+
+.send-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.05);
+  border: none;
+  border-radius: 50%;
+  color: #6e7681;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.send-btn.active {
+  background: linear-gradient(135deg, #f5c87a 0%, #d4a574 100%);
+  color: #1a1f2e;
+}
+
+.send-btn.active:hover {
+  transform: scale(1.05);
+}
+
+.send-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.input-hint {
+  text-align: center;
+  margin-top: 12px;
+  font-size: 11px;
+  color: #4a5568;
+}
+
+/* 报告弹窗 */
+.report-content {
+  background: #161b22;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.report-meta {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.meta-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #8b949e;
+}
+
+.report-body {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #c9d1d9;
+}
+</style>
