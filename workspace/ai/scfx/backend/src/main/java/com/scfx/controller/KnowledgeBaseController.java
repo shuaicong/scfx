@@ -565,6 +565,15 @@ public class KnowledgeBaseController {
         return denom == 0 ? 0 : dot / denom;
     }
 
+    /**
+     * 全局异常处理：确保所有异常返回标准的 Result JSON，而非 Spring 默认 HTML 错误页
+     */
+    @ExceptionHandler(Exception.class)
+    public Result<Object> handleException(Exception e) {
+        log.error("控制器异常: {}", e.getMessage(), e);
+        return Result.error(500, "服务器内部错误", "INTERNAL_ERROR");
+    }
+
     @Data
     @AllArgsConstructor
     public static class BatchResult {

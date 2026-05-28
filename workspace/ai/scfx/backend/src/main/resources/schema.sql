@@ -478,6 +478,34 @@ CREATE TABLE IF NOT EXISTS t_pca_calculation_record (
     UNIQUE INDEX idx_calc_version (category_id, version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='PCA计算记录表';
 
+-- =============================================
+-- 多算法降维坐标存储（PCA/MDS）
+-- =============================================
+
+-- 降维坐标存储表（支持多算法）
+CREATE TABLE IF NOT EXISTS t_knowledge_dr_coords (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    knowledge_id BIGINT NOT NULL COMMENT '知识ID',
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    algorithm VARCHAR(20) NOT NULL COMMENT '降维算法: pca/mds',
+    version INT NOT NULL COMMENT '版本号（按分类+算法递增）',
+    x DOUBLE DEFAULT NULL COMMENT 'X坐标',
+    y DOUBLE DEFAULT NULL COMMENT 'Y坐标',
+    z DOUBLE DEFAULT NULL COMMENT 'Z坐标(3D预留)',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE INDEX uk_knowledge_algorithm (knowledge_id, algorithm),
+    INDEX idx_cat_alg_ver (category_id, algorithm, version DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维坐标存储表（PCA/MDS多算法）';
+
+-- 版本号原子递增表
+CREATE TABLE IF NOT EXISTS t_dr_version (
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    algorithm VARCHAR(20) NOT NULL COMMENT '降维算法',
+    current_version INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (category_id, algorithm)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维版本号表';
+
 -- 切片表（文档解析后分片存储）
 CREATE TABLE IF NOT EXISTS t_knowledge_chunk (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
