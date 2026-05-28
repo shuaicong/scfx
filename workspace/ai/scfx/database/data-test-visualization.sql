@@ -3,7 +3,7 @@
 -- =============================================
 
 -- 插入测试分类
-INSERT INTO t_category (id, name, icon, color, sort_order)
+INSERT IGNORE INTO t_category (id, name, icon, color, sort_order)
 VALUES (1, '测试分类', '📁', '#58A6FF', 1);
 
 -- 插入知识条目（含旧版 PCA 坐标，用于迁移测试）
