@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS t_report (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_publish_time (publish_time),
     INDEX idx_variety (variety),
-    UNIQUE KEY uk_url (original_url)
+    UNIQUE KEY uk_url (original_url(255))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- 价格数据表
