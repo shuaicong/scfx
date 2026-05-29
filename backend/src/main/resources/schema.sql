@@ -496,3 +496,27 @@ CREATE TABLE IF NOT EXISTS t_knowledge_chunk (
     INDEX idx_knowledge_id (knowledge_id),
     INDEX idx_knowledge_active (knowledge_id, is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识切片表';
+
+-- 降维坐标存储表（支持多算法多版本）
+CREATE TABLE IF NOT EXISTS t_knowledge_dr_coords (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    knowledge_id BIGINT NOT NULL,
+    category_id BIGINT NOT NULL,
+    algorithm VARCHAR(20) NOT NULL,
+    version INT NOT NULL,
+    x DOUBLE,
+    y DOUBLE,
+    z DOUBLE,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_knowledge_algorithm (knowledge_id, algorithm),
+    INDEX idx_cat_alg (category_id, algorithm, version DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维坐标表';
+
+-- 降维版本号表
+CREATE TABLE IF NOT EXISTS t_dr_version (
+    category_id BIGINT NOT NULL,
+    algorithm VARCHAR(20) NOT NULL,
+    current_version INT NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (category_id, algorithm)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维版本号表';
