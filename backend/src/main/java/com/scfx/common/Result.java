@@ -1,5 +1,6 @@
 package com.scfx.common;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 /**
@@ -11,6 +12,7 @@ public class Result<T> {
     private String message;
     private T data;
     private String errorCode;
+    @JsonIgnore
     private Long timestamp;
 
     public Result() {

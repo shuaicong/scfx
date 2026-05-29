@@ -30,9 +30,11 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: maven
+          cache-dependency-path: backend/pom.xml
       - name: Init database
         run: |
-          mysql -h 127.0.0.1 -u root -pScfx@2024 grain_platform < database/schema.sql
+          mysql -h 127.0.0.1 -u root -pScfx@2024 grain_platform < backend/src/main/resources/schema.sql
+          mysql -h 127.0.0.1 -u root -pScfx@2024 grain_platform < database/data-test-visualization.sql
       - name: Compile and test
         run: mvn -B compile test --file backend/pom.xml
       - name: Package
