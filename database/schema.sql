@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS t_price (
     region VARCHAR(50),
     contract VARCHAR(50),
     price DECIMAL(12,2),
-    change DECIMAL(12,2),
+    `change` DECIMAL(12,2),
     unit VARCHAR(50),
     source VARCHAR(100),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
