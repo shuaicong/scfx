@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scfx.mapper.KnowledgeBaseMapper">
+    <resultMap id="BaseResultMap" type="com.scfx.entity.KnowledgeBase">
+        <id column="id" property="id"/>
+        <result column="title" property="title"/>
+        <result column="source_type" property="sourceType"/>
+        <result column="source_name" property="sourceName"/>
+        <result column="original_url" property="originalUrl"/>
+        <result column="author" property="author"/>
+        <result column="publish_time" property="publishTime"/>
+        <result column="content" property="content"/>
+        <result column="content_hash" property="contentHash"/>
+        <result column="file_path" property="filePath"/>
+        <result column="file_type" property="fileType"/>
+        <result column="chunk_count" property="chunkCount"/>
+        <result column="vector_status" property="vectorStatus"/>
+        <result column="vector_ids" property="vectorIds"/>
+        <result column="execution_id" property="executionId"/>
+        <result column="created_by" property="createdBy"/>
+        <result column="viz_x" property="vizX"/>
+        <result column="viz_y" property="vizY"/>
+        <result column="category_id" property="categoryId"/>
+        <result column="collection_source" property="collectionSource"/>
+        <result column="collection_variety" property="collectionVariety"/>
+        <result column="collection_report_type" property="collectionReportType"/>
+        <result column="created_at" property="createdAt"/>
+        <result column="updated_at" property="updatedAt"/>
+        <result column="deleted" property="deleted"/>
+    </resultMap>
+
+    <select id="selectPending" resultMap="BaseResultMap">
+        SELECT * FROM t_knowledge_base
+        WHERE category_id = #{categoryId}
+        AND vector_status = 'pending'
+    </select>
+</mapper>

@@ -1,0 +1,2440 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>&#x7cae;&#x4fe1;&#x7f51;&#x91c7;&#x96c6;&#x96c6;&#x6210;&#x5230;&#x91c7;&#x96c6;&#x7ba1;&#x7406;&#x7cfb;&#x7edf;&#x8bbe;&#x8ba1;</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+<link href="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.css" rel="stylesheet" type="text/css">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="粮信网采集集成到采集管理系统设计">粮信网采集集成到采集管理系统设计</h1>
+<blockquote>
+<p><strong>For agentic workers:</strong> REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan. Steps use checkbox (<code>- [ ]</code>) syntax for tracking.</p>
+</blockquote>
+<p><strong>Goal:</strong> 将粮信网玉米晨报/日报采集纳入采集管理系统，实现统一管理、实时日志、定时执行</p>
+<p><strong>Architecture:</strong> 前后端分离 + Python 常驻采集服务 + 轮询获取实时日志</p>
+<p><strong>Tech Stack:</strong> Spring Boot + Vue + Playwright + APScheduler + MySQL</p>
+<hr>
+<h2 id="一整体架构">一、整体架构</h2>
+<pre><code>┌─────────────────────────────────────────────────────────────────┐
+│                        前端 (Vue + Element Plus)                 │
+│  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐           │
+│  │  脚本管理    │ │  执行记录    │ │  实时日志    │           │
+│  │  (触发执行)  │ │  (历史/状态) │ │  (轮询)     │           │
+│  └──────────────┘ └──────────────┘ └──────────────┘           │
+└────────────────────────────┬──────────────────────────────────┘
+                             │ HTTP + JSON
+┌────────────────────────────▼──────────────────────────────────┐
+│                        后端 (Spring Boot)                       │
+│  ┌────────────────────┐  ┌────────────────────┐               │
+│  │ CollectionScript    │  │ TaskExecution       │               │
+│  │ - 脚本元数据       │  │ - 执行记录         │               │
+│  │ - 采集配置         │◄─┤ - 状态/结果       │               │
+│  │ - 定时配置         │  │ - 采集数量         │               │
+│  └─────────┬──────────┘  └────────────────────┘               │
+│            │                                                    │
+│            │ HTTP POST /collector/execute                       │
+└────────────┼─────────────────────────────────────────────────┘
+             │ HTTP
+┌────────────▼─────────────────────────────────────────────────┐
+│                  Python 采集调度服务 (常驻)                   │
+│  ┌────────────────┐  ┌────────────────┐  ┌────────────────┐ │
+│  │ HTTP API       │  │ APScheduler    │  │ Collector      │ │
+│  │ /execute      │  │ 晨报: 9:30   │  │ Playwright    │ │
+│  │ /status       │  │ 日报: 18:30  │  │ 预热浏览器    │ │
+│  │ /logs         │  │              │  │ 智能冷却     │ │
+│  └────────────────┘  └────────────────┘  └────────────────┘ │
+│                                                             │
+│  冷却策略：执行完 2小时无任务 → 释放浏览器                 │
+└─────────────────────────────────────────────────────────────┘
+</code></pre>
+<hr>
+<h2 id="二执行流程">二、执行流程</h2>
+<h3 id="21-手动执行">2.1 手动执行</h3>
+<pre><code>用户点击&quot;执行&quot;
+  │
+  ├─► 前端 POST /api/scripts/{id}/execute
+  │     │
+  │     ├─► 后端创建 TaskExecution (status=pending)
+  │     ├─► 后端 POST http://py-service:5001/execute
+  │     │     {scriptId, reportType, executionId}
+  │     │
+  │     └─► 前端开始轮询 GET /api/scripts/executions/{id}/logs?offset=0
+  │
+  ├─► Python 服务
+  │     ├─► 更新状态为 running
+  │     ├─► 预热/复用浏览器
+  │     ├─► 执行 LiangxinCollector
+  │     ├─► 每条日志 POST /logs/{executionId}
+  │     └─► 完成返回 {success, collectedCount, error}
+  │
+  └─► 后端更新 TaskExecution
+        {status: success/failed, collectedCount, durationMs}
+</code></pre>
+<h3 id="22-定时执行">2.2 定时执行</h3>
+<pre><code>TriggerScheduleService (每分钟检查)
+  │
+  ├─► 时间匹配检查 (cron 或 repeat 配置)
+  │
+  └─► 触发 /collector/execute (同手动执行流程)
+</code></pre>
+<hr>
+<h2 id="三接口设计">三、接口设计</h2>
+<h3 id="31-python-采集服务接口">3.1 Python 采集服务接口</h3>
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>方法</th>
+<th>参数</th>
+<th>返回</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/execute</code></td>
+<td>POST</td>
+<td><code>{scriptId, reportType, executionId}</code></td>
+<td><code>{executionId}</code></td>
+<td>执行采集</td>
+</tr>
+<tr>
+<td><code>/status/{executionId}</code></td>
+<td>GET</td>
+<td>-</td>
+<td><code>{status, collectedCount, error}</code></td>
+<td>获取状态</td>
+</tr>
+<tr>
+<td><code>/logs/{executionId}</code></td>
+<td>GET</td>
+<td><code>?offset=0</code></td>
+<td><code>[{offset, level, message, timestamp}]</code></td>
+<td>获取日志</td>
+</tr>
+<tr>
+<td><code>/health</code></td>
+<td>GET</td>
+<td>-</td>
+<td><code>{ok: true}</code></td>
+<td>健康检查</td>
+</tr>
+</tbody>
+</table>
+<h3 id="32-后端接口">3.2 后端接口</h3>
+<table>
+<thead>
+<tr>
+<th>接口</th>
+<th>方法</th>
+<th>参数</th>
+<th>返回</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/scripts/{id}/execute</code></td>
+<td>POST</td>
+<td>-</td>
+<td><code>{executionId, status}</code></td>
+<td>触发执行</td>
+</tr>
+<tr>
+<td><code>/scripts/{id}/execute-now</code></td>
+<td>POST</td>
+<td><code>{reportType}</code></td>
+<td><code>{executionId}</code></td>
+<td>立即执行</td>
+</tr>
+<tr>
+<td><code>/scripts/executions/{id}</code></td>
+<td>GET</td>
+<td>-</td>
+<td><code>TaskExecution</code></td>
+<td>执行详情</td>
+</tr>
+<tr>
+<td><code>/scripts/executions/{id}/logs</code></td>
+<td>GET</td>
+<td><code>?offset=0</code></td>
+<td><code>{logs[], nextOffset}</code></td>
+<td>执行日志</td>
+</tr>
+<tr>
+<td><code>/scripts/executions/{id}/cancel</code></td>
+<td>POST</td>
+<td>-</td>
+<td>-</td>
+<td>取消执行</td>
+</tr>
+<tr>
+<td><code>/collector/exec/start</code></td>
+<td>POST</td>
+<td><code>{scriptId, reportType}</code></td>
+<td><code>{executionId, scriptId, startTime}</code></td>
+<td>Python 启动执行</td>
+</tr>
+<tr>
+<td><code>/collector/exec/{id}/log</code></td>
+<td>POST</td>
+<td><code>{level, message}</code></td>
+<td>-</td>
+<td>Python 上报日志</td>
+</tr>
+<tr>
+<td><code>/collector/exec/{id}/data</code></td>
+<td>POST</td>
+<td><code>{title, content, source, ...}</code></td>
+<td><code>{knowledgeId}</code></td>
+<td>Python 提交数据</td>
+</tr>
+<tr>
+<td><code>/collector/exec/{id}/complete</code></td>
+<td>POST</td>
+<td><code>{status, collectedCount}</code></td>
+<td>-</td>
+<td>Python 完成执行</td>
+</tr>
+<tr>
+<td><code>/collector/exec/{id}/error</code></td>
+<td>POST</td>
+<td><code>{errorMessage}</code></td>
+<td>-</td>
+<td>Python 上报错误</td>
+</tr>
+<tr>
+<td><code>/task/execution/pending</code></td>
+<td>GET</td>
+<td>-</td>
+<td><code>List&lt;TaskExecution&gt;</code></td>
+<td>Python 轮询待执行任务 (待实现)</td>
+</tr>
+<tr>
+<td><code>/knowledge/cleanup</code></td>
+<td>DELETE</td>
+<td><code>?days=30</code></td>
+<td><code>{deletedCount}</code></td>
+<td>清理历史数据 (待实现)</td>
+</tr>
+<tr>
+<td><code>/scripts/batch/delete</code></td>
+<td>POST</td>
+<td><code>{scriptIds: List&lt;Long&gt;}</code></td>
+<td><code>{deletedCount}</code></td>
+<td>批量删除脚本 (待实现)</td>
+</tr>
+<tr>
+<td><code>/scripts/batch/execute</code></td>
+<td>POST</td>
+<td><code>{scriptIds: List&lt;Long&gt;}</code></td>
+<td><code>{results}</code></td>
+<td>批量执行脚本 (待实现)</td>
+</tr>
+<tr>
+<td><code>/scripts/batch/execute-status</code></td>
+<td>GET</td>
+<td><code>?executionIds=id1,id2</code></td>
+<td><code>List&lt;ExecutionStatus&gt;</code></td>
+<td>批量查询执行状态 (待实现)</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="33-待实现的接口详情">3.3 待实现的接口详情</h3>
+<h4 id="331-批量删除脚本">3.3.1 批量删除脚本</h4>
+<p><strong>接口：</strong> <code>POST /scripts/batch/delete</code></p>
+<p><strong>用途：</strong> 批量删除选中的脚本</p>
+<p><strong>请求：</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;scriptIds&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-number">1</span><span class="hljs-punctuation">,</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span> <span class="hljs-number">3</span><span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p><strong>响应：</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;code&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">200</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;data&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;deletedCount&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3</span>
+  <span class="hljs-punctuation">}</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p><strong>逻辑：</strong></p>
+<ol>
+<li>校验脚本是否存在</li>
+<li>检查是否有正在执行的脚本（running 状态），如有则拒绝删除</li>
+<li>批量删除脚本记录</li>
+<li>返回删除数量</li>
+</ol>
+<p><strong>边界情况：</strong></p>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>脚本正在执行中</td>
+<td>返回错误&quot;请先取消正在执行的脚本&quot;</td>
+</tr>
+<tr>
+<td>脚本ID不存在</td>
+<td>跳过，继续删除存在的</td>
+</tr>
+<tr>
+<td>空数组</td>
+<td>返回错误&quot;请选择要删除的脚本&quot;</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h4 id="332-批量执行脚本">3.3.2 批量执行脚本</h4>
+<p><strong>接口：</strong> <code>POST /scripts/batch/execute</code></p>
+<p><strong>用途：</strong> 批量执行选中的脚本（同时触发多个采集任务）</p>
+<p><strong>请求：</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;scriptIds&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-number">1</span><span class="hljs-punctuation">,</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span> <span class="hljs-number">3</span><span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p><strong>响应：</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;code&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">200</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;data&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;results&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+      <span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;scriptId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;executionId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;abc123&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;pending&quot;</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;scriptId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">2</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;executionId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;def456&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;pending&quot;</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;scriptId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;error&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;脚本正在执行中&quot;</span><span class="hljs-punctuation">}</span>
+    <span class="hljs-punctuation">]</span>
+  <span class="hljs-punctuation">}</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p><strong>逻辑：</strong></p>
+<ol>
+<li>对每个脚本校验状态（是否 enabled，是否已有 running 执行）</li>
+<li>为每个脚本创建 TaskExecution 记录</li>
+<li>并行/串行转发到 Python 服务</li>
+<li>返回每个脚本的执行结果</li>
+</ol>
+<p><strong>边界情况：</strong></p>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>脚本正在执行中</td>
+<td>该脚本跳过，返回 error 信息</td>
+</tr>
+<tr>
+<td>脚本已禁用</td>
+<td>该脚本跳过，返回 error 信息</td>
+</tr>
+<tr>
+<td>部分失败</td>
+<td>返回成功列表 + 失败列表</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h4 id="333-批量查询执行状态">3.3.3 批量查询执行状态</h4>
+<p><strong>接口：</strong> <code>GET /scripts/batch/execute-status?executionIds=abc123,def456</code></p>
+<p><strong>用途：</strong> 批量查询多个执行任务的状态（供轮询使用）</p>
+<p><strong>参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>必填</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>executionIds</td>
+<td>string</td>
+<td>是</td>
+<td>逗号分隔的 executionId 列表</td>
+</tr>
+</tbody>
+</table>
+<p><strong>响应：</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;code&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">200</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;data&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+    <span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;executionId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;abc123&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;running&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;collectedCount&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">5</span><span class="hljs-punctuation">}</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-punctuation">{</span><span class="hljs-attr">&quot;executionId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;def456&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;success&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-attr">&quot;collectedCount&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">10</span><span class="hljs-punctuation">}</span>
+  <span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<hr>
+<h4 id="334-python-轮询待执行任务">3.3.4 Python 轮询待执行任务</h4>
+<p><strong>接口：</strong> <code>GET /task/execution/pending</code></p>
+<p><strong>用途：</strong> Python 服务每 10 秒轮询此接口，发现待执行的任务后开始采集</p>
+<p><strong>响应：</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;code&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">200</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;data&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+    <span class="hljs-punctuation">{</span>
+      <span class="hljs-attr">&quot;executionId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;abc123&quot;</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">&quot;scriptId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">&quot;scriptName&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;粮信网玉米晨报&quot;</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">&quot;triggerType&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;scheduled&quot;</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">&quot;reportType&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;morning&quot;</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;pending&quot;</span><span class="hljs-punctuation">,</span>
+      <span class="hljs-attr">&quot;startTime&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2026-05-15T08:30:00&quot;</span>
+    <span class="hljs-punctuation">}</span>
+  <span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p><strong>逻辑：</strong></p>
+<ol>
+<li>Python 每 10 秒调用此接口</li>
+<li>返回所有 status=pending 的执行记录</li>
+<li>Python 选择一个任务后，调用 <code>/collector/exec/start</code> 获取 executionId</li>
+<li>后端更新状态为 running，返回给 Python</li>
+</ol>
+<hr>
+<h4 id="334-清理历史数据">3.3.4 清理历史数据</h4>
+<p><strong>接口：</strong> <code>DELETE /knowledge/cleanup</code></p>
+<p><strong>用途：</strong> 清理过期的知识库数据和执行记录</p>
+<p><strong>参数：</strong></p>
+<table>
+<thead>
+<tr>
+<th>参数</th>
+<th>类型</th>
+<th>必填</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>days</td>
+<td>int</td>
+<td>否</td>
+<td>保留最近 N 天，默认 30</td>
+</tr>
+</tbody>
+</table>
+<p><strong>响应：</strong></p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;code&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">200</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;data&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">{</span>
+    <span class="hljs-attr">&quot;deletedKnowledgeCount&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">1234</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;deletedExecutionCount&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">56</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-attr">&quot;deletedLogCount&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">890</span>
+  <span class="hljs-punctuation">}</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<p><strong>逻辑：</strong></p>
+<ol>
+<li>删除 <code>t_knowledge_base</code> 中 publish_time 早于 N 天前的记录</li>
+<li>删除 <code>t_task_execution</code> 中 created_at 早于 N 天前的记录</li>
+<li>删除对应的 <code>t_task_execution_log</code> 记录</li>
+<li>记录删除数量，返回给前端</li>
+</ol>
+<hr>
+<h2 id="四数据模型">四、数据模型</h2>
+<h3 id="41-taskexecution-变更">4.1 TaskExecution 变更</h3>
+<pre><code class="language-java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">TaskExecution</span> {
+    String executionId;      <span class="hljs-comment">// 执行唯一标识</span>
+    Long scriptId;           <span class="hljs-comment">// 关联脚本ID</span>
+    String triggerType;       <span class="hljs-comment">// manual/scheduled/cron</span>
+    String status;            <span class="hljs-comment">// pending/running/success/failed/cancelled</span>
+    LocalDateTime startTime;
+    LocalDateTime endTime;
+    Long durationMs;          <span class="hljs-comment">// 耗时毫秒</span>
+    Integer collectedCount;     <span class="hljs-comment">// 采集数量</span>
+    String errorMessage;       <span class="hljs-comment">// 错误信息</span>
+    String reportType;         <span class="hljs-comment">// 晨报/日报</span>
+}
+</code></pre>
+<h3 id="42-taskexecutionlog-表">4.2 TaskExecutionLog 表</h3>
+<pre><code class="language-sql"><span class="hljs-keyword">CREATE</span> <span class="hljs-keyword">TABLE</span> IF <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">EXISTS</span> t_task_execution_log (
+    id <span class="hljs-type">BIGINT</span> AUTO_INCREMENT <span class="hljs-keyword">PRIMARY</span> KEY,
+    execution_id <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">50</span>) <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+    <span class="hljs-keyword">offset</span> <span class="hljs-type">INT</span> <span class="hljs-keyword">NOT</span> <span class="hljs-keyword">NULL</span>,
+    level <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">20</span>),        <span class="hljs-comment">-- INFO/WARN/ERROR</span>
+    message <span class="hljs-type">VARCHAR</span>(<span class="hljs-number">4000</span>),
+    created_at <span class="hljs-type">TIMESTAMP</span> <span class="hljs-keyword">DEFAULT</span> <span class="hljs-built_in">CURRENT_TIMESTAMP</span>,
+    INDEX idx_execution_offset (execution_id, <span class="hljs-keyword">offset</span>)
+);
+</code></pre>
+<hr>
+<h2 id="五前端改动">五、前端改动</h2>
+<h3 id="51-脚本管理-tab">5.1 脚本管理 Tab</h3>
+<ul>
+<li>点击&quot;执行&quot;按钮时，传入 <code>reportType</code> 参数（晨报/日报）</li>
+<li>执行后弹出&quot;执行详情&quot;抽屉，显示实时日志</li>
+</ul>
+<h3 id="52-实时日志展示">5.2 实时日志展示</h3>
+<pre><code class="language-javascript"><span class="hljs-comment">// 轮询获取日志</span>
+<span class="hljs-keyword">let</span> logOffset = <span class="hljs-number">0</span>
+<span class="hljs-keyword">const</span> pollLogs = <span class="hljs-built_in">setInterval</span>(<span class="hljs-keyword">async</span> () =&gt; {
+  <span class="hljs-keyword">const</span> res = <span class="hljs-keyword">await</span> <span class="hljs-title function_">GET</span>(<span class="hljs-string">`/scripts/executions/<span class="hljs-subst">${executionId}</span>/logs?offset=<span class="hljs-subst">${logOffset}</span>`</span>)
+  <span class="hljs-keyword">if</span> (res.<span class="hljs-property">code</span> === <span class="hljs-number">200</span>) {
+    <span class="hljs-title function_">appendLogs</span>(res.<span class="hljs-property">data</span>.<span class="hljs-property">logs</span>)  <span class="hljs-comment">// 追加日志到面板</span>
+    logOffset = res.<span class="hljs-property">data</span>.<span class="hljs-property">nextOffset</span>
+
+    <span class="hljs-comment">// 采集完成，停止轮询</span>
+    <span class="hljs-keyword">if</span> (res.<span class="hljs-property">data</span>.<span class="hljs-property">status</span> === <span class="hljs-string">&#x27;success&#x27;</span> || res.<span class="hljs-property">data</span>.<span class="hljs-property">status</span> === <span class="hljs-string">&#x27;failed&#x27;</span>) {
+      <span class="hljs-built_in">clearInterval</span>(pollLogs)
+    }
+  }
+}, <span class="hljs-number">2000</span>)  <span class="hljs-comment">// 2秒轮询</span>
+</code></pre>
+<h3 id="53-执行记录-tab">5.3 执行记录 Tab</h3>
+<ul>
+<li>显示每次执行的：开始时间、结束时间、耗时、状态、采集数量</li>
+<li>支持查看执行详情（弹窗显示日志）</li>
+</ul>
+<hr>
+<h2 id="六python-服务改动">六、Python 服务改动</h2>
+<h3 id="61-新增-collector_serverpy">6.1 新增 collector_server.py</h3>
+<pre><code class="language-python"><span class="hljs-keyword">from</span> flask <span class="hljs-keyword">import</span> Flask, request, jsonify
+<span class="hljs-keyword">from</span> collectorsdk.collectors.liangxin <span class="hljs-keyword">import</span> LiangxinCollector
+<span class="hljs-keyword">import</span> threading
+
+app = Flask(__name__)
+
+<span class="hljs-comment"># 执行状态存储</span>
+executions = {}  <span class="hljs-comment"># executionId -&gt; {status, logs, collectedCount, error}</span>
+
+<span class="hljs-meta">@app.route(<span class="hljs-params"><span class="hljs-string">&#x27;/execute&#x27;</span>, methods=[<span class="hljs-string">&#x27;POST&#x27;</span>]</span>)</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">execute</span>():
+    data = request.json
+    script_id = data[<span class="hljs-string">&#x27;scriptId&#x27;</span>]
+    report_type = data[<span class="hljs-string">&#x27;reportType&#x27;</span>]  <span class="hljs-comment"># morning/evening</span>
+    execution_id = data[<span class="hljs-string">&#x27;executionId&#x27;</span>]
+
+    <span class="hljs-comment"># 后台执行采集</span>
+    thread = threading.Thread(target=run_collection, args=(execution_id, script_id, report_type))
+    thread.start()
+
+    <span class="hljs-keyword">return</span> jsonify({<span class="hljs-string">&#x27;executionId&#x27;</span>: execution_id})
+
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">run_collection</span>(<span class="hljs-params">execution_id, script_id, report_type</span>):
+    <span class="hljs-comment"># 执行采集，更新状态，存储日志</span>
+    collector = LiangxinCollector(...)
+    result = collector.run()
+    <span class="hljs-comment"># 更新 executions[execution_id]</span>
+
+<span class="hljs-meta">@app.route(<span class="hljs-params"><span class="hljs-string">&#x27;/logs/&lt;execution_id&gt;&#x27;</span></span>)</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">get_logs</span>(<span class="hljs-params">execution_id</span>):
+    offset = <span class="hljs-built_in">int</span>(request.args.get(<span class="hljs-string">&#x27;offset&#x27;</span>, <span class="hljs-number">0</span>))
+    logs = executions[execution_id][<span class="hljs-string">&#x27;logs&#x27;</span>][offset:]
+    <span class="hljs-keyword">return</span> jsonify({
+        <span class="hljs-string">&#x27;logs&#x27;</span>: logs,
+        <span class="hljs-string">&#x27;nextOffset&#x27;</span>: offset + <span class="hljs-built_in">len</span>(logs),
+        <span class="hljs-string">&#x27;status&#x27;</span>: executions[execution_id][<span class="hljs-string">&#x27;status&#x27;</span>]
+    })
+</code></pre>
+<h3 id="62-冷却策略">6.2 冷却策略</h3>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">BrowserPool</span>:
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self, idle_timeout=<span class="hljs-number">7200</span></span>):  <span class="hljs-comment"># 2小时</span>
+        self.browser = <span class="hljs-literal">None</span>
+        self.last_used = <span class="hljs-number">0</span>
+        self.idle_timeout = idle_timeout
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">get_browser</span>(<span class="hljs-params">self</span>):
+        <span class="hljs-keyword">if</span> self.browser <span class="hljs-keyword">and</span> time.time() - self.last_used &lt; self.idle_timeout:
+            <span class="hljs-keyword">return</span> self.browser
+        <span class="hljs-comment"># 创建新浏览器</span>
+        self.browser = ...
+        <span class="hljs-keyword">return</span> self.browser
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">release_if_idle</span>(<span class="hljs-params">self</span>):
+        <span class="hljs-keyword">if</span> time.time() - self.last_used &gt; self.idle_timeout:
+            self.browser.close()
+            self.browser = <span class="hljs-literal">None</span>
+</code></pre>
+<hr>
+<h2 id="七文件变更清单">七、文件变更清单</h2>
+<table>
+<thead>
+<tr>
+<th>文件路径</th>
+<th>操作</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>python-collector-sdk/scheduler/collector_server.py</code></td>
+<td>新增</td>
+<td>Flask HTTP API 服务</td>
+</tr>
+<tr>
+<td><code>python-collector-sdk/scheduler/corn_scheduler.py</code></td>
+<td>重构</td>
+<td>改为被动触发，移除 APScheduler</td>
+</tr>
+<tr>
+<td><code>python-collector-sdk/scheduler/browser_pool.py</code></td>
+<td>新增</td>
+<td>浏览器连接池 + 冷却策略</td>
+</tr>
+<tr>
+<td><code>backend/CollectorController.java</code></td>
+<td>新增</td>
+<td>转发请求到 Python 服务</td>
+</tr>
+<tr>
+<td><code>backend/TaskExecution.java</code></td>
+<td>修改</td>
+<td>添加 reportType 字段</td>
+</tr>
+<tr>
+<td><code>backend/TaskExecutionLog.java</code></td>
+<td>新增</td>
+<td>日志实体</td>
+</tr>
+<tr>
+<td><code>backend/TaskExecutionMapper.java</code></td>
+<td>修改</td>
+<td>添加日志查询方法</td>
+</tr>
+<tr>
+<td><code>backend/TaskExecutionService.java</code></td>
+<td>修改</td>
+<td>添加日志存储/查询</td>
+</tr>
+<tr>
+<td><code>backend/TaskExecutionController.java</code></td>
+<td>新增</td>
+<td>Python 轮询待执行任务接口 (待实现)</td>
+</tr>
+<tr>
+<td><code>backend/KnowledgeBaseController.java</code></td>
+<td>修改</td>
+<td>添加清理历史数据接口 (待实现)</td>
+</tr>
+<tr>
+<td><code>backend/ScriptController.java</code></td>
+<td>新增</td>
+<td>批量操作接口 (待实现)</td>
+</tr>
+<tr>
+<td><code>backend/TaskExecutionService.java</code></td>
+<td>修改</td>
+<td>执行完成时同步统计到 CollectionScript (待实现)</td>
+</tr>
+<tr>
+<td><code>backend/TriggerScheduleService.java</code></td>
+<td>修改</td>
+<td>添加 shouldExecute 判断，修复时区问题 (待实现)</td>
+</tr>
+<tr>
+<td><code>backend/CollectionScriptService.java</code></td>
+<td>修改</td>
+<td>删除废弃的 parseRepeatConfig 方法 (待实现)</td>
+</tr>
+<tr>
+<td><code>schema.sql</code></td>
+<td>修改</td>
+<td>添加 report_type 列，创建 task_execution_log 表</td>
+</tr>
+<tr>
+<td><code>frontend/src/views/collection/Collection.vue</code></td>
+<td>修改</td>
+<td>添加实时日志轮询、执行详情抽屉</td>
+</tr>
+<tr>
+<td><code>frontend/src/api/index.ts</code></td>
+<td>修改</td>
+<td>添加日志查询接口</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h2 id="八验证方案">八、验证方案</h2>
+<ol>
+<li>
+<p><strong>单元测试</strong></p>
+<ul>
+<li>Python: 测试 collector_server 各接口</li>
+<li>Java: 测试 Controller 转发逻辑</li>
+</ul>
+</li>
+<li>
+<p><strong>集成测试</strong></p>
+<ul>
+<li>前端点击执行 → 后端转发 → Python 执行 → 日志返回 → 前端展示</li>
+<li>验证完整流程</li>
+</ul>
+</li>
+<li>
+<p><strong>定时任务测试</strong></p>
+<ul>
+<li>配置 cron 表达式，验证定时触发</li>
+</ul>
+</li>
+<li>
+<p><strong>冷却策略测试</strong></p>
+<ul>
+<li>空闲 2 小时后验证浏览器释放</li>
+<li>复用浏览器验证启动速度</li>
+</ul>
+</li>
+</ol>
+<hr>
+<h2 id="九详细逻辑设计">九、详细逻辑设计</h2>
+<h3 id="91-触发执行">9.1 触发执行</h3>
+<h4 id="触发方式">触发方式</h4>
+<ul>
+<li>脚本管理 tab → 点击&quot;执行&quot;按钮</li>
+<li>需要选择报告类型：晨报 / 日报</li>
+</ul>
+<h4 id="边界情况">边界情况</h4>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>脚本正在执行中 (status=running)</td>
+<td>按钮置灰，禁止重复点击</td>
+</tr>
+<tr>
+<td>脚本已禁用</td>
+<td>提示&quot;请先启用脚本&quot;</td>
+</tr>
+<tr>
+<td>网络超时</td>
+<td>显示错误提示</td>
+</tr>
+</tbody>
+</table>
+<h4 id="后端处理流程">后端处理流程</h4>
+<pre><code>1. 验证脚本存在且状态=enabled
+2. 检查是否有正在执行的记录 (status=running)
+   → 有：返回错误&quot;脚本正在执行中&quot;
+3. 创建 TaskExecution (status=pending)
+4. 异步转发请求到 Python 服务
+5. 返回 {executionId, status: &quot;pending&quot;}
+</code></pre>
+<h4 id="补偿机制后端补偿线程--前端提示">补偿机制（后端补偿线程 + 前端提示）</h4>
+<p><strong>故障程度不同，处理方式不同：</strong></p>
+<table>
+<thead>
+<tr>
+<th>故障程度</th>
+<th>场景</th>
+<th>处理方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>轻度</td>
+<td>网络瞬断</td>
+<td>自动重试（5秒后）</td>
+</tr>
+<tr>
+<td>中度</td>
+<td>Python 服务需要几分钟恢复</td>
+<td>指数退避重试 (5s, 10s, 20s, 40s, 80s)</td>
+</tr>
+<tr>
+<td>重度</td>
+<td>Python 服务长时间不可用</td>
+<td>保持 pending，前端提示用户</td>
+</tr>
+</tbody>
+</table>
+<p><strong>TaskExecution 新增字段：</strong></p>
+<pre><code class="language-java"><span class="hljs-type">Integer</span> <span class="hljs-variable">retryCount</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>;     <span class="hljs-comment">// 当前重试次数</span>
+Long nextRetryTime;        <span class="hljs-comment">// 下次重试时间戳</span>
+</code></pre>
+<p><strong>补偿线程逻辑：</strong></p>
+<pre><code class="language-java"><span class="hljs-meta">@Scheduled(fixedRate = 10000)</span>  <span class="hljs-comment">// 每10秒</span>
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">retryPendingExecutions</span><span class="hljs-params">()</span> {
+    List&lt;TaskExecution&gt; pending = executionService.getPendingForRetry();
+    <span class="hljs-keyword">for</span> (TaskExecution exec : pending) {
+        <span class="hljs-keyword">if</span> (exec.getNextRetryTime() &gt; now) <span class="hljs-keyword">continue</span>;  <span class="hljs-comment">// 未到重试时间</span>
+        <span class="hljs-keyword">if</span> (exec.getRetryCount() &gt;= MAX_RETRIES) <span class="hljs-keyword">continue</span>;  <span class="hljs-comment">// 超过最大次数</span>
+        forwardToPythonService(exec);  <span class="hljs-comment">// 重新转发</span>
+        exec.setRetryCount(exec.getRetryCount() + <span class="hljs-number">1</span>);
+        exec.setNextRetryTime(now + RETRY_INTERVALS[exec.getRetryCount()] * <span class="hljs-number">1000</span>);
+    }
+}
+</code></pre>
+<p><strong>服务重启恢复：</strong></p>
+<pre><code class="language-java"><span class="hljs-meta">@PostConstruct</span>
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">onStartup</span><span class="hljs-params">()</span> {
+    <span class="hljs-comment">// 重启时重置 pending 任务的重试计数</span>
+    List&lt;TaskExecution&gt; pendingTasks = executionService.getAllPending();
+    <span class="hljs-keyword">for</span> (TaskExecution task : pendingTasks) {
+        task.setRetryCount(<span class="hljs-number">0</span>);
+        task.setNextRetryTime(<span class="hljs-literal">null</span>);
+    }
+}
+</code></pre>
+<p><strong>前端提示（重度故障）：</strong></p>
+<pre><code>pending 状态超过 1 分钟
+    ↓
+显示警告图标 + &quot;等待执行中...&quot;
+    ↓
+用户可选择:
+  - &quot;重新触发&quot; → 手动重试
+  - &quot;取消任务&quot; → 设为 cancelled
+</code></pre>
+<hr>
+<h3 id="92-用户可见性设计">9.2 用户可见性设计</h3>
+<p><strong>用户视角 vs 系统视角：</strong></p>
+<table>
+<thead>
+<tr>
+<th>用户可见</th>
+<th>用户不可见</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>状态：pending / running / success / failed</td>
+<td>重试次数</td>
+</tr>
+<tr>
+<td>采集数量</td>
+<td>下次重试时间</td>
+</tr>
+<tr>
+<td>错误信息（失败时）</td>
+<td>指数退避算法</td>
+</tr>
+<tr>
+<td>执行日志（简化版）</td>
+<td>补偿线程</td>
+</tr>
+<tr>
+<td>可以取消</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>前端只显示关键信息：</strong></p>
+<pre><code class="language-javascript"><span class="hljs-keyword">const</span> statusText = {
+  <span class="hljs-string">&#x27;pending&#x27;</span>: <span class="hljs-string">&#x27;等待执行&#x27;</span>,
+  <span class="hljs-string">&#x27;running&#x27;</span>: <span class="hljs-string">&#x27;执行中&#x27;</span>,
+  <span class="hljs-string">&#x27;success&#x27;</span>: <span class="hljs-string">&#x27;执行成功&#x27;</span>,
+  <span class="hljs-string">&#x27;failed&#x27;</span>: <span class="hljs-string">&#x27;执行失败&#x27;</span>,
+  <span class="hljs-string">&#x27;cancelled&#x27;</span>: <span class="hljs-string">&#x27;已取消&#x27;</span>
+};
+</code></pre>
+<p><strong>用户可见日志示例：</strong></p>
+<ul>
+<li>&quot;登录成功&quot;</li>
+<li>&quot;找到 3 篇报告&quot;</li>
+<li>&quot;正在采集第 2 篇...&quot;</li>
+<li>&quot;提交知识库成功&quot;</li>
+</ul>
+<p><strong>用户不可见的技术日志：</strong></p>
+<ul>
+<li>&quot;INFO:root:Starting collection...&quot;</li>
+<li>重试相关日志</li>
+</ul>
+<hr>
+<h3 id="93-执行状态管理">9.3 执行状态管理</h3>
+<h4 id="状态定义">状态定义</h4>
+<pre><code>pending    → 等待执行
+running    → 执行中
+success    → 执行成功
+failed     → 执行失败
+cancelled  → 已取消
+</code></pre>
+<h4 id="状态流转">状态流转</h4>
+<pre><code>用户点击执行
+    ↓
+[pending] ──► Python服务接单 ──► [running]
+    ↑                               │
+    │                    执行失败    ↓
+    │                    [failed] ◄──┘
+    │
+    │                    执行成功
+    └────────────────► [success]
+
+用户取消 ──► [cancelled] (仅 pending/running 可取消)
+</code></pre>
+<h4 id="状态持久化">状态持久化</h4>
+<ul>
+<li><strong>目的：</strong> 前端关闭后仍能查看状态，支持断线重连</li>
+<li><strong>存储：</strong> TaskExecution 表（主状态）+ TaskExecutionLog 表（日志）</li>
+</ul>
+<hr>
+<h3 id="94-python-服务架构">9.4 Python 服务架构</h3>
+<h4 id="核心模块">核心模块</h4>
+<pre><code>collector_server.py
+├── Flask HTTP API          # 接收执行请求
+├── BrowserPool             # 浏览器连接池 + 冷却
+├── ExecutionManager         # 执行状态管理
+└── LiangxinCollector       # 实际采集逻辑
+</code></pre>
+<h4 id="executionmanager-设计">ExecutionManager 设计</h4>
+<pre><code class="language-python"><span class="hljs-keyword">class</span> <span class="hljs-title class_">ExecutionManager</span>:
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self</span>):
+        self.executions = {}  <span class="hljs-comment"># executionId -&gt; ExecutionContext</span>
+        self.lock = threading.Lock()
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">start</span>(<span class="hljs-params">self, execution_id, script_id, report_type</span>):
+        ctx = ExecutionContext(execution_id, script_id, report_type)
+        <span class="hljs-keyword">with</span> self.lock:
+            self.executions[execution_id] = ctx
+        thread = threading.Thread(target=self._run, args=(ctx,))
+        thread.start()
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">get_logs</span>(<span class="hljs-params">self, execution_id, offset</span>):
+        <span class="hljs-keyword">with</span> self.lock:
+            ctx = self.executions.get(execution_id)
+            <span class="hljs-keyword">return</span> ctx.logs[offset:] <span class="hljs-keyword">if</span> ctx <span class="hljs-keyword">else</span> []
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">get_status</span>(<span class="hljs-params">self, execution_id</span>):
+        ctx = self.executions.get(execution_id)
+        <span class="hljs-keyword">return</span> ctx.status <span class="hljs-keyword">if</span> ctx <span class="hljs-keyword">else</span> <span class="hljs-literal">None</span>
+</code></pre>
+<h4 id="并发控制">并发控制</h4>
+<ul>
+<li>同一 executionId 只执行一次（幂等）</li>
+<li>同一脚本同时只能有一个 running 的执行</li>
+</ul>
+<hr>
+<h3 id="95-日志系统">9.5 日志系统</h3>
+<h4 id="日志流向">日志流向</h4>
+<pre><code>LiangxinCollector
+    ↓ (每条日志)
+ExecutionContext.logs.append(log)
+    ↓ (同时)
+POST /backend/logs/{executionId}
+    ↓
+后端存储到 TaskExecutionLog 表
+    ↓
+前端轮询 GET /backend/logs/{executionId}?offset=X
+</code></pre>
+<h4 id="日志格式">日志格式</h4>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;offset&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">0</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;level&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;INFO&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;message&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;登录成功，检测到用户问候语&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;timestamp&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;2026-05-15T09:30:01&quot;</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="边界情况处理">边界情况处理</h4>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前端中途关闭</td>
+<td>日志继续写入 DB，后端标记执行完成</td>
+</tr>
+<tr>
+<td>前端重连</td>
+<td>从 offset=0 拉取，UI 追加显示</td>
+</tr>
+<tr>
+<td>日志太多 (10000+条)</td>
+<td>DB 建索引，定期清理（保留 30 天）</td>
+</tr>
+<tr>
+<td>Python 服务崩溃</td>
+<td>标记为 failed，错误信息记录</td>
+</tr>
+<tr>
+<td>日志写入失败 (DB 挂了)</td>
+<td>先存内存，批写重试</td>
+</tr>
+</tbody>
+</table>
+<h4 id="前端轮询策略">前端轮询策略</h4>
+<pre><code class="language-javascript"><span class="hljs-keyword">let</span> offset = <span class="hljs-number">0</span>
+<span class="hljs-keyword">let</span> polling = <span class="hljs-literal">true</span>
+
+<span class="hljs-keyword">function</span> <span class="hljs-title function_">pollLogs</span>(<span class="hljs-params"></span>) {
+  <span class="hljs-keyword">if</span> (!polling) <span class="hljs-keyword">return</span>
+
+  <span class="hljs-title function_">fetch</span>(<span class="hljs-string">`/api/scripts/executions/<span class="hljs-subst">${execId}</span>/logs?offset=<span class="hljs-subst">${offset}</span>`</span>)
+    .<span class="hljs-title function_">then</span>(<span class="hljs-function"><span class="hljs-params">res</span> =&gt;</span> res.<span class="hljs-title function_">json</span>())
+    .<span class="hljs-title function_">then</span>(<span class="hljs-function"><span class="hljs-params">data</span> =&gt;</span> {
+      <span class="hljs-title function_">appendLogs</span>(data.<span class="hljs-property">logs</span>)  <span class="hljs-comment">// UI 追加</span>
+      offset = data.<span class="hljs-property">nextOffset</span>
+
+      <span class="hljs-keyword">if</span> (data.<span class="hljs-property">status</span> === <span class="hljs-string">&#x27;running&#x27;</span>) {
+        <span class="hljs-built_in">setTimeout</span>(pollLogs, <span class="hljs-number">2000</span>)  <span class="hljs-comment">// 2秒后再拉</span>
+      } <span class="hljs-keyword">else</span> {
+        polling = <span class="hljs-literal">false</span>  <span class="hljs-comment">// 执行结束</span>
+        <span class="hljs-title function_">showFinalStatus</span>(data.<span class="hljs-property">status</span>)
+      }
+    })
+}
+
+<span class="hljs-variable language_">window</span>.<span class="hljs-property">onbeforeunload</span> = <span class="hljs-function">() =&gt;</span> polling = <span class="hljs-literal">false</span>
+</code></pre>
+<hr>
+<h3 id="96-执行结果回传">9.6 执行结果回传</h3>
+<h4 id="python--后端">Python → 后端</h4>
+<p>采集完成后发送：</p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;executionId&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;abc123&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;status&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;success&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;collectedCount&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">3</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;error&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-keyword">null</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;durationMs&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-number">25000</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="后端更新-taskexecution">后端更新 TaskExecution</h4>
+<pre><code class="language-java">execution.setStatus(<span class="hljs-string">&quot;success&quot;</span>);
+execution.setCollectedCount(<span class="hljs-number">3</span>);
+execution.setEndTime(LocalDateTime.now());
+execution.setDurationMs(durationMs);
+</code></pre>
+<hr>
+<h3 id="97-定时调度">9.7 定时调度</h3>
+<h4 id="配置位置决策">配置位置决策</h4>
+<p><strong>定时配置存储在 CollectionScript.triggerConfig（前端配置），不在 Python 代码中硬编码</strong></p>
+<p><strong>理由：</strong></p>
+<ol>
+<li>定时是业务管理需求，不是采集逻辑</li>
+<li>晨报发布时间可能调整（如改成 10:00、10:15），应可由运营人员配置</li>
+<li>符合&quot;采集管理系统&quot;定位：采集脚本只负责&quot;怎么采&quot;，调度由系统决定&quot;什么时候采&quot;</li>
+<li>新增数据源时，直接在界面配置时间，不需要改 Python 代码</li>
+</ol>
+<h4 id="collectionscript-数据模型">CollectionScript 数据模型</h4>
+<pre><code class="language-java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title class_">CollectionScript</span> {
+    <span class="hljs-comment">// ... existing fields</span>
+
+    <span class="hljs-comment">// 定时配置（JSON格式）</span>
+    String triggerConfig;
+    <span class="hljs-comment">// 如: {&quot;type&quot;: &quot;fixed_times&quot;, &quot;times&quot;: [&quot;09:30&quot;, &quot;10:00&quot;, &quot;10:30&quot;]}</span>
+    <span class="hljs-comment">// 或: {&quot;type&quot;: &quot;cron&quot;, &quot;expression&quot;: &quot;0 30 9 * * ?&quot;}</span>
+
+    <span class="hljs-comment">// 报告类型（晨报/日报）</span>
+    String reportType;  <span class="hljs-comment">// morning / evening</span>
+}
+</code></pre>
+<h4 id="前端配置-ui">前端配置 UI</h4>
+<pre><code>脚本名称: 粮信网玉米晨报
+报告类型: [晨报 ▼]
+定时配置:
+  ○ Cron表达式    ○ 固定时间点
+  [09:30] [10:00] [10:30] [+ 添加]
+</code></pre>
+<h4 id="触发链路">触发链路</h4>
+<pre><code>TriggerScheduleService (Spring @Scheduled 每分钟)
+    ↓
+检查所有 enabled 脚本
+    ↓
+时间匹配判断 (cron / repeat 配置)
+    ↓
+调用 /scripts/{id}/execute (同手动)
+</code></pre>
+<h4 id="cron-表达式示例">cron 表达式示例</h4>
+<pre><code>0 30 9 * * ?     # 每天 9:30
+0 0,30 9 * * ?   # 每天 9:00, 9:30
+</code></pre>
+<h4 id="repeat-配置示例">repeat 配置示例</h4>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;type&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;daily&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;times&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span><span class="hljs-string">&quot;09:30&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-string">&quot;10:00&quot;</span><span class="hljs-punctuation">,</span> <span class="hljs-string">&quot;10:30&quot;</span><span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="边界情况-1">边界情况</h4>
+<table>
+<thead>
+<tr>
+<th>情况</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>执行时间到了，但上次还没执行完</td>
+<td>跳过本次，等待下次</td>
+</tr>
+<tr>
+<td>服务重启丢失内存状态</td>
+<td>DB 中的 pending 任务由补偿线程处理</td>
+</tr>
+<tr>
+<td>多个定时任务同时触发</td>
+<td>并发执行（不同 executionId）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="971-下次执行时间计算">9.7.1 下次执行时间计算</h3>
+<h4 id="问题描述">问题描述</h4>
+<p>当前 <code>calculateNextExecution</code> 方法对 cron 类型的处理是 stub 实现，只是简单的 <code>base.plusHours(1)</code>，无法正确计算真正的下次执行时间。</p>
+<h4 id="正确实现">正确实现</h4>
+<p>使用 Spring 的 <code>CronExpression.parse()</code> 计算真正下次执行时间：</p>
+<pre><code class="language-java"><span class="hljs-keyword">public</span> LocalDateTime <span class="hljs-title function_">calculateNextExecution</span><span class="hljs-params">(CollectionScript script)</span> {
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;cron&quot;</span>.equals(script.getTriggerType()) &amp;&amp; script.getCronExpression() != <span class="hljs-literal">null</span>) {
+        <span class="hljs-comment">// 使用 Spring 的 CronExpression 计算真正下次执行时间</span>
+        <span class="hljs-type">CronExpression</span> <span class="hljs-variable">cron</span> <span class="hljs-operator">=</span> CronExpression.parse(script.getCronExpression());
+        <span class="hljs-type">ZonedDateTime</span> <span class="hljs-variable">now</span> <span class="hljs-operator">=</span> ZonedDateTime.now();
+        <span class="hljs-type">TemporalAccessor</span> <span class="hljs-variable">next</span> <span class="hljs-operator">=</span> cron.next(now);
+        <span class="hljs-keyword">return</span> LocalDateTime.ofInstant(
+            Instant.from(next), ZoneId.systemDefault()
+        );
+    }
+    <span class="hljs-comment">// 其他重复类型使用现有逻辑...</span>
+}
+</code></pre>
+<h4 id="触发时机">触发时机</h4>
+<table>
+<thead>
+<tr>
+<th>时机</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>脚本创建/编辑时</td>
+<td>保存后立即计算并更新 <code>nextExecutionTime</code></td>
+</tr>
+<tr>
+<td>执行完成时</td>
+<td><code>TriggerScheduleService</code> 执行完成后调用，更新下次时间</td>
+</tr>
+<tr>
+<td>定时调度检查前</td>
+<td>每次触发前先验证/更新 <code>nextExecutionTime</code></td>
+</tr>
+</tbody>
+</table>
+<h4 id="更新逻辑triggerscheduleservice">更新逻辑（TriggerScheduleService）</h4>
+<pre><code class="language-java"><span class="hljs-comment">// 执行完成后，计算并更新下次执行时间</span>
+<span class="hljs-meta">@Scheduled(fixedRate = 60000)</span>  <span class="hljs-comment">// 每分钟</span>
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">updateNextExecutionTimes</span><span class="hljs-params">()</span> {
+    List&lt;CollectionScript&gt; scripts = scriptService.getEnabledScripts();
+    <span class="hljs-keyword">for</span> (CollectionScript script : scripts) {
+        <span class="hljs-type">LocalDateTime</span> <span class="hljs-variable">next</span> <span class="hljs-operator">=</span> calculateNextExecution(script);
+        script.setNextExecutionTime(next);
+        scriptService.update(script);
+    }
+}
+</code></pre>
+<h4 id="前端显示">前端显示</h4>
+<pre><code>┌─────────────────────────────────────────────────────────┐
+│ 脚本名称: 粮信网玉米晨报              状态: ● 启用      │
+│ 数据源: 粮信网                         报告类型: 晨报    │
+│ 执行周期: 每天 9:30                    下次执行: 09:30   │
+│ 上次执行: 2026-05-14 09:30:00 (成功, 采集 3 条)         │
+└─────────────────────────────────────────────────────────┘
+</code></pre>
+<h4 id="文件变更">文件变更</h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>修改内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CollectionScriptService.java</code></td>
+<td>修改 <code>calculateNextExecution</code> 方法，正确解析 cron</td>
+</tr>
+<tr>
+<td><code>TriggerScheduleService.java</code></td>
+<td>添加执行后更新 <code>nextExecutionTime</code> 的逻辑</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="972-执行统计同步">9.7.2 执行统计同步</h3>
+<h4 id="问题描述-1">问题描述</h4>
+<p><code>CollectionScript</code> 表有 <code>executionCount</code>、<code>successCount</code>、<code>failedCount</code> 字段，<code>CollectionScriptService</code> 中定义了 <code>recordExecutionResult()</code> 方法，但<strong>从未被调用</strong>。</p>
+<p>导致执行统计永远不会更新，前端显示的统计数据始终为 0。</p>
+<h4 id="同步时机">同步时机</h4>
+<table>
+<thead>
+<tr>
+<th>时机</th>
+<th>调用方法</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TaskExecution 状态变为 success</td>
+<td><code>recordExecutionResult(scriptId, true)</code></td>
+</tr>
+<tr>
+<td>TaskExecution 状态变为 failed</td>
+<td><code>recordExecutionResult(scriptId, false)</code></td>
+</tr>
+<tr>
+<td>TaskExecution 状态变为 cancelled</td>
+<td>无需同步</td>
+</tr>
+</tbody>
+</table>
+<h4 id="修改代码taskexecutionservicejava">修改代码（TaskExecutionService.java）</h4>
+<pre><code class="language-java"><span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">completeExecution</span><span class="hljs-params">(String executionId, String status, <span class="hljs-type">int</span> collectedCount)</span> {
+    <span class="hljs-type">TaskExecution</span> <span class="hljs-variable">execution</span> <span class="hljs-operator">=</span> findByExecutionId(executionId);
+    <span class="hljs-keyword">if</span> (execution == <span class="hljs-literal">null</span>) <span class="hljs-keyword">return</span>;
+
+    execution.setStatus(status);
+    execution.setEndTime(LocalDateTime.now());
+    execution.setCollectedCount(collectedCount);
+
+    <span class="hljs-comment">// 同步统计到 CollectionScript</span>
+    <span class="hljs-type">boolean</span> <span class="hljs-variable">isSuccess</span> <span class="hljs-operator">=</span> <span class="hljs-string">&quot;success&quot;</span>.equals(status);
+    collectionScriptService.recordExecutionResult(execution.getScriptId(), isSuccess);
+
+    taskExecutionMapper.updateById(execution);
+}
+</code></pre>
+<h4 id="验证">验证</h4>
+<pre><code>执行前:
+  CollectionScript.executionCount = 10
+  CollectionScript.successCount = 8
+  CollectionScript.failedCount = 2
+
+执行完成后（success）:
+  CollectionScript.executionCount = 11
+  CollectionScript.successCount = 9
+  CollectionScript.failedCount = 2
+</code></pre>
+<hr>
+<h3 id="973-触发配置问题修复">9.7.3 触发配置问题修复</h3>
+<h4 id="问题汇总">问题汇总</h4>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>严重程度</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>triggerConfig</code> 字段未使用</td>
+<td>高</td>
+<td>后端声明为 JSON String，但 <code>parseRepeatConfig</code> 从未被调用</td>
+</tr>
+<tr>
+<td><code>parseRepeatConfig</code> 是废弃代码</td>
+<td>高</td>
+<td>存在但无调用，返回硬编码值</td>
+</tr>
+<tr>
+<td>前后端类型不一致</td>
+<td>中</td>
+<td>前端 <code>triggerConfig</code> 声明为 <code>string</code>，实际传递对象</td>
+</tr>
+<tr>
+<td>单次触发（once/single）无判断</td>
+<td>中</td>
+<td>前端支持，后端没有对应的执行判断逻辑</td>
+</tr>
+<tr>
+<td>结束条件未判断</td>
+<td>中</td>
+<td>没有判断 <code>endType=endTime</code> 时是否过期</td>
+</tr>
+<tr>
+<td>时区问题</td>
+<td>低</td>
+<td>Cron 解析未指定时区</td>
+</tr>
+</tbody>
+</table>
+<h4 id="解决方案">解决方案</h4>
+<p><strong>1. 统一 triggerConfig 数据结构</strong></p>
+<p>废弃 <code>triggerConfig</code> 字段，改用独立字段（现状）：</p>
+<pre><code>CollectionScript 表字段：
+├── triggerType       -- manual/single/cron/repeat
+├── cronExpression    -- cron 表达式
+├── repeatType         -- daily/weekly/monthly
+├── repeatTime         -- 时间点 &quot;09:30&quot;
+├── weeklyDays         -- 周几 &quot;1,2,3,4,5&quot;
+├── monthlyDay         -- 月第几天
+├── monthlyLastDay     -- 是否月末
+├── endType           -- once/endTime/repeatCount
+├── endTime           -- 结束时间
+└── repeatCount       -- 重复次数
+</code></pre>
+<p><strong>2. 修复 isCronMatch 时区问题</strong></p>
+<pre><code class="language-java"><span class="hljs-comment">// 当前代码（有问题）</span>
+<span class="hljs-type">ZonedDateTime</span> <span class="hljs-variable">nowZoned</span> <span class="hljs-operator">=</span> now.atZone(ZoneId.systemDefault());
+java.time.temporal.<span class="hljs-type">TemporalAccessor</span> <span class="hljs-variable">next</span> <span class="hljs-operator">=</span> cron.next(nowZoned);
+
+<span class="hljs-comment">// 修复：明确指定时区</span>
+<span class="hljs-type">ZonedDateTime</span> <span class="hljs-variable">nowZoned</span> <span class="hljs-operator">=</span> now.atZone(ZoneId.of(<span class="hljs-string">&quot;Asia/Shanghai&quot;</span>));
+</code></pre>
+<p><strong>3. 添加单次触发判断</strong></p>
+<pre><code class="language-java"><span class="hljs-comment">// 在 TriggerScheduleService 中添加</span>
+<span class="hljs-keyword">private</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">shouldExecute</span><span class="hljs-params">(CollectionScript script, LocalDateTime now)</span> {
+    <span class="hljs-type">String</span> <span class="hljs-variable">triggerType</span> <span class="hljs-operator">=</span> script.getTriggerType();
+
+    <span class="hljs-comment">// 单次触发：检查是否已执行过</span>
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;single&quot;</span>.equals(triggerType) || <span class="hljs-string">&quot;once&quot;</span>.equals(triggerType)) {
+        <span class="hljs-comment">// 如果上次执行时间不为空，说明已执行过，跳过</span>
+        <span class="hljs-keyword">return</span> script.getLastExecutionTime() == <span class="hljs-literal">null</span>;
+    }
+
+    <span class="hljs-comment">// 重复触发：检查是否在结束条件内</span>
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;repeat&quot;</span>.equals(triggerType) || <span class="hljs-string">&quot;cron&quot;</span>.equals(triggerType)) {
+        <span class="hljs-comment">// 检查 endType</span>
+        <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;endTime&quot;</span>.equals(script.getEndType())) {
+            <span class="hljs-type">LocalDateTime</span> <span class="hljs-variable">endTime</span> <span class="hljs-operator">=</span> script.getEndTime();
+            <span class="hljs-keyword">if</span> (endTime != <span class="hljs-literal">null</span> &amp;&amp; now.isAfter(endTime)) {
+                <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;  <span class="hljs-comment">// 已过期，跳过</span>
+            }
+        }
+        <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;repeatCount&quot;</span>.equals(script.getEndType())) {
+            <span class="hljs-type">Integer</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> script.getExecutionCount();
+            <span class="hljs-keyword">if</span> (count != <span class="hljs-literal">null</span> &amp;&amp; count &gt;= script.getRepeatCount()) {
+                <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;  <span class="hljs-comment">// 已达次数，跳过</span>
+            }
+        }
+    }
+
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;
+}
+</code></pre>
+<p><strong>4. 统一触发判断逻辑</strong></p>
+<p>将 <code>isCronMatch</code> 和 <code>shouldExecute</code> 合并为统一方法：</p>
+<pre><code class="language-java"><span class="hljs-meta">@Scheduled(fixedRate = 60000)</span>  <span class="hljs-comment">// 每分钟</span>
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">checkAndExecute</span><span class="hljs-params">()</span> {
+    List&lt;CollectionScript&gt; scripts = scriptService.getEnabledScripts();
+    <span class="hljs-keyword">for</span> (CollectionScript script : scripts) {
+        <span class="hljs-keyword">if</span> (!shouldExecute(script, LocalDateTime.now())) {
+            <span class="hljs-keyword">continue</span>;  <span class="hljs-comment">// 不满足执行条件</span>
+        }
+        <span class="hljs-keyword">if</span> (isTimeMatch(script, LocalDateTime.now())) {
+            <span class="hljs-comment">// 触发执行</span>
+            scriptService.executeScript(script.getId());
+        }
+    }
+}
+
+<span class="hljs-keyword">private</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isTimeMatch</span><span class="hljs-params">(CollectionScript script, LocalDateTime now)</span> {
+    <span class="hljs-type">String</span> <span class="hljs-variable">triggerType</span> <span class="hljs-operator">=</span> script.getTriggerType();
+
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;cron&quot;</span>.equals(triggerType)) {
+        <span class="hljs-keyword">return</span> isCronMatch(script, now);
+    }
+
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;repeat&quot;</span>.equals(triggerType)) {
+        <span class="hljs-keyword">return</span> isRepeatMatch(script, now);
+    }
+
+    <span class="hljs-comment">// manual/single 类型不自动执行</span>
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;
+}
+</code></pre>
+<p><strong>5. 文件变更</strong></p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>修改内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TriggerScheduleService.java</code></td>
+<td>添加 <code>shouldExecute</code> 判断，修复时区问题</td>
+</tr>
+<tr>
+<td><code>CollectionScriptService.java</code></td>
+<td>删除废弃的 <code>parseRepeatConfig</code> 方法</td>
+</tr>
+<tr>
+<td><code>schema.sql</code></td>
+<td>移除 <code>triggerConfig</code> 字段（如不使用）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="974-单次触发设计">9.7.4 单次触发设计</h3>
+<h4 id="问题描述-2">问题描述</h4>
+<ol>
+<li><strong>前端无单次触发 UI</strong> - TriggerConfig.vue 只有 <code>simple</code>（周期）和 <code>cron</code> 两个 Tab，用户无法选择单次触发</li>
+<li><strong>命名不一致</strong> - 后端注释写 <code>single</code>，代码判断 <code>once</code></li>
+<li><strong>前端映射错误</strong> - <code>simple</code> 被映射为 <code>repeat</code>，而不是 <code>once</code></li>
+</ol>
+<h4 id="单次触发流程">单次触发流程</h4>
+<pre><code>用户选择&quot;单次触发&quot;
+    ↓
+前端设置 triggerType = &quot;once&quot;
+    ↓
+TriggerScheduleService 检查：
+    - lastExecutionTime == null? (从未执行)
+    - 当前时间是否匹配 repeatTime + 日期
+    ↓
+匹配成功 → 执行一次
+    ↓
+lastExecutionTime 更新
+    ↓
+下次检查时 lastExecutionTime != null → 跳过
+</code></pre>
+<h4 id="前端-triggerconfigvue-修改">前端 TriggerConfig.vue 修改</h4>
+<p>新增&quot;单次触发&quot; Tab：</p>
+<pre><code class="language-vue">&lt;!-- Tab 选项 --&gt;
+&lt;el-tabs v-model=&quot;triggerType&quot;&gt;
+  &lt;el-tab-pane label=&quot;周期触发&quot; name=&quot;repeat&quot;&gt;&lt;/el-tab-pane&gt;
+  &lt;el-tab-pane label=&quot;单次触发&quot; name=&quot;once&quot;&gt;&lt;/el-tab-pane&gt;
+  &lt;el-tab-pane label=&quot;Cron表达式&quot; name=&quot;cron&quot;&gt;&lt;/el-tab-pane&gt;
+&lt;/el-tabs&gt;
+
+&lt;!-- 单次触发配置 --&gt;
+&lt;div v-if=&quot;triggerType === 'once'&quot; class=&quot;once-config&quot;&gt;
+  &lt;el-date-picker
+    v-model=&quot;onceDate&quot;
+    type=&quot;date&quot;
+    placeholder=&quot;选择日期&quot;
+  /&gt;
+  &lt;el-time-picker
+    v-model=&quot;onceTime&quot;
+    format=&quot;HH:mm&quot;
+    placeholder=&quot;选择时间&quot;
+  /&gt;
+&lt;/div&gt;
+</code></pre>
+<h4 id="后端判断逻辑triggerscheduleservice">后端判断逻辑（TriggerScheduleService）</h4>
+<pre><code class="language-java"><span class="hljs-meta">@Scheduled(fixedRate = 60000)</span>
+<span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title function_">checkAndExecute</span><span class="hljs-params">()</span> {
+    List&lt;CollectionScript&gt; scripts = scriptService.getEnabledScripts();
+    <span class="hljs-keyword">for</span> (CollectionScript script : scripts) {
+        <span class="hljs-keyword">if</span> (!shouldExecute(script, LocalDateTime.now())) {
+            <span class="hljs-keyword">continue</span>;
+        }
+        <span class="hljs-keyword">if</span> (isTimeMatch(script, LocalDateTime.now())) {
+            scriptService.executeScript(script.getId());
+        }
+    }
+}
+
+<span class="hljs-keyword">private</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">shouldExecute</span><span class="hljs-params">(CollectionScript script, LocalDateTime now)</span> {
+    <span class="hljs-type">String</span> <span class="hljs-variable">triggerType</span> <span class="hljs-operator">=</span> script.getTriggerType();
+
+    <span class="hljs-comment">// 单次触发</span>
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;once&quot;</span>.equals(triggerType)) {
+        <span class="hljs-keyword">if</span> (script.getLastExecutionTime() != <span class="hljs-literal">null</span>) {
+            <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;  <span class="hljs-comment">// 已执行过，不再触发</span>
+        }
+        <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;  <span class="hljs-comment">// 从未执行，需要判断时间</span>
+    }
+
+    <span class="hljs-comment">// 周期触发</span>
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;repeat&quot;</span>.equals(triggerType)) {
+        <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;endTime&quot;</span>.equals(script.getEndType())) {
+            <span class="hljs-type">LocalDateTime</span> <span class="hljs-variable">endTime</span> <span class="hljs-operator">=</span> script.getEndTime();
+            <span class="hljs-keyword">if</span> (endTime != <span class="hljs-literal">null</span> &amp;&amp; now.isAfter(endTime)) {
+                <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;
+            }
+        }
+        <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;repeatCount&quot;</span>.equals(script.getEndType())) {
+            <span class="hljs-type">Integer</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> script.getExecutionCount();
+            <span class="hljs-keyword">if</span> (count != <span class="hljs-literal">null</span> &amp;&amp; count &gt;= script.getRepeatCount()) {
+                <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;
+            }
+        }
+        <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;
+    }
+
+    <span class="hljs-comment">// cron 类型由 isTimeMatch 判断</span>
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;
+}
+
+<span class="hljs-keyword">private</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isTimeMatch</span><span class="hljs-params">(CollectionScript script, LocalDateTime now)</span> {
+    <span class="hljs-type">String</span> <span class="hljs-variable">triggerType</span> <span class="hljs-operator">=</span> script.getTriggerType();
+
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;once&quot;</span>.equals(triggerType)) {
+        <span class="hljs-comment">// 单次触发：检查日期和时间是否匹配</span>
+        <span class="hljs-type">String</span> <span class="hljs-variable">repeatTime</span> <span class="hljs-operator">=</span> script.getRepeatTime();  <span class="hljs-comment">// 如 &quot;09:30&quot;</span>
+        <span class="hljs-type">LocalTime</span> <span class="hljs-variable">targetTime</span> <span class="hljs-operator">=</span> LocalTime.parse(repeatTime);
+        <span class="hljs-type">LocalDate</span> <span class="hljs-variable">targetDate</span> <span class="hljs-operator">=</span> script.getLastExecutionTime() != <span class="hljs-literal">null</span> ?
+            script.getLastExecutionTime().toLocalDate() : now.toLocalDate();
+
+        <span class="hljs-keyword">return</span> now.toLocalDate().equals(targetDate) &amp;&amp;
+               now.toLocalTime().getHour() == targetTime.getHour() &amp;&amp;
+               now.toLocalTime().getMinute() == targetTime.getMinute();
+    }
+
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;cron&quot;</span>.equals(triggerType)) {
+        <span class="hljs-keyword">return</span> isCronMatch(script, now);
+    }
+
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;repeat&quot;</span>.equals(triggerType)) {
+        <span class="hljs-keyword">return</span> isRepeatMatch(script, now);
+    }
+
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;
+}
+</code></pre>
+<h4 id="单次触发数据库表现">单次触发数据库表现</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>triggerType</td>
+<td>once</td>
+<td>单次触发</td>
+</tr>
+<tr>
+<td>repeatTime</td>
+<td>09:30</td>
+<td>执行时间点</td>
+</tr>
+<tr>
+<td>lastExecutionTime</td>
+<td>null（执行前）</td>
+<td>从未执行</td>
+</tr>
+<tr>
+<td>lastExecutionTime</td>
+<td>2026-05-15 09:30:00（执行后）</td>
+<td>已执行，不再触发</td>
+</tr>
+</tbody>
+</table>
+<h4 id="文件变更-1">文件变更</h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>修改内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>frontend/TriggerConfig.vue</code></td>
+<td>新增&quot;单次触发&quot; Tab，once 选项</td>
+</tr>
+<tr>
+<td><code>frontend/ScriptEditDrawer.vue</code></td>
+<td>保存时拆分 startTime 为日期+时间字段</td>
+</tr>
+<tr>
+<td><code>backend/TriggerScheduleService.java</code></td>
+<td>修复 once 类型判断逻辑</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="975-单次触发配置字段不匹配-bug-修复">9.7.5 单次触发配置字段不匹配 Bug 修复</h3>
+<h4 id="问题描述-3">问题描述</h4>
+<p>前端 <code>ScriptEditDrawer.vue</code> 保存单次触发配置时，只设置了 <code>startTime</code>（完整日期时间），<strong>没有设置 <code>repeatTime</code></strong>。</p>
+<p>导致后端 <code>TriggerScheduleService.isTimeMatch()</code> 判断时 <code>repeatTime</code> 为 null，永远返回 false，任务永远不执行。</p>
+<h4 id="问题代码">问题代码</h4>
+<p><strong>前端（ScriptEditDrawer.vue）</strong>：</p>
+<pre><code class="language-javascript"><span class="hljs-comment">// 保存时只传了 startTime</span>
+<span class="hljs-keyword">const</span> data = {
+  <span class="hljs-attr">triggerType</span>: <span class="hljs-string">&#x27;single&#x27;</span>,
+  <span class="hljs-attr">startTime</span>: form.<span class="hljs-property">value</span>.<span class="hljs-property">startTime</span>,  <span class="hljs-comment">// &quot;2026-05-15 09:30:00&quot;</span>
+  <span class="hljs-comment">// repeatTime 没有设置！❌</span>
+}
+</code></pre>
+<p><strong>后端（TriggerScheduleService）</strong>：</p>
+<pre><code class="language-java"><span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;once&quot;</span>.equals(triggerType)) {
+    <span class="hljs-comment">// isTimeMatch 检查 repeatTime，但为 null</span>
+    <span class="hljs-keyword">return</span> isTimeMatch(script.getRepeatTime(), nowTime) &amp;&amp; isDateMatch(script, now);
+}
+
+<span class="hljs-keyword">private</span> <span class="hljs-type">boolean</span> <span class="hljs-title function_">isTimeMatch</span><span class="hljs-params">(String repeatTime, LocalTime nowTime)</span> {
+    <span class="hljs-keyword">if</span> (repeatTime == <span class="hljs-literal">null</span>) <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;  <span class="hljs-comment">// null → 返回 false ❌</span>
+    <span class="hljs-type">LocalTime</span> <span class="hljs-variable">targetTime</span> <span class="hljs-operator">=</span> LocalTime.parse(repeatTime);
+    <span class="hljs-keyword">return</span> Math.abs(nowTime.toSecondOfDay() - targetTime.toSecondOfDay()) &lt; <span class="hljs-number">60</span>;
+}
+</code></pre>
+<h4 id="修复方案">修复方案</h4>
+<p><strong>前端保存时拆分为两个字段</strong>：</p>
+<pre><code class="language-javascript"><span class="hljs-comment">// ScriptEditDrawer.vue 保存时</span>
+<span class="hljs-keyword">const</span> dateTime = form.<span class="hljs-property">value</span>.<span class="hljs-property">startTime</span>;  <span class="hljs-comment">// &quot;2026-05-15 09:30:00&quot;</span>
+<span class="hljs-keyword">const</span> [date, time] = dateTime.<span class="hljs-title function_">split</span>(<span class="hljs-string">&#x27; &#x27;</span>);
+
+<span class="hljs-keyword">const</span> data = {
+  <span class="hljs-attr">triggerType</span>: <span class="hljs-string">&#x27;single&#x27;</span>,
+  <span class="hljs-attr">startTime</span>: date + <span class="hljs-string">&#x27; 00:00:00&#x27;</span>,      <span class="hljs-comment">// 日期部分，用于 isDateMatch</span>
+  <span class="hljs-attr">repeatTime</span>: time.<span class="hljs-title function_">substring</span>(<span class="hljs-number">0</span>, <span class="hljs-number">5</span>) + <span class="hljs-string">&#x27;:00&#x27;</span>  <span class="hljs-comment">// 时间部分 HH:mm:ss，用于 isTimeMatch</span>
+}
+</code></pre>
+<h4 id="字段对应关系">字段对应关系</h4>
+<table>
+<thead>
+<tr>
+<th>原型字段</th>
+<th>数据库字段</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>onceDate</td>
+<td>start_time</td>
+<td>日期部分（用于 isDateMatch）</td>
+</tr>
+<tr>
+<td>onceTime</td>
+<td>repeat_time</td>
+<td>时间部分 HH:mm:ss（用于 isTimeMatch）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="修复后数据库表现">修复后数据库表现</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>值</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>triggerType</td>
+<td>single</td>
+<td>单次触发</td>
+</tr>
+<tr>
+<td>startTime</td>
+<td>2026-05-15 00:00:00</td>
+<td>日期部分</td>
+</tr>
+<tr>
+<td>repeatTime</td>
+<td>09:30:00</td>
+<td>时间部分</td>
+</tr>
+<tr>
+<td>lastExecutionTime</td>
+<td>null（执行前）</td>
+<td>从未执行</td>
+</tr>
+</tbody>
+</table>
+<h4 id="文件变更-2">文件变更</h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>修改内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>frontend/ScriptEditDrawer.vue</code></td>
+<td>保存时拆分 startTime 为日期+时间</td>
+</tr>
+<tr>
+<td><code>backend/TriggerScheduleService.java</code></td>
+<td>确保 isTimeMatch/isDateMatch 正确读取</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="976-周期触发问题修复">9.7.6 周期触发问题修复</h3>
+<h4 id="问题汇总-1">问题汇总</h4>
+<table>
+<thead>
+<tr>
+<th>问题</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原型用 &quot;cycle&quot;，实现用 &quot;repeat&quot;</td>
+<td>命名不一致</td>
+</tr>
+<tr>
+<td>结束类型 &quot;count&quot; 后端未实现</td>
+<td>repeatCount 字段未使用</td>
+</tr>
+</tbody>
+</table>
+<h4 id="问题1命名统一">问题1：命名统一</h4>
+<p><strong>原型 HTML</strong>：使用 <code>value=&quot;cycle&quot;</code>
+<strong>后端代码</strong>：判断 <code>&quot;repeat&quot;</code></p>
+<p>统一方案：保持后端 <code>&quot;repeat&quot;</code>，更新原型文档。</p>
+<h4 id="问题2结束类型-count-未实现">问题2：结束类型 &quot;count&quot; 未实现</h4>
+<p><strong>当前代码（缺失）</strong>：</p>
+<pre><code class="language-java"><span class="hljs-comment">// shouldExecute() 中只检查了 endType=&quot;date&quot;</span>
+<span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;date&quot;</span>.equals(script.getEndType()) &amp;&amp; script.getEndTime() != <span class="hljs-literal">null</span> &amp;&amp; now.isAfter(script.getEndTime())) {
+    <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;
+}
+<span class="hljs-comment">// 缺少: endType=&quot;count&quot; 的判断</span>
+</code></pre>
+<p><strong>修复代码</strong>：</p>
+<pre><code class="language-java"><span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;repeat&quot;</span>.equals(triggerType)) {
+    <span class="hljs-comment">// 检查结束条件</span>
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;date&quot;</span>.equals(script.getEndType())) {
+        <span class="hljs-type">LocalDateTime</span> <span class="hljs-variable">endTime</span> <span class="hljs-operator">=</span> script.getEndTime();
+        <span class="hljs-keyword">if</span> (endTime != <span class="hljs-literal">null</span> &amp;&amp; now.isAfter(endTime)) {
+            <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;  <span class="hljs-comment">// 已过期</span>
+        }
+    }
+    <span class="hljs-keyword">if</span> (<span class="hljs-string">&quot;count&quot;</span>.equals(script.getEndType())) {
+        <span class="hljs-type">Integer</span> <span class="hljs-variable">count</span> <span class="hljs-operator">=</span> script.getExecutionCount();
+        <span class="hljs-type">Integer</span> <span class="hljs-variable">repeatCount</span> <span class="hljs-operator">=</span> script.getRepeatCount();
+        <span class="hljs-keyword">if</span> (count != <span class="hljs-literal">null</span> &amp;&amp; repeatCount != <span class="hljs-literal">null</span> &amp;&amp; count &gt;= repeatCount) {
+            <span class="hljs-keyword">return</span> <span class="hljs-literal">false</span>;  <span class="hljs-comment">// 已达次数</span>
+        }
+    }
+}
+</code></pre>
+<h4 id="周期触发字段对应">周期触发字段对应</h4>
+<table>
+<thead>
+<tr>
+<th>字段</th>
+<th>数据库列</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>triggerType</td>
+<td>trigger_type</td>
+<td>固定值 &quot;repeat&quot;</td>
+</tr>
+<tr>
+<td>repeatType</td>
+<td>repeat_type</td>
+<td>daily/weekly/monthly</td>
+</tr>
+<tr>
+<td>repeatTime</td>
+<td>repeat_time</td>
+<td>HH:mm:ss 格式</td>
+</tr>
+<tr>
+<td>weeklyDays</td>
+<td>weekly_days</td>
+<td>逗号分隔 &quot;1,3,5&quot;</td>
+</tr>
+<tr>
+<td>monthlyDay</td>
+<td>monthly_day</td>
+<td>1-31</td>
+</tr>
+<tr>
+<td>monthlyLastDay</td>
+<td>monthly_last_day</td>
+<td>Boolean</td>
+</tr>
+<tr>
+<td>endType</td>
+<td>end_type</td>
+<td>never/date/count</td>
+</tr>
+<tr>
+<td>endTime</td>
+<td>end_time</td>
+<td>日期时间</td>
+</tr>
+<tr>
+<td>repeatCount</td>
+<td>repeat_count</td>
+<td>重复次数</td>
+</tr>
+</tbody>
+</table>
+<h4 id="文件变更-3">文件变更</h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>修改内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backend/TriggerScheduleService.java</code></td>
+<td>添加 endType=&quot;count&quot; 的判断逻辑</td>
+</tr>
+<tr>
+<td><code>docs/superpowers/specs/task-detail-prototype.html</code></td>
+<td>更新 cycle 为 repeat（文档统一）</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="977-python-调度模式问题">9.7.7 Python 调度模式问题</h3>
+<h4 id="问题描述-4">问题描述</h4>
+<p>设计文档原则：&quot;采集脚本只负责'怎么采'，调度由系统决定'什么时候采'&quot;</p>
+<p>但实际实现中，Python corn_scheduler.py 是<strong>主动调度模式</strong>：</p>
+<ul>
+<li>本地 config.yaml 配置了执行时间（<code>collect_times: [&quot;09:30&quot;, &quot;10:00&quot;]</code>）</li>
+<li>APScheduler 主动按配置时间触发执行</li>
+<li>后端配置的时间（<code>triggerType=repeat, repeatTime=09:30</code>）<strong>与 Python 无关</strong></li>
+</ul>
+<p>这<strong>违反</strong>了设计原则，且存在数据不一致风险。</p>
+<h4 id="当前架构错误">当前架构（错误）</h4>
+<pre><code>前端配置&quot;每天 9:30 执行&quot;
+    ↓ PUT /scripts/{id}
+后端 CollectionScript 表 (triggerType=repeat, repeatTime=&quot;09:30:00&quot;)
+    ↓
+后端 TriggerScheduleService 每分钟检查
+    ↓ 到了时间 → 创建 TaskExecution
+    ↓
+Python corn_scheduler.py
+    ↓ config.yaml: collect_times: [&quot;09:30&quot;] ← 本地配置，不同步！
+    ↓ APScheduler 主动触发
+执行采集
+</code></pre>
+<h4 id="推荐架构被动等待">推荐架构（被动等待）</h4>
+<pre><code>后端 TriggerScheduleService（每分钟）
+    ↓ 检查 triggerType=repeat, repeatTime
+    ↓ 时间到了 → 创建 TaskExecution (status=pending)
+
+Python corn_scheduler.py（轮询 10 秒）
+    ↓ GET /task/execution/pending
+    ↓ 发现 pending 任务
+    ↓ 执行采集
+    ↓ POST /collector/exec/{id}/complete
+</code></pre>
+<p><strong>Python 不再需要知道&quot;什么时候执行&quot;，只响应后端的执行指令。</strong></p>
+<h4 id="两种模式对比">两种模式对比</h4>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>主动调度（当前，错误）</th>
+<th>被动等待（推荐，正确）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>时间配置</td>
+<td>Python config.yaml + 后端两套</td>
+<td>后端一套</td>
+</tr>
+<tr>
+<td>一致性</td>
+<td>❌ 两边可能不同步</td>
+<td>✓ 完全一致</td>
+</tr>
+<tr>
+<td>解耦性</td>
+<td>❌ Python 依赖本地时间</td>
+<td>✓ Python 只管执行</td>
+</tr>
+<tr>
+<td>后端挂了</td>
+<td>Python 仍能执行</td>
+<td>Python 无法执行</td>
+</tr>
+<tr>
+<td>维护成本</td>
+<td>高（改时间要改两处）</td>
+<td>低（只改后端）</td>
+</tr>
+<tr>
+<td>架构设计</td>
+<td>违反&quot;采集逻辑与调度分离&quot;原则</td>
+<td>✓ 符合设计原则</td>
+</tr>
+</tbody>
+</table>
+<h4 id="python-corn_schedulerpy-修改">Python corn_scheduler.py 修改</h4>
+<pre><code class="language-python"><span class="hljs-comment"># 移除 APScheduler 主动调度</span>
+<span class="hljs-comment"># 改为轮询后端 pending 任务</span>
+
+<span class="hljs-keyword">import</span> schedule
+<span class="hljs-keyword">import</span> time
+
+<span class="hljs-keyword">class</span> <span class="hljs-title class_">CornScheduler</span>:
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">__init__</span>(<span class="hljs-params">self, api_base</span>):
+        self.api_base = api_base
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">poll_pending_tasks</span>(<span class="hljs-params">self</span>):
+        <span class="hljs-string">&quot;&quot;&quot;轮询后端获取待执行任务&quot;&quot;&quot;</span>
+        <span class="hljs-comment"># GET /task/execution/pending</span>
+        response = requests.get(<span class="hljs-string">f&quot;<span class="hljs-subst">{self.api_base}</span>/task/execution/pending&quot;</span>)
+        <span class="hljs-keyword">if</span> response.status_code == <span class="hljs-number">200</span>:
+            tasks = response.json().get(<span class="hljs-string">&quot;data&quot;</span>, [])
+            <span class="hljs-keyword">for</span> task <span class="hljs-keyword">in</span> tasks:
+                self.execute_task(task)
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">execute_task</span>(<span class="hljs-params">self, task</span>):
+        <span class="hljs-string">&quot;&quot;&quot;执行单个任务&quot;&quot;&quot;</span>
+        script_id = task[<span class="hljs-string">&quot;scriptId&quot;</span>]
+        execution_id = task[<span class="hljs-string">&quot;executionId&quot;</span>]
+        report_type = task.get(<span class="hljs-string">&quot;reportType&quot;</span>, <span class="hljs-string">&quot;morning&quot;</span>)
+
+        <span class="hljs-comment"># 执行采集</span>
+        collector = LiangxinCollector(config, script_id, username, password, report_type)
+        result = collector.run()
+
+        <span class="hljs-comment"># 上报完成</span>
+        requests.post(
+            <span class="hljs-string">f&quot;<span class="hljs-subst">{self.api_base}</span>/collector/exec/<span class="hljs-subst">{execution_id}</span>/complete&quot;</span>,
+            json={<span class="hljs-string">&quot;status&quot;</span>: <span class="hljs-string">&quot;success&quot;</span>, <span class="hljs-string">&quot;collectedCount&quot;</span>: result.get(<span class="hljs-string">&quot;collected_count&quot;</span>, <span class="hljs-number">0</span>)}
+        )
+
+    <span class="hljs-keyword">def</span> <span class="hljs-title function_">run</span>(<span class="hljs-params">self</span>):
+        <span class="hljs-string">&quot;&quot;&quot;主循环：每 10 秒轮询一次&quot;&quot;&quot;</span>
+        <span class="hljs-keyword">while</span> <span class="hljs-literal">True</span>:
+            self.poll_pending_tasks()
+            time.sleep(<span class="hljs-number">10</span>)
+</code></pre>
+<h4 id="移除的配置">移除的配置</h4>
+<p>从 corn_scheduler.py 和 config.yaml 中移除：</p>
+<pre><code class="language-yaml"><span class="hljs-comment"># 不再需要这些配置</span>
+<span class="hljs-attr">corn:</span>
+  <span class="hljs-attr">report_types:</span>
+    <span class="hljs-attr">morning:</span>
+      <span class="hljs-attr">collect_times:</span> [<span class="hljs-string">&quot;09:30&quot;</span>, <span class="hljs-string">&quot;10:00&quot;</span>]
+    <span class="hljs-attr">evening:</span>
+      <span class="hljs-attr">collect_times:</span> [<span class="hljs-string">&quot;18:30&quot;</span>]
+</code></pre>
+<h4 id="文件变更-4">文件变更</h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>修改内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>python-collector-sdk/scheduler/corn_scheduler.py</code></td>
+<td>移除 APScheduler，改为轮询后端 pending 任务</td>
+</tr>
+<tr>
+<td><code>python-collector-sdk/config.yaml</code></td>
+<td>移除 collect_times 配置</td>
+</tr>
+<tr>
+<td><code>backend/TriggerScheduleService.java</code></td>
+<td>确保时间到了创建 pending 任务</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="978-cron-表达式问题修复">9.7.8 Cron 表达式问题修复</h3>
+<h4 id="问题汇总-2">问题汇总</h4>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>前端输入和校验</td>
+<td>✓</td>
+<td>有 Cron Tab 和常用模板</td>
+</tr>
+<tr>
+<td>后端校验接口</td>
+<td>部分</td>
+<td>只返回 valid，不返回 description/nextExecutions</td>
+</tr>
+<tr>
+<td>isCronMatch 执行判断</td>
+<td>✓</td>
+<td>使用 Spring CronExpression，正确</td>
+</tr>
+<tr>
+<td>计算未来5次触发时间</td>
+<td>❌</td>
+<td>前端无法工作，后端未实现</td>
+</tr>
+<tr>
+<td>返回描述信息</td>
+<td>❌</td>
+<td>后端只返回 valid，前端期望 description</td>
+</tr>
+</tbody>
+</table>
+<h4 id="问题1后端校验接口返回不完整">问题1：后端校验接口返回不完整</h4>
+<p><strong>当前实现（错误）</strong>：</p>
+<pre><code class="language-java"><span class="hljs-meta">@PostMapping(&quot;/validate-cron&quot;)</span>
+<span class="hljs-keyword">public</span> Result&lt;Map&lt;String, Boolean&gt;&gt; <span class="hljs-title function_">validateCron</span><span class="hljs-params">(<span class="hljs-meta">@RequestBody</span> Map&lt;String, String&gt; request)</span> {
+    <span class="hljs-type">String</span> <span class="hljs-variable">cron</span> <span class="hljs-operator">=</span> request.get(<span class="hljs-string">&quot;cron&quot;</span>);
+    <span class="hljs-type">boolean</span> <span class="hljs-variable">valid</span> <span class="hljs-operator">=</span> isValidCronExpression(cron);
+    <span class="hljs-keyword">return</span> Result.success(Map.of(<span class="hljs-string">&quot;valid&quot;</span>, valid));  <span class="hljs-comment">// 只返回 valid</span>
+}
+</code></pre>
+<p><strong>前端期望</strong>：</p>
+<pre><code class="language-json"><span class="hljs-punctuation">{</span>
+  <span class="hljs-attr">&quot;valid&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-keyword">true</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;description&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-string">&quot;每天 8:00 执行&quot;</span><span class="hljs-punctuation">,</span>
+  <span class="hljs-attr">&quot;nextExecutions&quot;</span><span class="hljs-punctuation">:</span> <span class="hljs-punctuation">[</span>
+    <span class="hljs-string">&quot;2026-05-15 08:00&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-string">&quot;2026-05-16 08:00&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-string">&quot;2026-05-17 08:00&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-string">&quot;2026-05-18 08:00&quot;</span><span class="hljs-punctuation">,</span>
+    <span class="hljs-string">&quot;2026-05-19 08:00&quot;</span>
+  <span class="hljs-punctuation">]</span>
+<span class="hljs-punctuation">}</span>
+</code></pre>
+<h4 id="修复后端校验接口">修复后端校验接口</h4>
+<pre><code class="language-java"><span class="hljs-meta">@PostMapping(&quot;/validate-cron&quot;)</span>
+<span class="hljs-keyword">public</span> Result&lt;Map&lt;String, Object&gt;&gt; <span class="hljs-title function_">validateCron</span><span class="hljs-params">(<span class="hljs-meta">@RequestBody</span> Map&lt;String, String&gt; request)</span> {
+    <span class="hljs-type">String</span> <span class="hljs-variable">cron</span> <span class="hljs-operator">=</span> request.get(<span class="hljs-string">&quot;cron&quot;</span>);
+    Map&lt;String, Object&gt; result = <span class="hljs-keyword">new</span> <span class="hljs-title class_">HashMap</span>&lt;&gt;();
+
+    <span class="hljs-keyword">try</span> {
+        CronExpression.parse(cron);  <span class="hljs-comment">// 验证格式</span>
+        result.put(<span class="hljs-string">&quot;valid&quot;</span>, <span class="hljs-literal">true</span>);
+        result.put(<span class="hljs-string">&quot;description&quot;</span>, describeCron(cron));  <span class="hljs-comment">// 描述信息</span>
+
+        <span class="hljs-comment">// 计算未来5次触发时间</span>
+        List&lt;String&gt; nextExecutions = <span class="hljs-keyword">new</span> <span class="hljs-title class_">ArrayList</span>&lt;&gt;();
+        <span class="hljs-type">ZonedDateTime</span> <span class="hljs-variable">now</span> <span class="hljs-operator">=</span> ZonedDateTime.now();
+        <span class="hljs-type">CronExpression</span> <span class="hljs-variable">parsed</span> <span class="hljs-operator">=</span> CronExpression.parse(cron);
+
+        <span class="hljs-type">TemporalAccessor</span> <span class="hljs-variable">next</span> <span class="hljs-operator">=</span> parsed.next(now);
+        <span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">5</span> &amp;&amp; next != <span class="hljs-literal">null</span>; i++) {
+            nextExecutions.add(next.toString());
+            next = parsed.next(next);
+        }
+        result.put(<span class="hljs-string">&quot;nextExecutions&quot;</span>, nextExecutions);
+
+    } <span class="hljs-keyword">catch</span> (Exception e) {
+        result.put(<span class="hljs-string">&quot;valid&quot;</span>, <span class="hljs-literal">false</span>);
+        result.put(<span class="hljs-string">&quot;error&quot;</span>, e.getMessage());
+    }
+
+    <span class="hljs-keyword">return</span> Result.success(result);
+}
+
+<span class="hljs-keyword">private</span> String <span class="hljs-title function_">describeCron</span><span class="hljs-params">(String cron)</span> {
+    <span class="hljs-comment">// 简单描述：解析 Cron 表达式返回人类可读描述</span>
+    <span class="hljs-comment">// 例如: &quot;0 8 * * *&quot; -&gt; &quot;每天 8:00&quot;</span>
+    <span class="hljs-comment">// &quot;0 9 * * 1&quot; -&gt; &quot;每周一 9:00&quot;</span>
+    <span class="hljs-comment">// &quot;0 8 1 * *&quot; -&gt; &quot;每月1号 8:00&quot;</span>
+    <span class="hljs-comment">// ...</span>
+}
+</code></pre>
+<h4 id="问题2计算未来5次触发时间">问题2：计算未来5次触发时间</h4>
+<p>Spring 的 <code>CronExpression</code> 支持计算下次触发时间：</p>
+<pre><code class="language-java"><span class="hljs-type">CronExpression</span> <span class="hljs-variable">parsed</span> <span class="hljs-operator">=</span> CronExpression.parse(cron);
+<span class="hljs-type">TemporalAccessor</span> <span class="hljs-variable">next</span> <span class="hljs-operator">=</span> parsed.next(now);
+
+<span class="hljs-keyword">for</span> (<span class="hljs-type">int</span> <span class="hljs-variable">i</span> <span class="hljs-operator">=</span> <span class="hljs-number">0</span>; i &lt; <span class="hljs-number">5</span> &amp;&amp; next != <span class="hljs-literal">null</span>; i++) {
+    nextExecutions.add(format(next));  <span class="hljs-comment">// 格式化输出</span>
+    next = parsed.next(next);  <span class="hljs-comment">// 计算下下次</span>
+}
+</code></pre>
+<h4 id="前端如何使用">前端如何使用</h4>
+<pre><code class="language-typescript"><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">validateCron</span>(<span class="hljs-params"></span>) {
+  <span class="hljs-keyword">const</span> res = <span class="hljs-keyword">await</span> cronApi.<span class="hljs-title function_">validate</span>(cronExpression.<span class="hljs-property">value</span>)
+  <span class="hljs-keyword">if</span> (res.<span class="hljs-property">data</span>.<span class="hljs-property">valid</span>) {
+    cronDescription.<span class="hljs-property">value</span> = res.<span class="hljs-property">data</span>.<span class="hljs-property">description</span>  <span class="hljs-comment">// 显示描述</span>
+    nextExecutions.<span class="hljs-property">value</span> = res.<span class="hljs-property">data</span>.<span class="hljs-property">nextExecutions</span>  <span class="hljs-comment">// 显示未来5次</span>
+  }
+}
+</code></pre>
+<h4 id="文件变更-5">文件变更</h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>修改内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>backend/CollectionScriptController.java</code></td>
+<td><code>/validate-cron</code> 接口返回 description 和 nextExecutions</td>
+</tr>
+<tr>
+<td><code>backend/CronDescriptionUtil.java</code></td>
+<td>新增 Cron 表达式描述工具类</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="98-取消执行">9.8 取消执行</h3>
+<h4 id="现状">现状</h4>
+<table>
+<thead>
+<tr>
+<th>环节</th>
+<th>状态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>原型设计</td>
+<td>❌ 缺失</td>
+<td>task-list-prototype.html 和 task-detail-prototype.html 均无&quot;取消执行&quot;按钮</td>
+</tr>
+<tr>
+<td>后端接口</td>
+<td>✓ 已实现</td>
+<td><code>POST /scripts/executions/{executionId}/cancel</code></td>
+</tr>
+<tr>
+<td>前端 API</td>
+<td>✓ 已实现</td>
+<td><code>executionApi.cancel(executionId)</code></td>
+</tr>
+<tr>
+<td>TaskDetail.vue</td>
+<td>✓ 已实现</td>
+<td>执行对话框中有&quot;取消执行&quot;按钮</td>
+</tr>
+<tr>
+<td>CollectionProgress.vue</td>
+<td>✓ 已实现</td>
+<td>进度抽屉中有&quot;取消执行&quot;按钮</td>
+</tr>
+<tr>
+<td>Python 取消机制</td>
+<td>❌ 未实现</td>
+<td>Python 没有接收取消指令的接口</td>
+</tr>
+</tbody>
+</table>
+<h4 id="后端接口">后端接口</h4>
+<pre><code class="language-java"><span class="hljs-meta">@PostMapping(&quot;/executions/{executionId}/cancel&quot;)</span>
+<span class="hljs-keyword">public</span> Result&lt;Void&gt; <span class="hljs-title function_">cancelExecution</span><span class="hljs-params">(<span class="hljs-meta">@PathVariable</span> String executionId)</span> {
+    executionService.updateStatus(executionId, <span class="hljs-string">&quot;cancelled&quot;</span>, <span class="hljs-string">&quot;用户取消&quot;</span>);
+    <span class="hljs-keyword">return</span> Result.success();
+}
+</code></pre>
+<h4 id="前端实现">前端实现</h4>
+<pre><code class="language-javascript"><span class="hljs-keyword">async</span> <span class="hljs-keyword">function</span> <span class="hljs-title function_">handleCancelExecution</span>(<span class="hljs-params"></span>) {
+  <span class="hljs-keyword">await</span> executionApi.<span class="hljs-title function_">cancel</span>(currentExecutionId.<span class="hljs-property">value</span>)
+  <span class="hljs-title function_">finishExecution</span>()
+}
+</code></pre>
+<h4 id="问题python-无取消机制">问题：Python 无取消机制</h4>
+<p>当前设计说&quot;发请求给 Python 取消&quot;，但 Python 采集服务<strong>没有实现取消接口</strong>。</p>
+<h4 id="流程当前可实现的">流程（当前可实现的）</h4>
+<pre><code>用户点击&quot;取消&quot;
+    ↓
+POST /api/scripts/executions/{executionId}/cancel
+    ↓
+后端更新 TaskExecution.status = &quot;cancelled&quot;
+    ↓
+前端刷新状态显示已取消
+</code></pre>
+<p><strong>注意</strong>：只能取消 <code>pending</code> 状态的任务。<code>running</code> 状态的任务已经正在执行，Python 不会响应取消（因为没有实现）。</p>
+<h4 id="待实现python-取消机制">待实现：Python 取消机制</h4>
+<pre><code class="language-python"><span class="hljs-comment"># corn_scheduler.py 添加取消接口</span>
+<span class="hljs-meta">@app.route(<span class="hljs-params"><span class="hljs-string">&#x27;/collector/exec/{execution_id}/cancel&#x27;</span>, methods=[<span class="hljs-string">&#x27;POST&#x27;</span>]</span>)</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">cancel_execution</span>(<span class="hljs-params">execution_id</span>):
+    <span class="hljs-keyword">if</span> execution_id <span class="hljs-keyword">in</span> executions:
+        executions[execution_id][<span class="hljs-string">&#x27;cancelled&#x27;</span>] = <span class="hljs-literal">True</span>
+        <span class="hljs-keyword">return</span> {<span class="hljs-string">&quot;success&quot;</span>: <span class="hljs-literal">True</span>}
+    <span class="hljs-keyword">return</span> {<span class="hljs-string">&quot;error&quot;</span>: <span class="hljs-string">&quot;execution not found&quot;</span>}, <span class="hljs-number">404</span>
+
+<span class="hljs-comment"># 采集循环中检查</span>
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">collect_reports</span>():
+    <span class="hljs-keyword">for</span> report <span class="hljs-keyword">in</span> reports:
+        <span class="hljs-keyword">if</span> ctx.is_cancelled():
+            <span class="hljs-keyword">return</span>  <span class="hljs-comment"># 提前退出</span>
+        process_report(report)
+</code></pre>
+<h4 id="文件变更-6">文件变更</h4>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>修改内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>task-detail-prototype.html</code></td>
+<td>添加&quot;取消执行&quot;按钮原型</td>
+</tr>
+<tr>
+<td><code>task-list-prototype.html</code></td>
+<td>添加&quot;取消执行&quot;按钮原型</td>
+</tr>
+<tr>
+<td><code>python-collector-sdk/corn_scheduler.py</code></td>
+<td>实现取消接口和检查逻辑</td>
+</tr>
+</tbody>
+</table>
+<hr>
+<h3 id="99-错误处理">9.9 错误处理</h3>
+<h4 id="错误分类">错误分类</h4>
+<table>
+<thead>
+<tr>
+<th>错误类型</th>
+<th>示例</th>
+<th>处理</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>脚本配置错误</td>
+<td>账号密码错</td>
+<td>failed + 错误信息</td>
+</tr>
+<tr>
+<td>网络错误</td>
+<td>登录超时</td>
+<td>failed + 重试3次</td>
+</tr>
+<tr>
+<td>页面结构变化</td>
+<td>选择器找不到</td>
+<td>failed + 告警需人工介入</td>
+</tr>
+<tr>
+<td>浏览器崩溃</td>
+<td>browser.close() 异常</td>
+<td>重启浏览器，重试</td>
+</tr>
+<tr>
+<td>系统资源不足</td>
+<td>内存不足</td>
+<td>failed + 告警</td>
+</tr>
+</tbody>
+</table>
+<h4 id="重试机制">重试机制</h4>
+<pre><code class="language-python">MAX_RETRIES = <span class="hljs-number">3</span>
+RETRY_DELAY = <span class="hljs-number">30</span>  <span class="hljs-comment"># 秒</span>
+
+<span class="hljs-keyword">def</span> <span class="hljs-title function_">execute_with_retry</span>(<span class="hljs-params">ctx</span>):
+    <span class="hljs-keyword">for</span> attempt <span class="hljs-keyword">in</span> <span class="hljs-built_in">range</span>(MAX_RETRIES):
+        <span class="hljs-keyword">try</span>:
+            <span class="hljs-keyword">return</span> do_collect(ctx)
+        <span class="hljs-keyword">except</span> RetryableError <span class="hljs-keyword">as</span> e:
+            <span class="hljs-keyword">if</span> attempt &lt; MAX_RETRIES - <span class="hljs-number">1</span>:
+                time.sleep(RETRY_DELAY)
+                <span class="hljs-keyword">continue</span>
+            <span class="hljs-keyword">else</span>:
+                <span class="hljs-keyword">raise</span>  <span class="hljs-comment"># 最终失败</span>
+</code></pre>
+<hr>
+<h3 id="910-数据清理">9.10 数据清理</h3>
+<h4 id="日志保留策略">日志保留策略</h4>
+<pre><code class="language-sql"><span class="hljs-comment">-- 保留最近 30 天的日志</span>
+<span class="hljs-keyword">DELETE</span> <span class="hljs-keyword">FROM</span> t_task_execution_log
+<span class="hljs-keyword">WHERE</span> created_at <span class="hljs-operator">&lt;</span> DATE_SUB(NOW(), <span class="hljs-type">INTERVAL</span> <span class="hljs-number">30</span> <span class="hljs-keyword">DAY</span>);
+
+<span class="hljs-comment">-- 保留最近 90 天的执行记录</span>
+<span class="hljs-keyword">DELETE</span> <span class="hljs-keyword">FROM</span> t_task_execution
+<span class="hljs-keyword">WHERE</span> created_at <span class="hljs-operator">&lt;</span> DATE_SUB(NOW(), <span class="hljs-type">INTERVAL</span> <span class="hljs-number">90</span> <span class="hljs-keyword">DAY</span>);
+</code></pre>
+<hr>
+<h3 id="911-监控告警">9.11 监控告警</h3>
+<h4 id="监控指标">监控指标</h4>
+<table>
+<thead>
+<tr>
+<th>指标</th>
+<th>阈值</th>
+<th>动作</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>连续失败次数</td>
+<td>3 次</td>
+<td>发送告警</td>
+</tr>
+<tr>
+<td>执行耗时</td>
+<td>&gt; 10 分钟</td>
+<td>记录警告</td>
+</tr>
+<tr>
+<td>采集数量</td>
+<td>0</td>
+<td>记录警告（可能页面结构变化）</td>
+</tr>
+</tbody>
+</table>
+<h4 id="告警渠道">告警渠道</h4>
+<ul>
+<li>内部工具暂时用日志记录</li>
+<li>后续扩展：钉钉/企业微信/邮件</li>
+</ul>
+<hr>
+<h2 id="十部署说明">十、部署说明</h2>
+<h3 id="101-python-服务启动">10.1 Python 服务启动</h3>
+<pre><code class="language-bash"><span class="hljs-built_in">cd</span> python-collector-sdk
+python -m scheduler.collector_server --port 5001
+</code></pre>
+<h3 id="102-配置后端地址">10.2 配置后端地址</h3>
+<pre><code class="language-yaml"><span class="hljs-comment"># config.yaml</span>
+<span class="hljs-attr">collector_service:</span>
+  <span class="hljs-attr">url:</span> <span class="hljs-string">&quot;http://localhost:5001&quot;</span>
+</code></pre>
+<h3 id="103-环境变量">10.3 环境变量</h3>
+<table>
+<thead>
+<tr>
+<th>变量</th>
+<th>说明</th>
+<th>默认值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>COLLECTOR_PORT</code></td>
+<td>Python 服务端口</td>
+<td>5001</td>
+</tr>
+<tr>
+<td><code>BROWSER_IDLE_TIMEOUT</code></td>
+<td>浏览器空闲超时(秒)</td>
+<td>7200</td>
+</tr>
+</tbody>
+</table>
+
+            <script async src="https://cdn.jsdelivr.net/npm/katex-copytex@latest/dist/katex-copytex.min.js"></script>
+            
+        </body>
+        </html>

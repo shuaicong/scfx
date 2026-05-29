@@ -1,0 +1,751 @@
+# 知识库分类管理设计
+
+## Context
+
+Knowledge.vue 页面侧边栏的分类功能目前使用前端硬编码的 mock 数据，没有后端接口支持。用户需要真实的分类管理能力：
+- 多用户并发操作
+- 所有用户共享分类
+- 支持多级层级结构
+- 用户可自由管理（增删改查）
+
+## Architecture
+
+```
+前端(Vue) → Spring Boot(网关) → MySQL
+                    ↑
+              AI-QA Service(知识库核心)
+```
+
+- **分类 CRUD**: Spring Boot + MySQL
+- **知识管理**: AI-QA Service + MySQL (已有)
+- **知识-分类关联**: MySQL 中间表
+
+## Data Model
+
+### 分类表 `t_category`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键，自增 |
+| name | VARCHAR(100) | 分类名称 |
+| icon | VARCHAR(50) | 图标，如"🌐" |
+| parent_id | BIGINT | 父分类ID，NULL表示顶级 |
+| sort_order | INT | 排序序号，数字越小越靠前 |
+| created_at | DATETIME | 创建时间 |
+| updated_at | DATETIME | 更新时间 |
+| deleted_at | DATETIME | 软删除时间，NULL表示未删除 |
+| color | VARCHAR(20) | 分类主题颜色，如 "#FF6B6B" |
+| description | VARCHAR(500) | 分类描述/备注，hover 时显示 |
+| pinned | TINYINT | 是否置顶，1=置顶显示在顶部 |
+| last_operated_by | VARCHAR(100) | 最后操作人 |
+| last_operated_at | DATETIME | 最后操作时间 |
+| permission_level | VARCHAR(20) | 权限级别：public/team/private |
+| allowed_users | VARCHAR(500) | 团队模式下允许的用户列表，逗号分隔 |
+| active_season_start | VARCHAR(10) | 活跃季节开始月份，如 "09" |
+| active_season_end | VARCHAR(10) | 活跃季节结束月份，如 "11" |
+
+### 知识-分类关联表 `t_knowledge_category`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| knowledge_id | BIGINT | 知识条目ID |
+| category_id | BIGINT | 分类ID |
+| PRIMARY KEY | (knowledge_id, category_id) | 联合主键 |
+
+### 分类操作日志表 `t_category_operation_log`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键，自增 |
+| category_id | BIGINT | 分类ID |
+| operator | VARCHAR(100) | 操作人 |
+| operation_type | VARCHAR(50) | 操作类型（CREATE/UPDATE/DELETE/RESTORE/MOVE） |
+| operation_detail | VARCHAR(500) | 操作详情（JSON 格式保存操作前后状态） |
+| operated_at | DATETIME | 操作时间 |
+
+### 分类订阅表 `t_category_subscription`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键，自增 |
+| category_id | BIGINT | 分类ID |
+| user_id | VARCHAR(100) | 订阅用户ID |
+| subscribed_at | DATETIME | 订阅时间 |
+| notify_count | INT | 未读通知数量 |
+| last_notified_at | DATETIME | 最后通知时间 |
+| UNIQUE KEY | (category_id, user_id) | 联合唯一索引 |
+
+### 知识移动历史表 `t_knowledge_move_log`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键，自增 |
+| knowledge_id | BIGINT | 知识ID |
+| from_category_id | BIGINT | 原分类ID |
+| to_category_id | BIGINT | 目标分类ID |
+| moved_by | VARCHAR(100) | 操作人 |
+| moved_at | DATETIME | 移动时间 |
+
+### 用户分类收藏夹表 `t_category_favorite`
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| id | BIGINT | 主键，自增 |
+| user_id | VARCHAR(100) | 用户ID |
+| name | VARCHAR(100) | 收藏夹名称，如"我的常用" |
+| category_ids | VARCHAR(500) | 包含的分类ID，逗号分隔 |
+| sort_order | INT | 排序 |
+| created_at | DATETIME | 创建时间 |
+
+## API Design
+
+### 分类管理
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/category/tree | 获取分类树（层级结构） |
+| GET | /api/category/version | 获取分类树版本号（用于检测更新） |
+| GET | /api/category/trash | 获取回收站中的分类 |
+| POST | /api/category | 新建分类 |
+| PUT | /api/category/{id} | 更新分类（名称/图标/父级/排序） |
+| DELETE | /api/category/{id} | 软删除分类（移入回收站） |
+| POST | /api/category/{id}/restore | 从回收站恢复分类 |
+| DELETE | /api/category/{id}/permanent | 永久删除分类 |
+| POST | /api/category/batch | 批量创建分类模板 |
+| POST | /api/category/{id}/merge | 合并分类到目标分类 |
+| PUT | /api/category/batch/move | 批量移动分类到目标父分类 |
+| POST | /api/category/{id}/copy | 复制分类结构 |
+| GET | /api/category/search | 搜索分类（?name=） |
+| GET | /api/category/preview/{id} | 获取分类下的知识列表（快速预览） |
+| GET | /api/category/stats | 获取分类统计面板数据 |
+| GET | /api/category/export | 导出分类结构为 JSON |
+| POST | /api/category/import | 导入分类结构 JSON |
+| GET | /api/category/{id}/history | 获取分类操作历史 |
+| POST | /api/category/{id}/subscribe | 订阅/取消订阅分类 |
+| GET | /api/category/notifications | 获取订阅通知列表 |
+| PUT | /api/category/notifications/read | 标记通知为已读 |
+| GET | /api/knowledge/category/{categoryId}/search | 在分类内搜索知识 |
+| PUT | /api/category/{id}/permissions | 更新分类权限 |
+| POST | /api/knowledge/batch/move | 批量移动知识到指定分类 |
+| GET | /api/knowledge/{id}/move-history | 获取知识的分类移动历史 |
+| GET | /api/category/template/market | 获取模板市场列表 |
+| POST | /api/category/template | 发布分类为模板 |
+| POST | /api/knowledge/{id}/recommend-categories | 智能推荐分类 |
+| PUT | /api/category/batch/rename | 批量重命名分类 |
+| GET | /api/category/merge-suggestions | 获取分类合并建议列表 |
+| GET | /api/category/hot-analysis | 获取分类热点分析数据 |
+| GET | /api/category/favorites | 获取用户收藏夹 |
+| POST | /api/category/favorites | 创建收藏夹 |
+| PUT | /api/category/favorites/{id} | 更新收藏夹（添加/移除分类） |
+
+### 知识-分类关联
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/knowledge | 按分类筛选知识（?categoryId=） |
+| GET | /api/knowledge/uncategorized | 获取未分类的知识（无任何分类关联） |
+| POST | /api/knowledge/{id}/categories | 知识分配到分类 |
+| DELETE | /api/knowledge/{id}/categories/{categoryId} | 移除知识与分类的关联 |
+| POST | /api/knowledge/batch/categories | 批量分配知识到分类 |
+| PUT | /api/knowledge/{id}/categories/replace | 替换知识的所有分类 |
+
+### Request/Response 格式
+
+**GET /api/category/tree**
+
+Response:
+```json
+{
+  "code": 200,
+  "data": [
+    {
+      "id": 1,
+      "name": "粮信网",
+      "icon": "🌐",
+      "color": "#FF6B6B",
+      "description": "粮信网主分类",
+      "parentId": null,
+      "sortOrder": 1,
+      "knowledgeCount": 156,
+      "children": [
+        { "id": 11, "name": "玉米", "icon": "🌐", "color": "#FFD93D", "description": "玉米期货价格", "parentId": 1, "sortOrder": 1, "knowledgeCount": 45, "children": [] },
+        { "id": 12, "name": "小麦", "icon": "🌐", "color": "#D4A574", "description": null, "parentId": 1, "sortOrder": 2, "knowledgeCount": 23, "children": [] }
+      ]
+    }
+  ],
+  "version": 12
+}
+```
+
+**GET /api/category/version**
+
+Response:
+```json
+{
+  "code": 200,
+  "data": { "version": 12 }
+}
+```
+
+**POST /api/category**
+
+Request:
+```json
+{ "name": "新建分类", "icon": "📁", "parentId": null, "sortOrder": 99, "color": "#58A6FF", "description": "分类描述" }
+```
+
+**PUT /api/category/{id}**
+
+Request:
+```json
+{ "name": "新名称", "icon": "📂", "parentId": 1, "sortOrder": 5, "color": "#FF6B6B", "description": "分类描述文字" }
+```
+
+**DELETE /api/category/{id}**
+
+Response:
+```json
+{
+  "code": 200,
+  "data": {
+    "deletedCategoryCount": 3,
+    "affectedKnowledgeCount": 23,
+    "orphanedKnowledgeCount": 5
+  }
+}
+```
+
+**POST /api/category/{id}/merge**
+
+Request:
+```json
+{ "targetId": 10 }
+```
+
+合并后：
+- 分类 A 的所有知识转移到分类 B
+- 分类 A 的所有子分类移到分类 B 下
+- 分类 A 被软删除
+
+**POST /api/category/batch**
+
+Request:
+```json
+{
+  "categories": [
+    { "name": "玉米", "icon": "🌐", "parentId": 1 },
+    { "name": "小麦", "icon": "🌾", "parentId": 1 },
+    { "name": "大豆", "icon": "🫘", "parentId": 1 }
+  ]
+}
+```
+
+Response:
+```json
+{
+  "code": 200,
+  "data": {
+    "created": 3,
+    "ids": [11, 12, 13]
+  }
+}
+```
+
+**GET /api/category/search?name=玉米**
+
+Response: 名称包含"玉米"的分类列表
+
+**GET /api/knowledge/uncategorized**
+
+Response: 没有关联任何分类的知识列表
+
+**POST /api/knowledge/batch/categories**
+
+Request:
+```json
+{
+  "knowledgeIds": [1, 2, 3, 4, 5],
+  "categoryIds": [11, 12]
+}
+```
+
+### 业务规则
+
+1. **删除分类**：
+   - 软删除：`deleted_at` 标记时间，不真正删除
+   - 有子分类时：递归软删除所有子分类
+   - 有知识关联时：知识保留，关联解除
+   - 返回被影响的知识数量
+
+2. **恢复分类**：
+   - 从回收站恢复分类及其所有子分类
+   - 恢复后关联关系需要重新建立（关联已在删除时解除）
+
+3. **永久删除**：
+   - 回收站中的分类可以永久删除
+   - 永久删除后不可恢复
+
+4. **移动分类**：
+   - `parentId` 为 null 表示移到顶级
+   - 不能将自己设为自己的子分类（需校验循环引用）
+
+5. **合并分类**：
+   - 源分类的知识全部关联到目标分类
+   - 源分类的子分类移到目标分类下
+   - 源分类软删除
+
+6. **排序**：
+   - `sortOrder` 数字越小排越前
+   - 同父级的分类按 sortOrder 排序
+   - 支持拖拽排序
+
+7. **回收站**：
+   - 删除的分类进入回收站
+   - 回收站保留 7 天后自动清理
+   - 可手动恢复或永久删除
+
+## Frontend Changes
+
+### 分类颜色/主题
+- 每个分类左侧显示小色块（8px 宽的左边线）
+- 新建/编辑弹窗中增加颜色选择器（预设 8-10 种常用颜色）
+- 默认颜色跟随 emoji 主题色或随机分配
+
+### 分类层级深度显示
+- 分类树中根据层级深度动态计算缩进量（每层 +16px）
+- 分类名前显示序号路径，如 "1.2.3" 表示三级分类
+- 序号路径可点击跳转至对应层级
+
+### 多级 Undo（撤销）
+- 前端维护操作历史栈（最多保存 10 条）
+- 每次操作记录：type + beforeState + afterState
+- 工具栏或快捷键 Ctrl+Z 触发撤销
+- 支持连续撤销直到栈空
+- 切换分类 Tab 时清空栈
+
+### 分类备注/描述
+- 新建/编辑弹窗中增加"描述"输入框（最多 500 字）
+- 鼠标悬停分类名称时显示 tooltip
+- 描述文字支持复制
+
+### 实时同步通知
+- 前端每 30 秒轮询检查分类树版本
+- 发现更新时顶部弹出通知条幅："检测到分类更新，点击刷新"
+- 点击刷新按钮重新加载分类树
+- 通知条幅 5 秒后自动消失（未点击情况下）
+
+### API Layer
+
+`frontend/src/api/category.ts`：
+
+```typescript
+export const categoryApi = {
+  tree: () => request.get('/category/tree'),
+  search: (name) => request.get('/category/search', { params: { name } }),
+  trash: () => request.get('/category/trash'),
+  create: (data) => request.post('/category', data),
+  update: (id, data) => request.put(`/category/${id}`, data),
+  delete: (id) => request.delete(`/category/${id}`),
+  restore: (id) => request.post(`/category/${id}/restore`),
+  permanentDelete: (id) => request.delete(`/category/${id}/permanent`),
+  merge: (id, targetId) => request.post(`/category/${id}/merge`, { targetId }),
+  batchMove: (categoryIds, targetParentId) =>
+    request.put('/category/batch/move', { categoryIds, targetParentId }),
+  copy: (id, name) => request.post(`/category/${id}/copy`, { name }),
+}
+
+export const knowledgeCategoryApi = {
+  assign: (knowledgeId, categoryIds) =>
+    request.post(`/knowledge/${knowledgeId}/categories`, { categoryIds }),
+  remove: (knowledgeId, categoryId) =>
+    request.delete(`/knowledge/${knowledgeId}/categories/${categoryId}`),
+  batchAssign: (knowledgeIds, categoryIds) =>
+    request.post('/knowledge/batch/categories', { knowledgeIds, categoryIds }),
+  replace: (knowledgeId, categoryIds) =>
+    request.put(`/knowledge/${knowledgeId}/categories/replace`, { categoryIds }),
+}
+```
+
+### 知识分配入口
+
+1. **右键菜单**：在知识卡片/列表项上右键 → "添加到分类" 子菜单 → 多选分类
+2. **详情页勾选**：打开知识详情时，侧边有"分类"区块，直接勾选分类
+
+### 批量操作
+
+1. 多选 + 批量分配：列表左上角显示已选数量，选中多条 → 点"批量分配到分类"
+2. 全选当前筛选结果：支持"全选当前筛选结果"，一次性批量分配
+3. 选中后才出现批量操作区：选中 2 条及以上时，顶部出现批量操作栏
+
+### 分类树状态保存
+
+- 使用 localStorage 持久化每个分类的展开/折叠状态
+- 刷新页面后保持上次的展开状态
+
+### 新建分类弹窗
+
+- 新建分类弹窗内嵌知识选择区块
+- 可多选知识打勾，创建分类时同时建立关联
+- 创建成功后 toast 提示"添加知识"按钮，作为补充增强
+
+### 分类搜索
+
+- 侧边栏分类区域顶部增加搜索输入框
+- 输入即过滤，实时高亮匹配的分类
+- 支持按名称模糊搜索
+
+### 分类拖拽排序
+
+- 支持拖拽分类调整顺序
+- 拖拽时显示插入位置指示器
+- 拖拽释放后自动更新 sortOrder
+
+### 回收站入口
+
+- 侧边栏底部或设置中提供"回收站"入口
+- 显示已删除的分类列表
+- 支持一键恢复或永久删除
+
+### 分类图标选择器
+
+- 新建/编辑分类弹窗中显示常用 emoji 网格
+- 点击即可选择，无需手动输入
+- 预置常用 emoji：📁 📂 🌐 🌾 🌽 🍚 📊 📈 📉 📰 📑 🗂️ 📚 🏷️
+
+### 分类层级深度限制
+
+- 分类最大支持 4 层层级深度
+- 新建子分类时，如果当前层级已达到 4 层，禁止创建
+- 已有超过 4 层的分类数据允许访问但不可继续加深
+
+### 分类颜色/主题
+
+- 每个分类左侧显示小色块（8px 宽左边线）
+- 颜色值存储在 `color` 字段
+- 新建/编辑时从预设 8 色盘中选择
+
+### 分类描述/备注
+
+- 描述文字存储在 `description` 字段
+- hover 分类名称时显示 tooltip 浮层
+- 描述最长 500 字符
+
+### 实时同步
+
+- 前端每 30 秒调用 `GET /api/category/version` 获取当前版本号
+- 与本地缓存的 version 对比，发生变化时弹出刷新通知
+- 版本号在分类任何变更时 +1
+
+### 分类收藏/置顶
+- 每个分类右侧显示"Pin"图标按钮
+- 点击后分类置顶到列表最上方（最多置顶 3 个）
+- 置顶分类保存在 localStorage，切换页面后保持
+- 置顶分类优先于普通分类显示
+
+### 分类知识快速预览
+- 鼠标悬停分类名称 500ms 后显示浮层
+- 浮层中列出该分类下的知识条目（标题 + 更新时间，最多显示 5 条）
+- 点击浮层中的知识标题直接跳转到知识详情
+- 浮层随鼠标移动，取消时自动消失
+
+### 分类创建模板
+- 新建分类弹窗中提供"批量创建"切换 Tab
+- 输入多个分类名称（每行一个），如：
+  ```
+  玉米
+  小麦
+  大豆
+  稻谷
+  ```
+- 选择统一的图标和父分类，一次性创建
+- 创建成功后显示创建结果：已创建 X 个分类
+
+### 分类名称自动补全
+- 在知识详情页的分类分配区域
+- 输入框输入分类名首字母（如"ym"）
+- 下拉菜单实时显示匹配的分类（"玉米"）
+- 支持键盘上下键选择，Enter 确认
+
+### 分类统计面板
+- 侧边栏顶部显示分类统计概览
+- 知识数量排行榜（TOP 5 分类）
+- 一周新增知识趋势图（折线图）
+- 点击统计卡片直接跳转到对应分类
+
+### 分类操作日志
+- 每个分类显示最后修改人、最后修改时间
+- 悬停时显示 tooltip："最后修改：张三，2024-01-15 14:30"
+- 支持查看操作历史列表（创建/移动/重命名/删除等）
+- 操作历史包含：操作人、操作时间、操作类型、操作内容
+
+### 分类结构导出/导入
+- 设置菜单提供"导出分类结构"按钮
+- 导出为 JSON 文件，包含：name、icon、color、parentId、sortOrder
+- 不导出 id（导入时自动生成新 id）
+- "导入分类结构"支持拖拽上传 JSON 文件
+- 导入时检测重名，提示用户选择覆盖或跳过
+
+### 分类重名检测
+- 创建/重命名分类时，后端自动检测同名分类
+- 如有同名，返回提示："已存在同名分类 '玉米'，ID=5"
+- 前端弹窗询问："已存在同名分类，是否合并到现有分类？"
+- 确认后执行合并操作
+
+### 分类快捷切换
+- 支持 Ctrl+1/2/3/4/5 快捷键直接跳转到第 1-5 个分类
+- 按住 Ctrl 再按数字键，快速切换当前分类
+- 侧边栏分类名称旁显示对应的快捷键提示（如"玉米 ①②"）
+
+### 分类容量预警
+- 分类知识数量超过阈值（默认 100 条）时显示警告标识
+- 警告标识为分类右侧的橙色感叹号
+- 鼠标悬停显示："该分类知识过多（156条），建议拆分为多个子分类"
+- 可在设置中调整阈值
+
+### 分类排序方式切换
+- 分类树支持多种排序方式切换按钮
+- 排序方式：手动排序（默认）、按名称字母（A-Z）、按知识数量（最多）、按最近更新
+- 点击切换排序方式，立即重新排列
+- 手动排序模式下保留拖拽调整的顺序
+
+### 分类最近访问记录
+- 侧边栏顶部"最近访问"区块（横向排列，最多 5 个）
+- 访问某个分类后自动记录到最近访问
+- 显示分类名称（截断）和 emoji 图标
+- 点击直接跳转，刷新页面后保留记录（localStorage）
+- 超过 5 个时自动移除最旧的记录
+
+### 分类复制/备份
+- 右键菜单提供"复制分类"选项
+- 复制结果为同名 + "(副本)" 的新分类
+- 复制内容包括：名称、图标、颜色、描述、子分类结构
+- 不复制知识关联（仅复制空结构）
+- 复制后自动展开新分类所在位置
+
+### 分类订阅通知
+- 每个分类右侧显示"铃铛"订阅图标
+- 点击铃铛开启订阅（铃铛变为实心）
+- 订阅后该分类下新增知识时，右上角铃铛图标显示红点数字
+- 点击铃铛弹出通知列表，显示："玉米分类新增 3 条知识"
+- 点击通知直接跳转到对应分类
+- 支持一键取消订阅
+
+### 分类内知识搜索
+- 在分类详情页顶部增加"在分类内搜索"输入框
+- 输入关键词实时过滤该分类下的知识列表
+- 支持按标题、内容、日期范围筛选
+- 搜索结果高亮显示匹配关键词
+- 搜索框内显示当前分类名称提示
+
+### 分类权限管理
+- 每个分类可设置可见范围和操作权限
+- 权限级别：公开（所有人可见）、团队（指定用户可编辑）、私有（仅创建者可编辑）
+- 设置页面显示所有分类的权限状态
+- 无权限用户看到分类但无法操作（灰显操作按钮）
+
+### 分类知识批量移动
+- 在分类详情页提供"批量移动"按钮
+- 勾选要移动的知识条目（支持全选当前分类内所有）
+- 点击"批量移动"后选择目标分类
+- 确认后一键完成移动，刷新页面
+
+### 分类数据对比
+- 选中多个分类（勾选框）后，点击"对比"按钮
+- 弹出对比表格，显示：分类名、图标、知识数量、创建时间、最后更新时间
+- 支持最多 5 个分类同时对比
+- 可导出对比结果为 CSV
+
+### 分类命名规范校验
+- 系统预设命名规则正则表达式，可配置
+- 创建/重命名分类时自动校验名称格式
+- 不合规时提示："分类名不符合规范，建议格式：【类型】名称，如【价格】玉米日报"
+- 提供"一键修正"按钮自动格式化
+
+### 分类知识自动标签
+- 知识归类后调用 AI 自动提取标签
+- 标签显示在知识卡片上（灰色小标签）
+- 支持按标签筛选知识
+- 标签库全局共享，同标签知识可关联
+
+### 分类模板市场
+- 设置菜单提供"导出为模板"选项
+- 导出模板包含：分类名称、图标、颜色、层级结构、描述
+- 不包含：知识关联、操作日志
+- 模板存储为 JSON，可分享给其他用户
+- 前端提供"模板市场"页面，浏览和导入共享模板
+
+### 分类间知识移动历史
+- 知识移动时记录轨迹到 `t_knowledge_move_log` 表
+- 知识详情页显示"移动历史"时间线
+- 显示：从哪个分类移动到哪个分类，移动时间
+- 支持按时间筛选知识的分类变更记录
+
+### 分类季节性提醒
+- 分类可设置"活跃时间段"（如玉米分类：9-11 月）
+- 非活跃时间段自动折叠该分类
+- 折叠时显示提示："此分类将在 9 月自动展开"
+- 可手动设置"全年活跃"覆盖季节性
+
+### 分类智能推荐
+- 创建/编辑知识时，输入标题和内容后
+- 点击"智能推荐分类"按钮
+- 系统根据内容语义分析，推荐最合适的分类（TOP 3）
+- 显示推荐理由："内容涉及价格数据，推荐归类到【价格】玉米"
+- 一键确认接受推荐，或手动选择其他分类
+
+### 分类批量重命名
+- 多选分类后，右键菜单选择"批量重命名"
+- 弹出批量重命名对话框，支持：
+  - 添加前缀（如"【粮食】"）
+  - 添加后缀（如"(备选)"）
+  - 替换文本（如"玉米"→"谷物玉米"）
+- 预览修改后的名称，确认后批量执行
+- 支持撤销（Undo）
+
+### 分类知识完整性检查
+- 每个分类可配置"必填字段"规则（如"价格"分类需要：price、date 字段）
+- 知识入库或归类时自动检查字段完整性
+- 不完整时提示："该知识缺少必要字段：价格日期、价格数值"
+- 允许跳过继续入库，但标记为"待补充"
+
+### 分类收藏夹
+- 用户可创建多个"收藏夹"分组
+- 每个收藏夹可包含多个分类（不限层级）
+- 收藏夹显示在侧边栏顶部快捷访问区
+- 支持拖拽调整收藏夹内分类的顺序
+- 收藏夹数据保存在 localStorage
+
+### 分类热点分析
+- 设置页面提供"分类热点分析"入口
+- 显示访问频率排行榜（近 7 天/30 天）
+- 显示知识增长排行榜
+- 折线图展示随时间变化的趋势
+- 建议优化建议：访问量低且知识少的分类建议合并或删除
+
+### 分类合并建议
+- 系统每天定时分析分类相似度
+- 相似度算法：名称编辑距离 + 层级结构重叠度
+- 检测到高相似度分类时，顶部提示："检测到相似分类：'玉米价格' 与 '玉米期货价格' 相似度 85%，建议合并"
+- 一键合并或忽略提示
+
+### 批量移动分类
+
+- 分类支持复选框多选
+- 选中多个分类后，可一次性移动到同一父分类
+- 批量移动操作通过 `PUT /api/category/batch/move` 实现
+
+### 分类结构复制
+
+- 右键分类菜单提供"复制结构"选项
+- 复制时创建同名空结构（仅复制层级，不复制知识关联）
+- 新结构名称可编辑
+
+### 键盘快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| N | 新建分类（聚焦到分类树时） |
+| F | 聚焦分类搜索框 |
+| Delete | 删除选中分类 |
+| Enter | 确认/保存 |
+| Escape | 取消/关闭弹窗 |
+| ↑↓ | 在分类树中上下导航 |
+| →← | 展开/折叠分类 |
+
+### Knowledge.vue Changes
+
+1. `folders` 数据从 API 获取（`GET /api/category/tree`）
+2. 支持完整 CRUD 操作
+3. 操作后刷新分类树
+4. 知识列表筛选支持 categoryId 参数
+5. 右键菜单支持分配到分类
+6. 详情页支持分类勾选
+7. 批量选择和批量操作
+8. 分类展开状态 localStorage 持久化
+9. 分类搜索功能
+10. 分类拖拽排序
+11. 回收站管理
+12. 分类合并
+13. "未分类"知识入口
+14. 分类图标选择器（emoji 网格）
+15. 分类层级深度限制（最大 4 层）
+16. 批量移动分类
+17. 分类结构复制
+18. 键盘快捷键支持
+19. **分类颜色/主题**（左侧小色块 + 颜色选择器）
+20. **分类层级深度显示**（缩进 + 序号路径）
+21. **多级 Undo 撤销**（Ctrl+Z / 操作历史栈）
+22. **分类备注/描述**（hover tooltip）
+23. **实时同步通知**（30 秒轮询 + 刷新条幅）
+24. **分类收藏/置顶**（一键访问常用分类）
+25. **分类知识快速预览**（hover 浮层显示知识列表）
+26. **分类创建模板**（一次性批量创建多个分类）
+27. **分类名称自动补全**（快速归类时输入首字母）
+28. **分类统计面板**（知识数量排行榜 + 趋势图）
+29. **分类操作日志**（最后修改人/时间 + 操作历史）
+30. **分类结构导出/导入**（JSON 格式）
+31. **分类重名检测**（创建时提示合并）
+32. **分类快捷切换**（Ctrl+1/2/3 直接跳转）
+33. **分类容量预警**（知识过多时橙色警告）
+34. **分类排序方式切换**（名称/数量/更新时间）
+35. **分类最近访问记录**（最近 5 个快速跳转）
+36. **分类复制/备份**（一键复制为"xxx(副本)"）
+37. **分类订阅通知**（铃铛订阅 + 新知识通知）
+38. **分类内知识搜索**（分类顶部输入框快速过滤）
+39. **分类权限管理**（公开/团队/私有权限级别）
+40. **分类知识批量移动**（一键移动所有知识到目标分类）
+41. **分类数据对比**（选中分类显示对比表格）
+42. **分类命名规范校验**（正则校验 + 一键修正）
+43. **分类知识自动标签**（AI 自动提取标签）
+44. **分类模板市场**（导出/导入/共享分类模板）
+45. **分类间知识移动历史**（时间线追溯）
+46. **分类季节性提醒**（非活跃时段自动折叠）
+47. **分类智能推荐**（创建知识时自动推荐分类）
+48. **分类批量重命名**（添加前缀/后缀/替换）
+49. **分类知识完整性检查**（入库时自动检查必填字段）
+50. **分类收藏夹**（收藏多个分类组合为快捷组）
+51. **分类热点分析**（访问频率/知识增长排行榜）
+52. **分类合并建议**（名称相似度检测 + 自动提示）
+
+## Database Schema
+
+```sql
+CREATE TABLE t_category (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    icon VARCHAR(50) DEFAULT '📁',
+    color VARCHAR(20) DEFAULT NULL,
+    description VARCHAR(500) DEFAULT NULL,
+    parent_id BIGINT DEFAULT NULL,
+    sort_order INT DEFAULT 0,
+    pinned TINYINT DEFAULT 0 COMMENT '是否置顶，1=置顶',
+    last_operated_by VARCHAR(100) DEFAULT NULL COMMENT '最后操作人',
+    last_operated_at DATETIME DEFAULT NULL COMMENT '最后操作时间',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at DATETIME DEFAULT NULL,
+    version BIGINT DEFAULT 0,
+    FOREIGN KEY (parent_id) REFERENCES t_category(id) ON DELETE SET NULL,
+    INDEX idx_category_parent (parent_id),
+    INDEX idx_category_deleted (deleted_at)
+);
+
+CREATE TABLE t_knowledge_category (
+    knowledge_id BIGINT NOT NULL,
+    category_id BIGINT NOT NULL,
+    PRIMARY KEY (knowledge_id, category_id),
+    FOREIGN KEY (knowledge_id) REFERENCES t_knowledge_base(id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES t_category(id) ON DELETE CASCADE,
+    INDEX idx_knowledge_category_kid (knowledge_id)
+);
+```
+
+## Implementation Order
+
+1. Spring Boot: 添加分类 CRUD API（含回收站）+ MySQL 配置
+2. AI-QA Service: 添加知识-分类关联接口（含批量、未分类查询）
+3. 数据库: 创建表 + 迁移初始数据
+4. 前端基础: 改造 Knowledge.vue 使用 API，分类树、CRUD
+5. 前端功能: 搜索、拖拽排序、右键菜单、批量操作
+6. 前端增强: 新建弹窗内嵌知识选择、回收站、合并
+7. 测试: 完整流程验证

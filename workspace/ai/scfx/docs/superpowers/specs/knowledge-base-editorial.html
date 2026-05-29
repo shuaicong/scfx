@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识库 - Editorial Style</title>
+  <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Source+Sans+Pro:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #FAF8F5;
+      --bg-secondary: #F3F0EB;
+      --bg-tertiary: #E8E4DD;
+      --bg-hover: #DDD8D0;
+      --border-color: #D5D0C7;
+      --text-primary: #2C2825;
+      --text-secondary: #6B6560;
+      --text-muted: #9B958D;
+      --accent: #B85430;
+      --accent-hover: #9A4528;
+      --accent-bg: rgba(184, 84, 48, 0.08);
+      --blue: #4A6FA5;
+      --green: #5B8A5B;
+      --yellow: #C4933F;
+      --red: #B85430;
+      --purple: #7B5D8A;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Source Sans Pro', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 { font-family: 'Crimson Pro', Georgia, serif; font-weight: 600; }
+
+    .app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* Header - Editorial style */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 32px;
+      height: 64px;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 32px; }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-family: 'Crimson Pro', serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: -0.5px;
+    }
+
+    .header-nav { display: flex; gap: 8px; }
+
+    .header-nav a {
+      padding: 8px 16px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 400;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .header-nav a:hover { color: var(--text-primary); }
+    .header-nav a.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .search-trigger {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      width: 280px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .search-trigger:hover { border-color: var(--accent); background: var(--bg-tertiary); }
+    .search-trigger span { color: var(--text-muted); font-size: 13px; }
+    .search-trigger kbd {
+      margin-left: auto;
+      padding: 3px 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: inherit;
+    }
+
+    .header-right { display: flex; align-items: center; gap: 16px; }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 2px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #FAF8F5;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover { background: var(--bg-tertiary); }
+
+    /* Main Content */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* Sidebar - Editorial */
+    .sidebar {
+      width: 260px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      padding: 0 16px;
+    }
+
+    .sidebar-tab {
+      flex: 1;
+      padding: 14px 0;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+
+    .sidebar-tab:hover { color: var(--text-secondary); }
+    .sidebar-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+    .sidebar-content { flex: 1; overflow-y: auto; padding: 20px 12px; }
+
+    .sidebar-section { margin-bottom: 24px; }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 8px;
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 14px;
+      color: var(--text-secondary);
+      border-radius: 2px;
+    }
+
+    .sidebar-item:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+    .sidebar-item.active { background: var(--accent-bg); color: var(--accent); }
+    .sidebar-item .icon { font-size: 16px; width: 22px; text-align: center; }
+    .sidebar-item .name { flex: 1; }
+    .sidebar-item .count { font-size: 12px; color: var(--text-muted); }
+
+    .sidebar-footer { padding: 16px; border-top: 1px solid var(--border-color); }
+
+    /* List Area - Editorial */
+    .list-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-primary);
+    }
+
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 32px;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .list-header-left { display: flex; align-items: center; gap: 16px; }
+
+    .list-title {
+      font-family: 'Crimson Pro', serif;
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .list-count { font-size: 13px; color: var(--text-muted); }
+
+    .view-toggle { display: flex; gap: 4px; }
+
+    .view-toggle button {
+      padding: 8px 14px;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+    }
+
+    .view-toggle button:first-child { border-radius: 2px 0 0 2px; }
+    .view-toggle button:last-child { border-radius: 0 2px 2px 0; }
+    .view-toggle button.active { background: var(--text-primary); color: var(--bg-primary); border-color: var(--text-primary); }
+
+    /* Card Grid - Editorial Magazine Style */
+    .card-grid {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px 32px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 20px;
+      align-content: start;
+    }
+
+    .card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      padding: 24px;
+      cursor: pointer;
+      transition: all 0.25s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--accent);
+      transform: scaleX(0);
+      transition: transform 0.25s;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(44, 40, 37, 0.08);
+    }
+
+    .card:hover::before { transform: scaleX(1); }
+
+    .card-icon { font-size: 28px; margin-bottom: 16px; }
+
+    .card-title {
+      font-family: 'Crimson Pro', serif;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .card-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+    .card-tag {
+      padding: 3px 10px;
+      background: var(--bg-tertiary);
+      border-radius: 2px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .card-tag.price { background: var(--accent-bg); color: var(--accent); }
+
+    /* Preview Panel - Editorial */
+    .preview-panel {
+      flex: 1;
+      min-width: 360px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 28px;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-primary);
+    }
+
+    .preview-title {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .preview-title-icon { font-size: 24px; }
+
+    .preview-title span:last-child {
+      font-family: 'Crimson Pro', serif;
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .preview-header-actions { display: flex; gap: 8px; }
+
+    .preview-header-actions button {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-radius: 2px;
+      transition: all 0.15s;
+    }
+
+    .preview-header-actions button:hover {
+      background: var(--bg-tertiary);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .preview-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      background: var(--border-color);
+    }
+
+    .preview-meta-item {
+      background: var(--bg-secondary);
+      padding: 16px;
+      text-align: center;
+    }
+
+    .preview-meta-item .label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+
+    .preview-meta-item .value {
+      font-size: 14px;
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    .preview-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 32px;
+    }
+
+    .preview-section { margin-bottom: 32px; }
+
+    .preview-section-title {
+      font-family: 'Crimson Pro', serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .content-block {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      padding: 24px;
+    }
+
+    .content-block h2 {
+      font-family: 'Crimson Pro', serif;
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 16px;
+    }
+
+    .content-block h3 {
+      font-family: 'Crimson Pro', serif;
+      font-size: 17px;
+      font-weight: 600;
+      margin: 20px 0 10px;
+      color: var(--text-primary);
+    }
+
+    .content-block p {
+      font-size: 14px;
+      line-height: 1.8;
+      color: var(--text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .related-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .related-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .related-item:hover { border-color: var(--accent); background: var(--bg-tertiary); }
+    .related-item .icon { font-size: 18px; }
+    .related-item .info { flex: 1; }
+    .related-item .title { font-size: 14px; font-weight: 500; margin-bottom: 2px; }
+    .related-item .meta { font-size: 12px; color: var(--text-muted); }
+    .related-item .score { font-size: 11px; color: var(--green); background: rgba(91, 138, 91, 0.1); padding: 3px 8px; border-radius: 2px; }
+
+    .preview-footer {
+      padding: 20px 28px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-primary);
+      display: flex;
+      gap: 12px;
+    }
+
+    .preview-footer .btn { flex: 1; justify-content: center; font-size: 13px; padding: 12px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">
+          <span>📚</span>
+          <span>知识库</span>
+        </div>
+        <nav class="header-nav">
+          <a href="#" class="active">文档</a>
+          <a href="#">数据</a>
+          <a href="#">智能体</a>
+        </nav>
+      </div>
+      <div class="search-trigger">
+        <span>搜索知识库...</span>
+        <kbd>⌘K</kbd>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-secondary">导入</button>
+        <button class="btn btn-primary">+ 新建</button>
+      </div>
+    </header>
+
+    <main class="main">
+      <aside class="sidebar">
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active">分类</button>
+          <button class="sidebar-tab">标签</button>
+        </div>
+        <div class="sidebar-content">
+          <div class="sidebar-section">
+            <div class="sidebar-header">
+              <span>来源分类</span>
+              <span style="cursor:pointer">+</span>
+            </div>
+            <div class="sidebar-item active">
+              <span class="icon">🌐</span>
+              <span class="name">粮信网</span>
+              <span class="count">24</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">📊</span>
+              <span class="name">我的钢铁</span>
+              <span class="count">18</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">🌾</span>
+              <span class="name">中华粮网</span>
+              <span class="count">12</span>
+            </div>
+          </div>
+          <div class="sidebar-section">
+            <div class="sidebar-header">标签</div>
+            <div class="sidebar-item">
+              <span class="icon">🏷️</span>
+              <span class="name">价格</span>
+              <span class="count">42</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">🏷️</span>
+              <span class="name">供需</span>
+              <span class="count">31</span>
+            </div>
+            <div class="sidebar-item">
+              <span class="icon">🏷️</span>
+              <span class="name">政策</span>
+              <span class="count">15</span>
+            </div>
+          </div>
+        </div>
+        <div class="sidebar-footer">
+          <button class="btn btn-secondary" style="flex:1">管理</button>
+          <button class="btn btn-secondary" style="flex:1">统计</button>
+        </div>
+      </aside>
+
+      <section class="list-area">
+        <div class="list-header">
+          <div class="list-header-left">
+            <h1 class="list-title">粮信网</h1>
+            <span class="list-count">24 条知识</span>
+          </div>
+          <div class="view-toggle">
+            <button class="active">卡片</button>
+            <button>列表</button>
+            <button>表格</button>
+          </div>
+        </div>
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-icon">📰</div>
+            <h3 class="card-title">2024年玉米市场价格周报（1月15日）</h3>
+            <div class="card-meta">
+              <span>🌐 粮信网</span>
+              <span>📅 2024-01-15</span>
+            </div>
+            <div class="card-tags">
+              <span class="card-tag price">价格</span>
+              <span class="card-tag">玉米</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-icon">📊</div>
+            <h3 class="card-title">东北地区玉米供需形势分析</h3>
+            <div class="card-meta">
+              <span>🌐 粮信网</span>
+              <span>📅 2024-01-12</span>
+            </div>
+            <div class="card-tags">
+              <span class="card-tag">供需</span>
+              <span class="card-tag">玉米</span>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-icon">📋</div>
+            <h3 class="card-title">2024年第一周粮食政策汇总</h3>
+            <div class="card-meta">
+              <span>🌐 粮信网</span>
+              <span>📅 2024-01-08</span>
+            </div>
+            <div class="card-tags">
+              <span class="card-tag">政策</span>
+              <span class="card-tag">小麦</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="preview-panel">
+        <div class="preview-header">
+          <div class="preview-title">
+            <span class="preview-title-icon">📰</span>
+            <span>玉米价格周报详情</span>
+          </div>
+          <div class="preview-header-actions">
+            <button title="全屏">⛶</button>
+            <button title="新窗口">↗</button>
+            <button title="关闭">✕</button>
+          </div>
+        </div>
+        <div class="preview-meta-grid">
+          <div class="preview-meta-item">
+            <div class="label">来源</div>
+            <div class="value">🌐 粮信网</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">日期</div>
+            <div class="value">2024-01-15</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">类型</div>
+            <div class="value">价格日报</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">状态</div>
+            <div class="value" style="color: var(--green)">● 已向量化</div>
+          </div>
+        </div>
+        <div class="preview-content">
+          <div class="preview-section">
+            <div class="preview-section-title">内容摘要</div>
+            <div class="content-block">
+              <h2>本周玉米市场行情分析</h2>
+              <p>本周玉米市场价格整体呈现稳中偏强态势，东北地区深加工企业收购价格上调10-20元/吨，港口平舱价格保持稳定。</p>
+              <h3>主要产区动态</h3>
+              <p>黑龙江地区玉米毒素水平较好，贸易商收购积极性较高；吉林地区基层售粮进度加快，售粮意向价格偏高。</p>
+            </div>
+          </div>
+          <div class="preview-section">
+            <div class="preview-section-title">关联知识</div>
+            <div class="related-list">
+              <div class="related-item">
+                <span class="icon">📊</span>
+                <div class="info">
+                  <div class="title">东北地区玉米供需形势分析</div>
+                  <div class="meta">相关度 94% · 2024-01-12</div>
+                </div>
+                <span class="score">94%</span>
+              </div>
+              <div class="related-item">
+                <span class="icon">📰</span>
+                <div class="info">
+                  <div class="title">港口玉米价格行情</div>
+                  <div class="meta">相关度 87% · 2024-01-14</div>
+                </div>
+                <span class="score">87%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="preview-footer">
+          <button class="btn btn-secondary">编辑</button>
+          <button class="btn btn-primary">向量化</button>
+        </div>
+      </aside>
+    </main>
+  </div>
+</body>
+</html>

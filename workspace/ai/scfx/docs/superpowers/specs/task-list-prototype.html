@@ -1,0 +1,1263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>任务列表 - 原型预览</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-card: #21262d;
+      --bg-hover: #30363d;
+      --border-color: #30363d;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent-blue: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-orange: #f0883e;
+      --accent-purple: #a371f7;
+      --accent-red: #f85149;
+      --accent-yellow: #d29922;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-title {
+      font-size: 18px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-actions {
+      margin-left: auto;
+      display: flex;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: none;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
+    }
+
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent-blue);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, var(--accent-green), #2d9a5a);
+      color: #fff;
+    }
+
+    .btn-success:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(63, 185, 80, 0.3);
+    }
+
+    /* Page Container */
+    .page-container {
+      padding: 20px 24px;
+    }
+
+    /* Stats Cards */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      transition: all 0.2s ease;
+    }
+
+    .stat-card:hover {
+      border-color: var(--accent-blue);
+    }
+
+    .stat-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+    }
+
+    .stat-icon.total { background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple)); }
+    .stat-icon.enabled { background: linear-gradient(135deg, var(--accent-green), #2d9a5a); }
+    .stat-icon.disabled { background: rgba(110, 118, 129, 0.2); }
+    .stat-icon.running { background: linear-gradient(135deg, var(--accent-orange), #d97706); }
+    .stat-icon.success { background: linear-gradient(135deg, var(--accent-green), #2d9a5a); }
+    .stat-icon.failed { background: linear-gradient(135deg, var(--accent-red), #c53030); }
+
+    .stat-info {
+      flex: 1;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    /* Filter Bar */
+    .filter-bar {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .filter-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-label {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .filter-select {
+      padding: 8px 32px 8px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 13px;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+    }
+
+    .filter-select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .filter-search {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-left: auto;
+      min-width: 200px;
+    }
+
+    .search-input {
+      flex: 1;
+      padding: 8px 12px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 13px;
+    }
+
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+
+    .search-btn {
+      padding: 8px 16px;
+      background: var(--accent-blue);
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .search-btn:hover {
+      background: #4a9aff;
+    }
+
+    /* Table */
+    .table-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .table-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .selected-count {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table th {
+      text-align: left;
+      padding: 12px 16px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .data-table th:first-child {
+      width: 40px;
+      text-align: center;
+    }
+
+    .data-table td {
+      padding: 14px 16px;
+      font-size: 13px;
+      border-bottom: 1px solid var(--border-color);
+      vertical-align: middle;
+    }
+
+    .data-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .data-table tr:hover td {
+      background: rgba(88, 166, 255, 0.05);
+    }
+
+    /* Checkbox */
+    .checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: var(--accent-blue);
+    }
+
+    /* Task Name */
+    .task-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .task-name:hover {
+      color: var(--accent-blue);
+    }
+
+    .task-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Status Badge */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-badge .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .status-badge.enabled {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent-green);
+    }
+
+    .status-badge.enabled .dot { background: var(--accent-green); }
+
+    .status-badge.disabled {
+      background: rgba(139, 148, 158, 0.15);
+      color: var(--text-muted);
+    }
+
+    .status-badge.disabled .dot { background: var(--text-muted); }
+
+    /* Source Tag */
+    .source-tag {
+      display: inline-block;
+      padding: 3px 8px;
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--accent-blue);
+    }
+
+    /* Trigger Badge */
+    .trigger-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    .trigger-badge.cron {
+      background: rgba(163, 113, 247, 0.1);
+      border: 1px solid rgba(163, 113, 247, 0.2);
+      color: var(--accent-purple);
+    }
+
+    .trigger-badge.cycle {
+      background: rgba(88, 166, 255, 0.1);
+      border: 1px solid rgba(88, 166, 255, 0.2);
+      color: var(--accent-blue);
+    }
+
+    .trigger-badge.once {
+      background: rgba(240, 136, 62, 0.1);
+      border: 1px solid rgba(240, 136, 62, 0.2);
+      color: var(--accent-orange);
+    }
+
+    /* Time */
+    .time-value {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .time-value.next {
+      color: var(--accent-blue);
+      font-weight: 500;
+    }
+
+    /* Stats */
+    .stats-inline {
+      display: flex;
+      gap: 10px;
+      font-size: 12px;
+    }
+
+    .stats-inline .success {
+      color: var(--accent-green);
+    }
+
+    .stats-inline .failed {
+      color: var(--accent-red);
+    }
+
+    /* Actions */
+    .action-buttons {
+      display: flex;
+      gap: 6px;
+      flex-wrap: nowrap;
+    }
+
+    .action-btn {
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+    }
+
+    .action-btn:hover {
+      color: var(--text-primary);
+      background: var(--bg-hover);
+    }
+
+    .action-btn.primary {
+      background: rgba(88, 166, 255, 0.1);
+      color: var(--accent-blue);
+    }
+
+    .action-btn.primary:hover {
+      background: rgba(88, 166, 255, 0.2);
+    }
+
+    .action-btn.success {
+      background: rgba(63, 185, 80, 0.1);
+      color: var(--accent-green);
+    }
+
+    .action-btn.success:hover {
+      background: rgba(63, 185, 80, 0.2);
+    }
+
+    .action-btn.warning {
+      background: rgba(240, 136, 62, 0.1);
+      color: var(--accent-orange);
+    }
+
+    .action-btn.warning:hover {
+      background: rgba(240, 136, 62, 0.2);
+    }
+
+    .action-btn.danger {
+      background: rgba(248, 81, 73, 0.1);
+      color: var(--accent-red);
+    }
+
+    .action-btn.danger:hover {
+      background: rgba(248, 81, 73, 0.2);
+    }
+
+    /* Batch Actions */
+    .batch-actions {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: rgba(88, 166, 255, 0.1);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .batch-actions.show {
+      display: flex;
+    }
+
+    .batch-info {
+      font-size: 13px;
+      color: var(--accent-blue);
+      font-weight: 500;
+    }
+
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 16px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .pagination-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .page-info {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .page-size-select {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .page-size-select label {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .page-size-select select {
+      padding: 4px 24px 4px 8px;
+      background: var(--bg-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      color: var(--text-primary);
+      font-size: 12px;
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' fill='%238b949e' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 6px center;
+    }
+
+    .pagination-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .page-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      font-size: 12px;
+    }
+
+    .page-btn:hover:not(:disabled) {
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    .page-btn.active {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: #fff;
+    }
+
+    .page-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Fullscreen Dialog */
+    .dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease;
+    }
+
+    .dialog-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .fullscreen-dialog {
+      width: 100vw;
+      height: 100vh;
+      border-radius: 0;
+    }
+
+    .fullscreen-close {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 1001;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+
+    .fullscreen-close:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent-blue);
+      color: var(--accent-blue);
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--bg-card);
+      border: 1px solid var(--accent-green);
+      color: var(--accent-green);
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: 0 8px 30px rgba(63, 185, 80, 0.25);
+      opacity: 0;
+      transition: all 0.3s ease;
+      z-index: 2000;
+    }
+
+    .toast.error {
+      border-color: var(--accent-red);
+      color: var(--accent-red);
+      box-shadow: 0 8px 30px rgba(248, 81, 73, 0.25);
+    }
+
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .stats-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .filter-search {
+        margin-left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-title">
+      <span>📋</span>
+      <span>采集任务管理</span>
+    </div>
+    <div class="header-actions">
+      <button class="btn btn-secondary" onclick="refreshData()">
+        <span>🔄</span> 刷新
+      </button>
+      <button class="btn btn-primary" onclick="createTask()">
+        <span>➕</span> 创建任务
+      </button>
+    </div>
+  </div>
+
+  <!-- Page Container -->
+  <div class="page-container">
+    <!-- Stats Cards -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon total">📋</div>
+        <div class="stat-info">
+          <div class="stat-value" id="totalCount">24</div>
+          <div class="stat-label">任务总数</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon enabled">✓</div>
+        <div class="stat-info">
+          <div class="stat-value" id="enabledCount">18</div>
+          <div class="stat-label">启用中</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon disabled">⏸</div>
+        <div class="stat-info">
+          <div class="stat-value" id="disabledCount">6</div>
+          <div class="stat-label">已禁用</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon running">⚡</div>
+        <div class="stat-info">
+          <div class="stat-value" id="todayExecCount">3</div>
+          <div class="stat-label">今日执行</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon success">✓</div>
+        <div class="stat-info">
+          <div class="stat-value" id="successCount">1,234</div>
+          <div class="stat-label">累计成功</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon failed">✗</div>
+        <div class="stat-info">
+          <div class="stat-value" id="failedCount">56</div>
+          <div class="stat-label">累计失败</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar">
+      <div class="filter-item">
+        <span class="filter-label">状态</span>
+        <select class="filter-select" id="filterStatus" onchange="applyFilters()">
+          <option value="">全部</option>
+          <option value="enabled">启用</option>
+          <option value="disabled">禁用</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <span class="filter-label">触发方式</span>
+        <select class="filter-select" id="filterTrigger" onchange="applyFilters()">
+          <option value="">全部</option>
+          <option value="cron">Cron表达式</option>
+          <option value="cycle">周期触发</option>
+          <option value="once">单次触发</option>
+        </select>
+      </div>
+      <div class="filter-item">
+        <span class="filter-label">数据源</span>
+        <select class="filter-select" id="filterSource" onchange="applyFilters()">
+          <option value="">全部</option>
+          <option value="liangxin">粮信网</option>
+          <option value="mysteel">我的钢铁网</option>
+          <option value="chinagrain">中华粮网</option>
+          <option value="usda">USDA</option>
+          <option value="market">市场数据</option>
+        </select>
+      </div>
+      <div class="filter-search">
+        <input type="text" class="search-input" id="searchKeyword" placeholder="搜索任务名称...">
+        <button class="search-btn" onclick="applyFilters()">搜索</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="table-container">
+      <!-- Batch Actions -->
+      <div class="batch-actions" id="batchActions">
+        <span class="batch-info">已选择 <span id="selectedCount">0</span> 项</span>
+        <button class="btn btn-success" onclick="batchEnable()">批量启用</button>
+        <button class="btn btn-warning" onclick="batchDisable()">批量禁用</button>
+        <button class="btn btn-danger" onclick="batchDelete()">批量删除</button>
+        <button class="btn btn-secondary" onclick="clearSelection()">取消选择</button>
+      </div>
+
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th><input type="checkbox" class="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>
+            <th>任务名称</th>
+            <th>状态</th>
+            <th>数据源</th>
+            <th>触发方式</th>
+            <th>下次执行</th>
+            <th>最近执行</th>
+            <th>执行统计</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="taskTableBody">
+          <tr data-id="1" data-status="enabled" data-trigger="cron" data-source="liangxin">
+            <td><input type="checkbox" class="checkbox row-checkbox" onchange="updateBatchActions()"></td>
+            <td>
+              <div class="task-name" onclick="viewDetail(1)">粮信网玉米晨报采集</div>
+              <div class="task-desc">每日定时采集粮信网玉米价格数据</div>
+            </td>
+            <td>
+              <span class="status-badge enabled">
+                <span class="dot"></span>
+                启用
+              </span>
+            </td>
+            <td><span class="source-tag">粮信网</span></td>
+            <td><span class="trigger-badge cron">Cron 表达式</span></td>
+            <td><span class="time-value next">2026-05-01 08:00</span></td>
+            <td><span class="time-value">2026-04-30 08:00</span></td>
+            <td>
+              <div class="stats-inline">
+                <span class="success">✓ 156</span>
+                <span class="failed">✗ 3</span>
+              </div>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <button class="action-btn success" onclick="executeTask(1)">执行</button>
+                <button class="action-btn primary" onclick="viewDetail(1)">详情</button>
+                <button class="action-btn" onclick="openVersionHistory(1)">版本</button>
+                <button class="action-btn" onclick="openExecutionHistory(1)">记录</button>
+                <button class="action-btn warning" onclick="toggleStatus(this, 1)">禁用</button>
+              </div>
+            </td>
+          </tr>
+          <tr data-id="2" data-status="enabled" data-trigger="cycle" data-source="mysteel">
+            <td><input type="checkbox" class="checkbox row-checkbox" onchange="updateBatchActions()"></td>
+            <td>
+              <div class="task-name" onclick="viewDetail(2)">我的钢铁网螺纹钢采集</div>
+              <div class="task-desc">定时采集钢铁价格走势</div>
+            </td>
+            <td>
+              <span class="status-badge enabled">
+                <span class="dot"></span>
+                启用
+              </span>
+            </td>
+            <td><span class="source-tag">我的钢铁网</span></td>
+            <td><span class="trigger-badge cycle">周期触发</span></td>
+            <td><span class="time-value next">2026-04-30 14:30</span></td>
+            <td><span class="time-value">2026-04-30 08:30</span></td>
+            <td>
+              <div class="stats-inline">
+                <span class="success">✓ 89</span>
+                <span class="failed">✗ 12</span>
+              </div>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <button class="action-btn success" onclick="executeTask(2)">执行</button>
+                <button class="action-btn primary" onclick="viewDetail(2)">详情</button>
+                <button class="action-btn" onclick="openVersionHistory(2)">版本</button>
+                <button class="action-btn" onclick="openExecutionHistory(2)">记录</button>
+                <button class="action-btn warning" onclick="toggleStatus(this, 2)">禁用</button>
+              </div>
+            </td>
+          </tr>
+          <tr data-id="3" data-status="enabled" data-trigger="once" data-source="usda">
+            <td><input type="checkbox" class="checkbox row-checkbox" onchange="updateBatchActions()"></td>
+            <td>
+              <div class="task-name" onclick="viewDetail(3)">USDA出口报告采集</div>
+              <div class="task-desc">采集美国农业部出口数据</div>
+            </td>
+            <td>
+              <span class="status-badge enabled">
+                <span class="dot"></span>
+                启用
+              </span>
+            </td>
+            <td><span class="source-tag">USDA</span></td>
+            <td><span class="trigger-badge once">单次触发</span></td>
+            <td><span class="time-value next">2026-05-05 10:00</span></td>
+            <td><span class="time-value">--</span></td>
+            <td>
+              <div class="stats-inline">
+                <span class="success">✓ 0</span>
+                <span class="failed">✗ 0</span>
+              </div>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <button class="action-btn success" onclick="executeTask(3)">执行</button>
+                <button class="action-btn primary" onclick="viewDetail(3)">详情</button>
+                <button class="action-btn" onclick="openVersionHistory(3)">版本</button>
+                <button class="action-btn" onclick="openExecutionHistory(3)">记录</button>
+                <button class="action-btn warning" onclick="toggleStatus(this, 3)">禁用</button>
+              </div>
+            </td>
+          </tr>
+          <tr data-id="4" data-status="disabled" data-trigger="cycle" data-source="chinagrain">
+            <td><input type="checkbox" class="checkbox row-checkbox" onchange="updateBatchActions()"></td>
+            <td>
+              <div class="task-name" onclick="viewDetail(4)">中华粮网小麦周报</div>
+              <div class="task-desc">每周一定期采集小麦价格</div>
+            </td>
+            <td>
+              <span class="status-badge disabled">
+                <span class="dot"></span>
+                禁用
+              </span>
+            </td>
+            <td><span class="source-tag">中华粮网</span></td>
+            <td><span class="trigger-badge cycle">周期触发</span></td>
+            <td><span class="time-value next">--</span></td>
+            <td><span class="time-value">2026-04-20 09:15</span></td>
+            <td>
+              <div class="stats-inline">
+                <span class="success">✓ 45</span>
+                <span class="failed">✗ 2</span>
+              </div>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <button class="action-btn success" onclick="executeTask(4)">执行</button>
+                <button class="action-btn primary" onclick="viewDetail(4)">详情</button>
+                <button class="action-btn" onclick="openVersionHistory(4)">版本</button>
+                <button class="action-btn" onclick="openExecutionHistory(4)">记录</button>
+                <button class="action-btn success" onclick="toggleStatus(this, 4)">启用</button>
+              </div>
+            </td>
+          </tr>
+          <tr data-id="5" data-status="enabled" data-trigger="cron" data-source="market">
+            <td><input type="checkbox" class="checkbox row-checkbox" onchange="updateBatchActions()"></td>
+            <td>
+              <div class="task-name" onclick="viewDetail(5)">大豆现货价格采集</div>
+              <div class="task-desc">采集各港口大豆现货价格</div>
+            </td>
+            <td>
+              <span class="status-badge enabled">
+                <span class="dot"></span>
+                启用
+              </span>
+            </td>
+            <td><span class="source-tag">市场数据</span></td>
+            <td><span class="trigger-badge cron">Cron 表达式</span></td>
+            <td><span class="time-value next">2026-04-30 16:00</span></td>
+            <td><span class="time-value">2026-04-29 16:00</span></td>
+            <td>
+              <div class="stats-inline">
+                <span class="success">✓ 234</span>
+                <span class="failed">✗ 8</span>
+              </div>
+            </td>
+            <td>
+              <div class="action-buttons">
+                <button class="action-btn success" onclick="executeTask(5)">执行</button>
+                <button class="action-btn primary" onclick="viewDetail(5)">详情</button>
+                <button class="action-btn" onclick="openVersionHistory(5)">版本</button>
+                <button class="action-btn" onclick="openExecutionHistory(5)">记录</button>
+                <button class="action-btn warning" onclick="toggleStatus(this, 5)">禁用</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Pagination -->
+      <div class="pagination">
+        <div class="pagination-left">
+          <div class="page-size-select">
+            <label>每页</label>
+            <select id="pageSize" onchange="changePageSize()">
+              <option value="10">10 条</option>
+              <option value="20" selected>20 条</option>
+              <option value="50">50 条</option>
+            </select>
+          </div>
+          <div class="page-info">共 <span id="totalRecords">5</span> 条</div>
+        </div>
+        <div class="pagination-right">
+          <div class="page-info">第 <span id="currentPage">1</span>/<span id="totalPages">1</span> 页</div>
+          <button class="page-btn" id="prevBtn" onclick="goToPage(parseInt(currentPage) - 1)">‹</button>
+          <button class="page-btn active" onclick="goToPage(1)">1</button>
+          <button class="page-btn" onclick="goToPage(2)">2</button>
+          <button class="page-btn" onclick="goToPage(3)">3</button>
+          <button class="page-btn" id="nextBtn" onclick="goToPage(parseInt(currentPage) + 1)">›</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Version History Dialog -->
+  <div class="dialog-overlay fullscreen-dialog" id="versionHistoryDialog">
+    <button class="fullscreen-close" onclick="closeVersionHistory()">×</button>
+    <iframe id="versionHistoryFrame" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+  </div>
+
+  <!-- Execution History Dialog -->
+  <div class="dialog-overlay fullscreen-dialog" id="executionHistoryDialog">
+    <button class="fullscreen-close" onclick="closeExecutionHistory()">×</button>
+    <iframe id="executionHistoryFrame" src="" style="width: 100%; height: 100%; border: none;"></iframe>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let currentTaskId = null;
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById('toast');
+      toast.textContent = message;
+      toast.classList.toggle('error', isError);
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3000);
+    }
+
+    // 应用筛选
+    function applyFilters() {
+      const statusFilter = document.getElementById('filterStatus').value;
+      const triggerFilter = document.getElementById('filterTrigger').value;
+      const sourceFilter = document.getElementById('filterSource').value;
+      const keyword = document.getElementById('searchKeyword').value.toLowerCase().trim();
+
+      const rows = document.querySelectorAll('#taskTableBody tr');
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const rowStatus = row.getAttribute('data-status');
+        const rowTrigger = row.getAttribute('data-trigger');
+        const rowSource = row.getAttribute('data-source');
+        const taskName = row.querySelector('.task-name').textContent.toLowerCase();
+        const taskDesc = row.querySelector('.task-desc').textContent.toLowerCase();
+
+        const matchStatus = !statusFilter || rowStatus === statusFilter;
+        const matchTrigger = !triggerFilter || rowTrigger === triggerFilter;
+        const matchSource = !sourceFilter || rowSource === sourceFilter;
+        const matchKeyword = !keyword || taskName.includes(keyword) || taskDesc.includes(keyword);
+
+        if (matchStatus && matchTrigger && matchSource && matchKeyword) {
+          row.style.display = '';
+          visibleCount++;
+        } else {
+          row.style.display = 'none';
+        }
+      });
+
+      document.getElementById('totalRecords').textContent = visibleCount;
+      if (visibleCount === 0) {
+        showToast('没有匹配的任务', true);
+      }
+    }
+
+    // 创建任务
+    function createTask() {
+      window.location.href = 'create-task-prototype.html';
+    }
+
+    // 刷新数据
+    function refreshData() {
+      showToast('数据已刷新');
+    }
+
+    // 查看详情
+    function viewDetail(id) {
+      window.location.href = `task-detail-prototype.html?id=${id}`;
+    }
+
+    // 立即执行
+    function executeTask(id) {
+      showToast(`任务 #${id} 开始执行...`);
+    }
+
+    // 切换状态
+    function toggleStatus(btn, id) {
+      const row = document.querySelector(`tr[data-id="${id}"]`);
+      const badge = row.querySelector('.status-badge');
+      const isCurrentlyEnabled = badge.classList.contains('enabled');
+
+      if (isCurrentlyEnabled) {
+        badge.classList.remove('enabled');
+        badge.classList.add('disabled');
+        badge.innerHTML = '<span class="dot"></span>禁用';
+        btn.textContent = '启用';
+        btn.classList.remove('warning');
+        btn.classList.add('success');
+        row.querySelector('.time-value.next').textContent = '--';
+        document.getElementById('enabledCount').textContent = parseInt(document.getElementById('enabledCount').textContent) - 1;
+        document.getElementById('disabledCount').textContent = parseInt(document.getElementById('disabledCount').textContent) + 1;
+        showToast('任务已禁用');
+      } else {
+        badge.classList.remove('disabled');
+        badge.classList.add('enabled');
+        badge.innerHTML = '<span class="dot"></span>启用';
+        btn.textContent = '禁用';
+        btn.classList.remove('success');
+        btn.classList.add('warning');
+        row.querySelector('.time-value.next').textContent = '明天 08:00';
+        document.getElementById('enabledCount').textContent = parseInt(document.getElementById('enabledCount').textContent) + 1;
+        document.getElementById('disabledCount').textContent = parseInt(document.getElementById('disabledCount').textContent) - 1;
+        showToast('任务已启用');
+      }
+    }
+
+    // 打开版本历史弹窗
+    function openVersionHistory(id) {
+      currentTaskId = id;
+      document.getElementById('versionHistoryFrame').src = `version-history-prototype.html?taskId=${id}`;
+      document.getElementById('versionHistoryDialog').classList.add('show');
+    }
+
+    function closeVersionHistory() {
+      document.getElementById('versionHistoryDialog').classList.remove('show');
+      document.getElementById('versionHistoryFrame').src = '';
+    }
+
+    // 打开执行记录弹窗
+    function openExecutionHistory(id) {
+      currentTaskId = id;
+      document.getElementById('executionHistoryFrame').src = `version-history-prototype.html?taskId=${id}&module=executions`;
+      document.getElementById('executionHistoryDialog').classList.add('show');
+    }
+
+    function closeExecutionHistory() {
+      document.getElementById('executionHistoryDialog').classList.remove('show');
+      document.getElementById('executionHistoryFrame').src = '';
+    }
+
+    // 全选/取消全选
+    function toggleSelectAll() {
+      const selectAll = document.getElementById('selectAll');
+      const checkboxes = document.querySelectorAll('.row-checkbox');
+      checkboxes.forEach(cb => cb.checked = selectAll.checked);
+      updateBatchActions();
+    }
+
+    // 更新批量操作栏
+    function updateBatchActions() {
+      const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+      const batchActions = document.getElementById('batchActions');
+      const selectedCount = document.getElementById('selectedCount');
+
+      selectedCount.textContent = checkedBoxes.length;
+      if (checkedBoxes.length > 0) {
+        batchActions.classList.add('show');
+      } else {
+        batchActions.classList.remove('show');
+      }
+    }
+
+    // 清除选择
+    function clearSelection() {
+      document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+      document.getElementById('selectAll').checked = false;
+      updateBatchActions();
+    }
+
+    // 批量启用
+    function batchEnable() {
+      const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+      checkedBoxes.forEach(cb => {
+        const row = cb.closest('tr');
+        const btn = row.querySelector('.action-btn.warning');
+        if (btn) toggleStatus(btn, row.getAttribute('data-id'));
+      });
+      clearSelection();
+      showToast('批量启用成功');
+    }
+
+    // 批量禁用
+    function batchDisable() {
+      const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+      checkedBoxes.forEach(cb => {
+        const row = cb.closest('tr');
+        const badge = row.querySelector('.status-badge');
+        if (badge.classList.contains('enabled')) {
+          const btn = row.querySelector('.action-btn.warning');
+          if (btn) toggleStatus(btn, row.getAttribute('data-id'));
+        }
+      });
+      clearSelection();
+      showToast('批量禁用成功');
+    }
+
+    // 批量删除
+    function batchDelete() {
+      const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+      if (checkedBoxes.length === 0) return;
+
+      if (confirm(`确定要删除选中的 ${checkedBoxes.length} 个任务吗？`)) {
+        checkedBoxes.forEach(cb => {
+          const row = cb.closest('tr');
+          row.remove();
+        });
+        document.getElementById('totalCount').textContent = parseInt(document.getElementById('totalCount').textContent) - checkedBoxes.length;
+        clearSelection();
+        showToast('批量删除成功');
+      }
+    }
+
+    // 分页
+    let currentPage = 1;
+
+    function goToPage(page) {
+      const totalPages = parseInt(document.getElementById('totalPages').textContent);
+      if (page < 1 || page > totalPages) return;
+
+      currentPage = page;
+      document.getElementById('currentPage').textContent = page;
+
+      document.getElementById('prevBtn').disabled = page <= 1;
+      document.getElementById('nextBtn').disabled = page >= totalPages;
+
+      document.querySelectorAll('.page-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (parseInt(btn.textContent) === page) btn.classList.add('active');
+      });
+
+      showToast(`加载第 ${page} 页数据`);
+    }
+
+    function changePageSize() {
+      const pageSize = document.getElementById('pageSize').value;
+      showToast(`每页显示 ${pageSize} 条`);
+    }
+
+    // 初始化
+    document.addEventListener('DOMContentLoaded', function() {
+      document.getElementById('prevBtn').disabled = true;
+    });
+  </script>
+</body>
+</html>

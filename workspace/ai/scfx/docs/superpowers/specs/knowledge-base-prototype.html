@@ -1,0 +1,5049 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 知识库 - 原型</title>
+  <style>
+    :root {
+      --bg-primary: #0d1117;
+      --bg-secondary: #161b22;
+      --bg-tertiary: #21262d;
+      --bg-hover: #30363d;
+      --border-color: rgba(255,255,255,0.1);
+      --text-primary: #f0f6fc;
+      --text-secondary: #8b949e;
+      --text-muted: #6e7681;
+      --accent: #f5c87a;
+      --accent-hover: #d4a574;
+      --accent-bg: rgba(245, 200, 122, 0.15);
+      --blue: #58a6ff;
+      --green: #3fb950;
+      --yellow: #d29922;
+      --red: #f85149;
+      --purple: #a371f7;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      font-size: 14px;
+    }
+
+    /* Layout */
+    .app {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      height: 56px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--accent);
+    }
+
+    .logo svg { width: 26px; height: 26px; }
+
+    .header-nav {
+      display: flex;
+      gap: 4px;
+    }
+
+    .header-nav a {
+      padding: 8px 14px;
+      color: var(--text-secondary);
+      text-decoration: none;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .header-nav a:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .header-nav a.active {
+      background: var(--accent-bg);
+      color: var(--accent);
+    }
+
+    .search-trigger {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      width: 260px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .search-trigger:hover {
+      border-color: var(--accent);
+      background: var(--bg-hover);
+    }
+
+    .search-trigger span {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .search-trigger kbd {
+      margin-left: auto;
+      padding: 2px 6px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .header-icon-btn {
+      width: 36px;
+      height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s;
+    }
+
+    .header-icon-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .header-icon-btn .badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      width: 8px;
+      height: 8px;
+      background: var(--red);
+      border-radius: 50%;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+      color: #1a1f2e;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(245, 200, 122, 0.35);
+    }
+
+    .btn-secondary {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+      border-color: var(--text-muted);
+    }
+
+    .btn-danger {
+      background: rgba(248, 81, 73, 0.15);
+      color: var(--red);
+      border: 1px solid rgba(248, 81, 73, 0.3);
+    }
+
+    .btn-danger:hover {
+      background: rgba(248, 81, 73, 0.25);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-secondary);
+    }
+
+    .btn-ghost:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .btn-icon {
+      padding: 8px;
+    }
+
+    .btn svg {
+      width: 16px;
+      height: 16px;
+    }
+
+    /* Main Content */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Sidebar */
+    .sidebar-toggle-btn {
+      position: absolute;
+      top: 50%;
+      right: -14px;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 28px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 50%;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      z-index: 100;
+      transition: all 0.2s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .list-area.list-sidebar-mode .list-collapse-btn,
+    .sidebar:hover .sidebar-toggle-btn {
+      opacity: 1;
+    }
+
+    .sidebar-toggle-btn:hover {
+      background: var(--accent);
+      color: #1a1f2e;
+      border-color: var(--accent);
+    }
+
+    .sidebar.collapsed {
+      width: 0;
+      min-width: 0;
+      border-right: none;
+      overflow: visible;
+      flex: none;
+    }
+
+    .sidebar.collapsed > * {
+      display: none !important;
+    }
+
+    .sidebar.collapsed .sidebar-toggle-btn {
+      display: flex !important;
+      right: -28px;
+      transform: translateY(-50%) rotate(180deg);
+    }
+
+    /* List Panel Collapse */
+    .main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .sidebar {
+      width: 260px;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+      transition: width 0.3s ease;
+    }
+
+    .sidebar-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border-color);
+      padding: 8px 8px 0;
+    }
+
+    .sidebar-tab {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .sidebar-tab:hover {
+      color: var(--text-secondary);
+    }
+
+    .sidebar-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .sidebar-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 8px;
+    }
+
+    .sidebar-section {
+      margin-bottom: 16px;
+    }
+
+    .sidebar-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .sidebar-header-btn {
+      padding: 2px 6px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+
+    .sidebar-header-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .sidebar-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.15s;
+      font-size: 13px;
+      color: var(--text-secondary);
+      user-select: none;
+    }
+
+    .sidebar-item:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .sidebar-item.active {
+      background: var(--accent-bg);
+      color: var(--accent);
+    }
+
+    .sidebar-item .icon {
+      font-size: 15px;
+      width: 20px;
+      text-align: center;
+    }
+
+    .sidebar-item .name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .sidebar-item .count {
+      font-size: 11px;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 10px;
+    }
+
+    .sidebar-item .arrow {
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: transform 0.2s;
+    }
+
+    .sidebar-item.open .arrow {
+      transform: rotate(90deg);
+    }
+
+    .sub-items {
+      display: none;
+      padding-left: 28px;
+    }
+
+    .sidebar-item.open + .sub-items {
+      display: block;
+    }
+
+    .sub-items .sidebar-item {
+      padding: 6px 8px;
+      font-size: 12px;
+    }
+
+    .sidebar-item-actions {
+      display: none;
+      margin-left: auto;
+      gap: 2px;
+    }
+
+    .sidebar-item:hover .sidebar-item-actions {
+      display: flex;
+    }
+
+    .sidebar-item-actions button {
+      padding: 2px 4px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+      border-radius: 3px;
+    }
+
+    .sidebar-item-actions button:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+
+    .sidebar-item input.rename-input {
+      flex: 1;
+      min-width: 0;
+      background: var(--bg-secondary);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 13px;
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    .new-subfolder-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .new-subfolder-item input {
+      flex: 1;
+      background: var(--bg-tertiary);
+      border: 1px dashed var(--border-color);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+
+    /* Folder tree drag handle */
+    .sidebar-item .drag-handle {
+      opacity: 0;
+      cursor: grab;
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    .sidebar-item:hover .drag-handle {
+      opacity: 1;
+    }
+
+    /* Sidebar footer */
+    .sidebar-footer {
+      padding: 12px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      gap: 8px;
+    }
+
+    .sidebar-footer .btn {
+      flex: 1;
+      justify-content: center;
+      font-size: 12px;
+      padding: 6px 10px;
+    }
+
+    /* List Area */
+    .list-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-primary);
+      transition: width 0.3s ease;
+    }
+
+    .list-area.list-sidebar-mode {
+      width: 240px;
+      flex: none;
+      border-right: 1px solid var(--border-color);
+    }
+
+    .list-area.list-sidebar-mode .list-header {
+      padding: 12px 12px 8px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .list-area.list-sidebar-mode .list-header-left {
+      width: 100%;
+    }
+
+    .list-area.list-sidebar-mode .list-header-left h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .list-area.list-sidebar-mode .list-header-left .list-count {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: block;
+    }
+
+    .list-area.list-sidebar-mode .list-header-right,
+    .list-area.list-sidebar-mode .filters-bar,
+    .list-area.list-sidebar-mode .batch-bar,
+    .list-area.list-sidebar-mode .card-grid,
+    .list-area.list-sidebar-mode .table-view,
+    .list-area.list-sidebar-mode .pagination-wrapper {
+      display: none !important;
+    }
+
+    .list-area.list-sidebar-mode .list-items {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .list-area.list-sidebar-mode .list-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .list-area.list-sidebar-mode .list-item:last-child {
+      border-bottom: none;
+    }
+
+    .list-area.list-sidebar-mode .list-item:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .list-area.list-sidebar-mode .list-item.active {
+      background: var(--accent-bg);
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-icon {
+      font-size: 16px;
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-status {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-status.pending {
+      background: var(--yellow);
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-status.processing {
+      background: var(--blue);
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-status.failed {
+      background: var(--red);
+    }
+
+    .list-area.list-sidebar-mode .list-items {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .list-area.list-sidebar-mode .list-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .list-area.list-sidebar-mode .list-item:last-child {
+      border-bottom: none;
+    }
+
+    .list-area.list-sidebar-mode .list-item:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .list-area.list-sidebar-mode .list-item.active {
+      background: var(--accent-bg);
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-icon {
+      font-size: 16px;
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-title {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 2px;
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-status {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-status.pending {
+      background: var(--yellow);
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-status.processing {
+      background: var(--blue);
+    }
+
+    .list-area.list-sidebar-mode .list-item .item-status.failed {
+      background: var(--red);
+    }
+
+    .list-area.list-sidebar-mode .list-loading {
+      padding: 16px;
+      text-align: center;
+    }
+
+    .list-area.list-sidebar-mode .list-loading .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--border-color);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 8px;
+    }
+
+    .list-area.list-sidebar-mode .list-loading-text {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .list-area.list-collapsed {
+      width: 0;
+      min-width: 0;
+      overflow: visible;
+      border-right: none;
+      flex: none;
+    }
+
+    .list-area.list-collapsed > * {
+      display: none !important;
+    }
+
+    .list-area.list-collapsed .list-collapse-btn {
+      display: flex !important;
+      left: -28px;
+    }
+
+    .list-collapse-btn {
+      display: none;
+      position: absolute;
+      top: 50%;
+      left: -28px;
+      transform: translateY(-50%);
+      width: 28px;
+      height: 28px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 50%;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .list-collapse-btn:hover {
+      background: var(--accent);
+      color: #1a1f2e;
+      border-color: var(--accent);
+    }
+
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .list-header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .list-title {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .list-count {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .list-header-right {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .view-toggle {
+      display: flex;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      padding: 3px;
+    }
+
+    .view-toggle button {
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .view-toggle button.active {
+      background: var(--accent);
+      color: #1a1f2e;
+    }
+
+    .view-toggle button:hover:not(.active) {
+      color: var(--text-primary);
+    }
+
+    /* Filters Bar */
+    .filters-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+
+    .filter-tag {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .filter-tag:hover {
+      border-color: var(--text-muted);
+      color: var(--text-primary);
+    }
+
+    .filter-tag.active {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .filter-tag .remove {
+      margin-left: 2px;
+      opacity: 0.7;
+    }
+
+    .filter-tag .remove:hover {
+      opacity: 1;
+    }
+
+    .filter-dropdown {
+      position: relative;
+    }
+
+    .filter-dropdown-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .filter-dropdown-btn:hover {
+      border-color: var(--text-muted);
+    }
+
+    .filter-dropdown-menu {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 4px;
+      min-width: 180px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 6px;
+      z-index: 100;
+      display: none;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+
+    .filter-dropdown.open .filter-dropdown-menu {
+      display: block;
+    }
+
+    .filter-dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .filter-dropdown-item:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .filter-dropdown-item.selected {
+      color: var(--accent);
+    }
+
+    .filter-clear {
+      padding: 5px 10px;
+      background: transparent;
+      border: none;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .filter-clear:hover {
+      color: var(--accent);
+    }
+
+    .filter-spacer {
+      flex: 1;
+    }
+
+    /* Sort Dropdown */
+    .sort-dropdown {
+      position: relative;
+    }
+
+    /* Batch Actions Bar */
+    .batch-bar {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+      color: #1a1f2e;
+    }
+
+    .batch-bar.show {
+      display: flex;
+    }
+
+    .batch-bar-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .batch-bar .btn {
+      background: rgba(0,0,0,0.15);
+      color: inherit;
+      border: 1px solid rgba(0,0,0,0.1);
+    }
+
+    .batch-bar .btn:hover {
+      background: rgba(0,0,0,0.25);
+    }
+
+    .batch-bar button.danger {
+      background: rgba(255,255,255,0.2);
+    }
+
+    /* Card Grid */
+    .card-grid {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+      align-content: start;
+    }
+
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    }
+
+    .card.selected {
+      border-color: var(--accent);
+      background: rgba(245, 200, 122, 0.03);
+    }
+
+    .card.dragging {
+      opacity: 0.5;
+      transform: rotate(2deg);
+    }
+
+    .card.drag-over {
+      border-color: var(--blue);
+      border-style: dashed;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .card-checkbox {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border-color);
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-top: 2px;
+      transition: all 0.15s;
+    }
+
+    .card-checkbox:hover {
+      border-color: var(--accent);
+    }
+
+    .card-checkbox.checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .card-checkbox.checked::after {
+      content: '✓';
+      font-size: 11px;
+      font-weight: bold;
+      color: #1a1f2e;
+    }
+
+    .card-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .card-title {
+      font-size: 15px;
+      font-weight: 500;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-title .doc-icon {
+      font-size: 16px;
+    }
+
+    .card-source {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .card-source .source-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 6px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+    }
+
+    .card-menu-btn {
+      padding: 4px 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 16px;
+    }
+
+    .card-menu-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .card-preview {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 12px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-tags {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .tag.price {
+      background: rgba(245, 200, 122, 0.15);
+      color: var(--accent);
+    }
+
+    .tag.supply {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--blue);
+    }
+
+    .tag.policy {
+      background: rgba(163, 113, 247, 0.15);
+      color: var(--purple);
+    }
+
+    .tag.international {
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--green);
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 12px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    .card-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+    }
+
+    .card-status .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+    }
+
+    .card-status.vectorized .dot { background: var(--green); }
+    .card-status.pending .dot { background: var(--yellow); }
+    .card-status.processing .dot { background: var(--blue); }
+    .card-status.failed .dot { background: var(--red); }
+
+    .card-status.vectorized { color: var(--green); }
+    .card-status.pending { color: var(--yellow); }
+    .card-status.processing { color: var(--blue); }
+    .card-status.failed { color: var(--red); }
+
+    .card-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .card:hover .card-actions {
+      opacity: 1;
+    }
+
+    .card-actions button {
+      padding: 4px 6px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      border-radius: 4px;
+    }
+
+    .card-actions button:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    /* Table View */
+    .table-view {
+      display: none;
+      flex: 1;
+      overflow: auto;
+    }
+
+    .table-view.show {
+      display: block;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .data-table th {
+      position: sticky;
+      top: 0;
+      background: var(--bg-secondary);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 13px;
+    }
+
+    .data-table tr:hover td {
+      background: var(--bg-secondary);
+    }
+
+    .data-table tr.selected td {
+      background: rgba(245, 200, 122, 0.08);
+    }
+
+    .data-table .checkbox {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border-color);
+      border-radius: 4px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .data-table .checkbox.checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .data-table .title-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .data-table .title-cell .icon {
+      font-size: 18px;
+    }
+
+    .data-table .actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .data-table .actions button {
+      padding: 4px 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .data-table .actions button:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    /* Preview Panel */
+    .preview-panel {
+      flex: 1;
+      min-width: 300px;
+      background: var(--bg-secondary);
+      border-left: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .preview-panel.fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1000;
+      min-width: 100%;
+      flex: 1;
+    }
+
+    .preview-panel.hidden {
+      display: none;
+    }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .preview-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 16px;
+      font-weight: 600;
+    }
+
+    .preview-title-icon {
+      font-size: 20px;
+    }
+
+    .preview-header-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .preview-header-actions button {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 6px;
+    }
+
+    .preview-header-actions button:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    /* Preview Meta Grid */
+    .preview-meta-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border-color);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .preview-meta-item {
+      background: var(--bg-primary);
+      padding: 12px;
+      text-align: center;
+    }
+
+    .preview-meta-item .label {
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .preview-meta-item .value {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .preview-meta-item .value.success { color: var(--green); }
+    .preview-meta-item .value.warning { color: var(--yellow); }
+    .preview-meta-item .value.danger { color: var(--red); }
+
+    /* Status Selector */
+    .preview-status-bar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 10px 16px;
+      background: var(--bg-primary);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .status-option {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+
+    .status-option:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .status-option.active {
+      color: var(--green);
+    }
+
+    .status-option .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--text-muted);
+    }
+
+    .status-option.active .dot {
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    /* Tags Section */
+    .preview-tags-section {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border-color);
+      flex-wrap: wrap;
+    }
+
+    .preview-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .preview-tag.price {
+      background: rgba(245, 200, 122, 0.15);
+      color: var(--accent);
+    }
+
+    .preview-tag.supply {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--blue);
+    }
+
+    .add-tag-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      border: 1px dashed var(--border-color);
+      border-radius: 4px;
+      font-size: 11px;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .add-tag-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Preview Content */
+    .preview-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .preview-section {
+      margin-bottom: 24px;
+    }
+
+    .preview-section-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .preview-section-title::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-color);
+    }
+
+    .content-block {
+      background: var(--bg-primary);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .content-block h2 {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+
+    .content-block h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 16px 0 8px;
+      color: var(--text-primary);
+    }
+
+    .content-block p {
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin-bottom: 10px;
+    }
+
+    .content-block ul, .content-block ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+
+    .content-block li {
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin-bottom: 4px;
+    }
+
+    .content-block strong {
+      color: var(--text-primary);
+    }
+
+    .expand-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    .expand-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Related Items */
+    .related-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .related-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .related-item:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .related-item .icon {
+      font-size: 16px;
+    }
+
+    .related-item .info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .related-item .title {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .related-item .meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .related-item .score {
+      font-size: 11px;
+      color: var(--green);
+      background: rgba(63, 185, 80, 0.15);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    /* Version History */
+    .version-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .version-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg-primary);
+      border-radius: 8px;
+    }
+
+    .version-item.current {
+      border: 1px solid var(--accent);
+    }
+
+    .version-item .version-badge {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-tertiary);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .version-item.current .version-badge {
+      background: var(--accent);
+      color: #1a1f2e;
+    }
+
+    .version-item .info {
+      flex: 1;
+    }
+
+    .version-item .title {
+      font-size: 13px;
+      margin-bottom: 2px;
+    }
+
+    .version-item .meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .version-item .actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+    }
+
+    .version-item:hover .actions {
+      opacity: 1;
+    }
+
+    .version-item .actions button {
+      padding: 4px 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .version-item .actions button:hover {
+      color: var(--accent);
+    }
+
+    /* Preview Footer */
+    .preview-footer {
+      padding: 14px 16px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      gap: 8px;
+    }
+
+    .preview-footer .btn {
+      flex: 1;
+      justify-content: center;
+    }
+
+    .preview-footer-meta {
+      padding: 10px 16px;
+      border-top: 1px solid var(--border-color);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    /* Pagination */
+    .pagination-wrapper {
+      padding: 16px 20px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .pagination-info {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .pagination {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pagination button {
+      min-width: 34px;
+      height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .pagination button:hover:not(:disabled) {
+      border-color: var(--accent);
+      color: var(--text-primary);
+    }
+
+    .pagination button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .pagination button.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #1a1f2e;
+    }
+
+    .pagination-ellipsis {
+      padding: 0 8px;
+      color: var(--text-muted);
+    }
+
+    .page-size-select {
+      margin-left: 16px;
+      padding: 6px 10px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 13px;
+    }
+
+    /* Modals */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.75);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s;
+    }
+
+    .modal-overlay.show {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal {
+      background: var(--bg-secondary);
+      border-radius: 16px;
+      width: 90%;
+      max-width: 640px;
+      max-height: 85vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transform: scale(0.95) translateY(10px);
+      transition: transform 0.2s;
+    }
+
+    .modal-overlay.show .modal {
+      transform: scale(1) translateY(0);
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-header h2 {
+      font-size: 17px;
+      font-weight: 600;
+    }
+
+    .modal-header-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .modal-close {
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      border-radius: 6px;
+      font-size: 18px;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 24px;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 16px 24px;
+      border-top: 1px solid var(--border-color);
+    }
+
+    /* Form Elements */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .form-group label .required {
+      color: var(--red);
+      margin-left: 2px;
+    }
+
+    .form-group input,
+    .form-group textarea,
+    .form-group select {
+      width: 100%;
+      padding: 10px 14px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .form-group input:focus,
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(245, 200, 122, 0.1);
+    }
+
+    .form-group input::placeholder,
+    .form-group textarea::placeholder {
+      color: var(--text-muted);
+    }
+
+    .form-group textarea {
+      min-height: 140px;
+      resize: vertical;
+      line-height: 1.6;
+    }
+
+    .form-group .hint {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed var(--border-color);
+      border-radius: 12px;
+      padding: 40px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+
+    .upload-zone:hover,
+    .upload-zone.dragover {
+      border-color: var(--accent);
+      background: rgba(245, 200, 122, 0.05);
+    }
+
+    .upload-zone input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-zone svg {
+      width: 48px;
+      height: 48px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .upload-zone p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .upload-zone .formats {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .upload-zone.has-file {
+      border-style: solid;
+      border-color: var(--green);
+      background: rgba(63, 185, 80, 0.05);
+    }
+
+    .upload-zone.has-file svg {
+      color: var(--green);
+    }
+
+    .file-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding: 10px 14px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+    }
+
+    .file-info .name {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+    }
+
+    .file-info .size {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .file-info .remove {
+      padding: 4px 8px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .file-info .remove:hover {
+      color: var(--red);
+    }
+
+    /* Search Modal */
+    .search-modal {
+      max-width: 680px;
+    }
+
+    .search-input-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 14px 18px;
+      background: var(--bg-tertiary);
+      border-radius: 12px;
+      margin-bottom: 16px;
+    }
+
+    .search-input-wrapper svg {
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .search-input-wrapper input {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 16px;
+    }
+
+    .search-input-wrapper input::placeholder {
+      color: var(--text-muted);
+    }
+
+    .search-input-wrapper input:focus {
+      outline: none;
+    }
+
+    .search-clear {
+      width: 28px;
+      height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--bg-secondary);
+      border: none;
+      border-radius: 6px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .search-clear:hover {
+      color: var(--text-primary);
+    }
+
+    .search-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .search-tab {
+      padding: 8px 16px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .search-tab:hover {
+      color: var(--text-primary);
+    }
+
+    .search-tab.active {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .search-filters {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .search-filter-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .search-filter-btn:hover {
+      border-color: var(--text-muted);
+    }
+
+    .search-filter-btn.active {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .search-results {
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .search-result-group {
+      margin-bottom: 16px;
+    }
+
+    .search-result-group-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      padding: 8px 0;
+      margin-bottom: 8px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .search-result-item {
+      padding: 12px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .search-result-item:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .search-result-item.selected {
+      background: var(--accent-bg);
+    }
+
+    .search-result-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .search-result-title {
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .search-result-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+
+    .search-result-meta {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .search-result-snippet {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+
+    .search-result-snippet mark {
+      background: rgba(245, 200, 122, 0.3);
+      color: inherit;
+      padding: 1px 3px;
+      border-radius: 2px;
+    }
+
+    .search-empty {
+      padding: 40px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+
+    .search-empty svg {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 12px;
+      opacity: 0.5;
+    }
+
+    .search-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .search-hints {
+      display: flex;
+      gap: 12px;
+    }
+
+    .search-hints span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .search-hints kbd {
+      padding: 2px 5px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 3px;
+      font-size: 10px;
+    }
+
+    /* Context Menu */
+    .context-menu {
+      position: fixed;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 6px;
+      min-width: 200px;
+      z-index: 1001;
+      display: none;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+    }
+
+    .context-menu.show {
+      display: block;
+      animation: contextMenuIn 0.15s ease;
+    }
+
+    @keyframes contextMenuIn {
+      from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-4px);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+      }
+    }
+
+    .context-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      color: var(--text-secondary);
+      transition: all 0.1s;
+    }
+
+    .context-menu-item:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .context-menu-item.danger {
+      color: var(--red);
+    }
+
+    .context-menu-item.danger:hover {
+      background: rgba(248, 81, 73, 0.15);
+    }
+
+    .context-menu-item .icon {
+      font-size: 14px;
+      width: 18px;
+      text-align: center;
+    }
+
+    .context-menu-item .shortcut {
+      margin-left: auto;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .context-menu-divider {
+      height: 1px;
+      background: var(--border-color);
+      margin: 6px 0;
+    }
+
+    /* Edit Modal */
+    .edit-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .edit-tab {
+      padding: 8px 16px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .edit-tab:hover {
+      border-color: var(--text-muted);
+    }
+
+    .edit-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #1a1f2e;
+    }
+
+    /* Folder Tree */
+    .folder-tree {
+      padding: 8px;
+    }
+
+    .folder-tree .folder-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.15s;
+    }
+
+    .folder-tree .folder-item:hover {
+      background: var(--bg-tertiary);
+    }
+
+    .folder-tree .folder-item.selected {
+      background: rgba(245, 200, 122, 0.1);
+      color: var(--accent);
+    }
+
+    .folder-tree .folder-item .icon {
+      font-size: 18px;
+    }
+
+    /* Tag Manager */
+    .tag-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+    }
+
+    .tag-item .tag-count {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .tag-item .tag-actions {
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .tag-item:hover .tag-actions {
+      opacity: 1;
+    }
+
+    .tag-item .tag-actions button {
+      padding: 4px 6px;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      border-radius: 4px;
+    }
+
+    .tag-item .tag-actions button:hover {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+    }
+
+    /* Progress Bar */
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .progress-content {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: white;
+      font-size: 14px;
+    }
+
+    .progress-spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .progress-track {
+      width: 300px;
+      height: 4px;
+      background: rgba(255,255,255,0.2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 30%;
+      background: var(--accent);
+      border-radius: 2px;
+      animation: progress-anim 1.5s ease-in-out infinite;
+    }
+
+    @keyframes progress-anim {
+      0% { transform: translateX(-100%); }
+      50% { width: 60%; }
+      100% { transform: translateX(400%); }
+    }
+
+    /* Skeleton Loading */
+    .skeleton-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-secondary) 50%, var(--bg-tertiary) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-loading 1.5s infinite;
+      border-radius: 4px;
+    }
+
+    .skeleton-title {
+      height: 20px;
+      width: 60%;
+      margin-bottom: 12px;
+    }
+
+    .skeleton-text {
+      height: 14px;
+      width: 100%;
+      margin-bottom: 8px;
+    }
+
+    .skeleton-text.short {
+      width: 40%;
+    }
+
+    /* Toast Notifications */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 2000;
+    }
+
+    .toast {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      min-width: 300px;
+      animation: toastIn 0.3s ease;
+    }
+
+    @keyframes toastIn {
+      from {
+        opacity: 0;
+        transform: translateX(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    .toast.success {
+      border-left: 3px solid var(--green);
+    }
+
+    .toast.error {
+      border-left: 3px solid var(--red);
+    }
+
+    .toast.warning {
+      border-left: 3px solid var(--yellow);
+    }
+
+    .toast.info {
+      border-left: 3px solid var(--blue);
+    }
+
+    .toast-icon {
+      font-size: 18px;
+    }
+
+    .toast.success .toast-icon { color: var(--green); }
+    .toast.error .toast-icon { color: var(--red); }
+    .toast.warning .toast-icon { color: var(--yellow); }
+    .toast.info .toast-icon { color: var(--blue); }
+
+    .toast-content {
+      flex: 1;
+    }
+
+    .toast-title {
+      font-size: 14px;
+      font-weight: 500;
+      margin-bottom: 2px;
+    }
+
+    .toast-message {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .toast-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 4px;
+      font-size: 14px;
+    }
+
+    .toast-close:hover {
+      color: var(--text-primary);
+    }
+
+    /* Tag Input */
+    .tag-input-wrapper {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 8px 12px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      min-height: 42px;
+      align-items: center;
+    }
+
+    .tag-input-wrapper:focus-within {
+      border-color: var(--accent);
+    }
+
+    .tag-input-wrapper .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 8px;
+      background: var(--bg-secondary);
+      border-radius: 4px;
+      font-size: 12px;
+    }
+
+    .tag-input-wrapper .tag .remove {
+      cursor: pointer;
+      opacity: 0.7;
+    }
+
+    .tag-input-wrapper .tag .remove:hover {
+      opacity: 1;
+    }
+
+    .tag-input-wrapper input {
+      flex: 1;
+      min-width: 100px;
+      background: transparent;
+      border: none;
+      color: var(--text-primary);
+      font-size: 13px;
+      padding: 4px 0;
+    }
+
+    .tag-input-wrapper input:focus {
+      outline: none;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: var(--bg-hover);
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--text-muted);
+    }
+
+    /* Empty State */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 40px;
+      text-align: center;
+    }
+
+    .empty-state svg {
+      width: 72px;
+      height: 72px;
+      color: var(--text-muted);
+      opacity: 0.4;
+      margin-bottom: 20px;
+    }
+
+    .empty-state h3 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state p {
+      font-size: 14px;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      max-width: 360px;
+    }
+
+    /* Loading Skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--bg-hover) 50%, var(--bg-tertiary) 75%);
+      background-size: 200% 100%;
+      animation: skeleton-loading 1.5s infinite;
+      border-radius: 4px;
+    }
+
+    @keyframes skeleton-loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- Header -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          AI 知识库
+        </div>
+        <nav class="header-nav">
+          <a href="#" class="active">知识库</a>
+          <a href="#">采集任务</a>
+          <a href="#">AI 问答</a>
+        </nav>
+      </div>
+      <div class="header-left">
+        <div class="search-trigger" onclick="openSearch()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <span>搜索知识库...</span>
+          <kbd>Ctrl K</kbd>
+        </div>
+      </div>
+      <div class="header-right">
+        <button class="header-icon-btn" title="通知" onclick="showToast('info', '通知', '暂无新通知')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+          </svg>
+          <span class="badge"></span>
+        </button>
+        <button class="header-icon-btn" title="帮助">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+            <line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+        </button>
+        <button class="btn btn-primary" onclick="openAddModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          新建知识
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main">
+      <!-- Sidebar -->
+      <aside class="sidebar" id="sidebar">
+        <button class="sidebar-toggle-btn" onclick="toggleSidebar()" title="折叠/展开">◀</button>
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab active" onclick="switchSidebarTab('tree', this)">
+            📂 分类
+          </button>
+          <button class="sidebar-tab" onclick="switchSidebarTab('tags', this)">
+            🏷️ 标签
+          </button>
+        </div>
+
+        <div class="sidebar-content" id="sidebarTree">
+          <div class="sidebar-section">
+            <div class="sidebar-header">
+              快捷筛选
+              <button class="sidebar-header-btn" title="添加">+</button>
+            </div>
+            <div class="sidebar-item active" onclick="filterByStatus('all', this)">
+              <span class="icon">📋</span>
+              <span class="name">全部知识</span>
+              <span class="count">1,234</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByStatus('vectorized', this)">
+              <span class="icon">✅</span>
+              <span class="name">已向量化</span>
+              <span class="count">980</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByStatus('pending', this)">
+              <span class="icon">⏳</span>
+              <span class="name">未向量化</span>
+              <span class="count">254</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByStatus('processing', this)">
+              <span class="icon">🔄</span>
+              <span class="name">处理中</span>
+              <span class="count">12</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByStatus('failed', this)">
+              <span class="icon">❌</span>
+              <span class="name">失败</span>
+              <span class="count">3</span>
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <div class="sidebar-header">
+              来源分类
+              <button class="sidebar-header-btn" title="新建文件夹" onclick="createRootFolder()">+</button>
+            </div>
+            <div class="sidebar-item folder open" onclick="toggleFolder(this)" ondblclick="startRename(this)">
+              <span class="icon">📂</span>
+              <span class="name">🌐 粮信网</span>
+              <span class="count">456</span>
+              <span class="arrow">▶</span>
+              <div class="sidebar-item-actions">
+                <button onclick="event.stopPropagation(); addSubfolder(this)" title="添加子分类">+</button>
+                <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                <button onclick="event.stopPropagation(); importToFolder(this)" title="导入文件">📥</button>
+                <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+              </div>
+            </div>
+            <div class="sub-items">
+              <div class="sidebar-item" onclick="filterBySource('liangxin-corn', this)" ondblclick="startRename(this)">
+                <span class="icon">🌽</span>
+                <span class="name">玉米</span>
+                <span class="count">234</span>
+                <div class="sidebar-item-actions">
+                  <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                  <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+                </div>
+              </div>
+              <div class="sidebar-item" onclick="filterBySource('liangxin-wheat', this)" ondblclick="startRename(this)">
+                <span class="icon">🌾</span>
+                <span class="name">小麦</span>
+                <span class="count">122</span>
+                <div class="sidebar-item-actions">
+                  <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                  <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+                </div>
+              </div>
+              <div class="sidebar-item" onclick="filterBySource('liangxin-rice', this)" ondblclick="startRename(this)">
+                <span class="icon">🍚</span>
+                <span class="name">稻谷</span>
+                <span class="count">100</span>
+                <div class="sidebar-item-actions">
+                  <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                  <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-item folder" onclick="toggleFolder(this)" ondblclick="startRename(this)">
+              <span class="icon">📂</span>
+              <span class="name">📺 我的钢铁</span>
+              <span class="count">234</span>
+              <span class="arrow">▶</span>
+              <div class="sidebar-item-actions">
+                <button onclick="event.stopPropagation(); addSubfolder(this)" title="添加子分类">+</button>
+                <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                <button onclick="event.stopPropagation(); importToFolder(this)" title="导入文件">📥</button>
+                <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+              </div>
+            </div>
+            <div class="sub-items">
+              <div class="sidebar-item" onclick="filterBySource('mysteel-corn', this)" ondblclick="startRename(this)">
+                <span class="icon">🌽</span>
+                <span class="name">玉米</span>
+                <span class="count">134</span>
+                <div class="sidebar-item-actions">
+                  <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                  <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+                </div>
+              </div>
+              <div class="sidebar-item" onclick="filterBySource('mysteel-wheat', this)" ondblclick="startRename(this)">
+                <span class="icon">🌾</span>
+                <span class="name">小麦</span>
+                <span class="count">100</span>
+                <div class="sidebar-item-actions">
+                  <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                  <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+                </div>
+              </div>
+            </div>
+            <div class="sidebar-item folder" onclick="toggleFolder(this)" ondblclick="startRename(this)">
+              <span class="icon">📂</span>
+              <span class="name">🌾 中华粮网</span>
+              <span class="count">189</span>
+              <span class="arrow">▶</span>
+              <div class="sidebar-item-actions">
+                <button onclick="event.stopPropagation(); addSubfolder(this)" title="添加子分类">+</button>
+                <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                <button onclick="event.stopPropagation(); importToFolder(this)" title="导入文件">📥</button>
+                <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+              </div>
+            </div>
+            <div class="sidebar-item folder" onclick="toggleFolder(this)" ondblclick="startRename(this)">
+              <span class="icon">📂</span>
+              <span class="name">🦃 USDA</span>
+              <span class="count">67</span>
+              <span class="arrow">▶</span>
+              <div class="sidebar-item-actions">
+                <button onclick="event.stopPropagation(); addSubfolder(this)" title="添加子分类">+</button>
+                <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                <button onclick="event.stopPropagation(); importToFolder(this)" title="导入文件">📥</button>
+                <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+              </div>
+            </div>
+            <div class="sidebar-item folder" onclick="toggleFolder(this)" ondblclick="startRename(this)">
+              <span class="icon">📂</span>
+              <span class="name">✏️ 人工录入</span>
+              <span class="count">56</span>
+              <span class="arrow">▶</span>
+              <div class="sidebar-item-actions">
+                <button onclick="event.stopPropagation(); addSubfolder(this)" title="添加子分类">+</button>
+                <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                <button onclick="event.stopPropagation(); importToFolder(this)" title="导入文件">📥</button>
+                <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-section">
+            <div class="sidebar-header">
+              我的文件夹
+              <button class="sidebar-header-btn" title="新建文件夹">+</button>
+            </div>
+            <div class="sidebar-item" oncontextmenu="showContextMenu(event, 'folder')">
+              <span class="icon">📁</span>
+              <span class="name">重点关注</span>
+              <span class="count">23</span>
+            </div>
+            <div class="sidebar-item" oncontextmenu="showContextMenu(event, 'folder')">
+              <span class="icon">📁</span>
+              <span class="name">待审核</span>
+              <span class="count">8</span>
+            </div>
+            <div class="sidebar-item" oncontextmenu="showContextMenu(event, 'folder')">
+              <span class="icon">📁</span>
+              <span class="name">每月汇总</span>
+              <span class="count">45</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-content" id="sidebarTags" style="display: none;">
+          <div class="sidebar-section">
+            <div class="sidebar-header">
+              标签
+              <button class="sidebar-header-btn" title="新建标签">+</button>
+            </div>
+            <div class="sidebar-item active" onclick="filterByTag('all', this)">
+              <span class="icon">🏷️</span>
+              <span class="name">全部标签</span>
+              <span class="count">267</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByTag('price', this)" style="padding-left: 20px;">
+              <span class="tag price" style="width: 8px; height: 8px; border-radius: 50%;"></span>
+              <span class="name">价格</span>
+              <span class="count">89</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByTag('supply', this)" style="padding-left: 20px;">
+              <span class="tag supply" style="width: 8px; height: 8px; border-radius: 50%;"></span>
+              <span class="name">供需</span>
+              <span class="count">67</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByTag('policy', this)" style="padding-left: 20px;">
+              <span class="tag policy" style="width: 8px; height: 8px; border-radius: 50%;"></span>
+              <span class="name">政策</span>
+              <span class="count">45</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByTag('international', this)" style="padding-left: 20px;">
+              <span class="tag international" style="width: 8px; height: 8px; border-radius: 50%;"></span>
+              <span class="name">国际</span>
+              <span class="count">34</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByTag('weather', this)" style="padding-left: 20px;">
+              <span class="icon">🌤️</span>
+              <span class="name">气象</span>
+              <span class="count">23</span>
+            </div>
+            <div class="sidebar-item" onclick="filterByTag('report', this)" style="padding-left: 20px;">
+              <span class="icon">📊</span>
+              <span class="name">报告</span>
+              <span class="count">18</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <button class="btn btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17,8 12,3 7,8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            导入
+          </button>
+          <button class="btn btn-secondary">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7,10 12,15 17,10"/>
+              <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            导出
+          </button>
+        </div>
+      </aside>
+
+      <!-- List Area -->
+      <div class="list-area" id="listArea">
+        <button class="list-collapse-btn" onclick="toggleList()" title="折叠列表">◀</button>
+        <div class="list-header">
+          <div class="list-header-left">
+            <h2 class="list-title">知识列表</h2>
+            <span class="list-count">1,234 条</span>
+          </div>
+          <div class="list-header-right">
+            <div class="view-toggle">
+              <button class="active" onclick="setView('card', this)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="3" y="3" width="7" height="7"/>
+                  <rect x="14" y="3" width="7" height="7"/>
+                  <rect x="14" y="14" width="7" height="7"/>
+                  <rect x="3" y="14" width="7" height="7"/>
+                </svg>
+                卡片
+              </button>
+              <button onclick="setView('table', this)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="8" y1="6" x2="21" y2="6"/>
+                  <line x1="8" y1="12" x2="21" y2="12"/>
+                  <line x1="8" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="6" x2="3.01" y2="6"/>
+                  <line x1="3" y1="12" x2="3.01" y2="12"/>
+                  <line x1="3" y1="18" x2="3.01" y2="18"/>
+                </svg>
+                表格
+              </button>
+            </div>
+            <button class="btn btn-icon btn-secondary" onclick="refreshData()" title="刷新">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24"/>
+                <path d="M21 3v6h-6"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="filters-bar">
+          <div class="filter-dropdown" id="sourceFilter">
+            <button class="filter-dropdown-btn" onclick="toggleFilterDropdown('sourceFilter')">
+              来源 <span id="sourceFilterValue">全部</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </button>
+            <div class="filter-dropdown-menu">
+              <div class="filter-dropdown-item selected" onclick="selectFilter('source', '全部', this)">全部</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('source', '粮信网', this)">🌐 粮信网</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('source', '我的钢铁', this)">📺 我的钢铁</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('source', '中华粮网', this)">🌾 中华粮网</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('source', 'USDA', this)">🦃 USDA</div>
+            </div>
+          </div>
+
+          <div class="filter-dropdown" id="statusFilter">
+            <button class="filter-dropdown-btn" onclick="toggleFilterDropdown('statusFilter')">
+              状态 <span id="statusFilterValue">全部</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </button>
+            <div class="filter-dropdown-menu">
+              <div class="filter-dropdown-item selected" onclick="selectFilter('status', '全部', this)">全部</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('status', '已向量化', this)">✅ 已向量化</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('status', '未向量化', this)">⏳ 未向量化</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('status', '处理中', this)">🔄 处理中</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('status', '失败', this)">❌ 失败</div>
+            </div>
+          </div>
+
+          <div class="filter-dropdown" id="dateFilter">
+            <button class="filter-dropdown-btn" onclick="toggleFilterDropdown('dateFilter')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/>
+                <line x1="3" y1="10" x2="21" y2="10"/>
+              </svg>
+              日期范围
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </button>
+            <div class="filter-dropdown-menu">
+              <div class="filter-dropdown-item selected" onclick="selectFilter('date', '不限', this)">不限</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('date', '今天', this)">今天</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('date', '本周', this)">本周</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('date', '本月', this)">本月</div>
+              <div class="filter-dropdown-item" onclick="selectFilter('date', '今年', this)">今年</div>
+            </div>
+          </div>
+
+          <div class="filter-spacer"></div>
+
+          <div class="sort-dropdown" id="sortDropdown">
+            <button class="filter-dropdown-btn" onclick="toggleSortDropdown()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M7 12h10M11 18h2"/>
+              </svg>
+              <span id="sortValue">默认排序</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </button>
+            <div class="filter-dropdown-menu" id="sortMenu" style="right: 0; left: auto;">
+              <div class="filter-dropdown-item selected" onclick="handleSort('default', this)">🕐 默认排序</div>
+              <div class="filter-dropdown-item" onclick="handleSort('date', this)">📅 按更新时间</div>
+              <div class="filter-dropdown-item" onclick="handleSort('name', this)">🔤 按名称</div>
+              <div class="filter-dropdown-item" onclick="handleSort('source', this)">📊 按来源</div>
+            </div>
+          </div>
+
+          <button class="filter-clear" onclick="clearAllFilters()" style="display: none;" id="clearFiltersBtn">
+            ✕ 清除筛选
+          </button>
+        </div>
+
+        <div class="batch-bar" id="batchBar">
+          <div class="batch-bar-left">
+            <span>已选择 <strong id="selectedCount">0</strong> 项</span>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn" onclick="batchAction('move')">📂 移动到</button>
+            <button class="btn" onclick="batchAction('vectorize')">🔄 重向量化</button>
+            <button class="btn" onclick="batchAction('export')">📤 导出</button>
+            <button class="btn danger" onclick="batchAction('delete')">🗑️ 删除</button>
+            <button class="btn" onclick="clearSelection()" style="background: transparent; border: none;">✕</button>
+          </div>
+        </div>
+
+        <div class="card-grid" id="cardGrid">
+          <!-- Cards will be rendered here -->
+        </div>
+
+        <div class="table-view" id="tableView">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 40px;"></th>
+                <th>标题</th>
+                <th>来源</th>
+                <th>状态</th>
+                <th>标签</th>
+                <th>日期</th>
+                <th style="width: 100px;">操作</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <!-- Table rows will be rendered here -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination-wrapper">
+          <div class="pagination-info">
+            显示 1-20 条，共 1,234 条
+          </div>
+          <div class="pagination">
+            <button disabled>◀</button>
+            <button class="active">1</button>
+            <button>2</button>
+            <button>3</button>
+            <span class="pagination-ellipsis">...</span>
+            <button>52</button>
+            <button>▶</button>
+          </div>
+          <select class="page-size-select">
+            <option>20 条/页</option>
+            <option>50 条/页</option>
+            <option>100 条/页</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Preview Panel -->
+      <aside class="preview-panel hidden" id="previewPanel">
+        <div class="preview-header">
+          <div class="preview-title">
+            <span class="preview-title-icon">📄</span>
+            <span id="previewTitleText">玉米价格周报</span>
+          </div>
+          <div class="preview-header-actions">
+            <button title="隐藏列表" onclick="toggleFullPreview()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                <line x1="9" y1="3" x2="9" y2="21"/>
+              </svg>
+            </button>
+            <button title="新窗口打开" onclick="openInNewWindow()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15,3 21,3 21,9"/>
+                <line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+            </button>
+            <button title="全屏" onclick="toggleFullscreen()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="15,3 21,3 21,9"/>
+                <polyline points="9,21 3,21 3,15"/>
+                <line x1="21" y1="3" x2="14" y2="10"/>
+                <line x1="3" y1="21" x2="10" y2="14"/>
+              </svg>
+            </button>
+            <button title="关闭" onclick="closePreview()">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="preview-meta-grid">
+          <div class="preview-meta-item">
+            <div class="label">来源</div>
+            <div class="value">🌐 粮信网</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">日期</div>
+            <div class="value">2024-01-15</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">文本块</div>
+            <div class="value">12</div>
+          </div>
+          <div class="preview-meta-item">
+            <div class="label">来源类型</div>
+            <div class="value">采集</div>
+          </div>
+        </div>
+
+        <div class="preview-status-bar">
+          <div class="status-option active" onclick="changeStatus('vectorized', this)">
+            <span class="dot"></span>
+            已向量化
+          </div>
+          <div class="status-option" onclick="changeStatus('pending', this)">
+            <span class="dot"></span>
+            未向量化
+          </div>
+          <div class="status-option" onclick="changeStatus('processing', this)">
+            <span class="dot"></span>
+            处理中
+          </div>
+          <div class="status-option" onclick="changeStatus('failed', this)">
+            <span class="dot"></span>
+            失败
+          </div>
+        </div>
+
+        <div class="preview-tags-section">
+          <span class="preview-tag price">价格</span>
+          <span class="preview-tag supply">供需</span>
+          <span class="add-tag-btn" onclick="openTagManager()">+ 添加标签</span>
+        </div>
+
+        <div class="preview-content">
+          <div class="preview-section">
+            <div class="preview-section-title">内容预览</div>
+            <div class="content-block">
+              <h2>本周（2024年第3周）玉米市场行情综述</h2>
+
+              <h3>一、价格走势</h3>
+              <p>全国玉米均价 <strong>2480元/吨</strong>，环比上涨 0.8%。东北产区 <strong>2400-2500元/吨</strong>，华北产区 <strong>2550-2650元/吨</strong>。</p>
+
+              <h3>二、供需分析</h3>
+              <ul>
+                <li>饲料需求：本周生猪养殖亏损收窄，饲料需求环比增长 2.3%</li>
+                <li>深加工需求：玉米淀粉企业开工率 65%，环比持平</li>
+                <li>进口方面：12月进口玉米 85万吨，环比下降 15%</li>
+              </ul>
+
+              <h3>三、后市展望</h3>
+              <p>预计下周玉米价格将维持震荡偏强走势，建议关注：</p>
+              <ul>
+                <li>农户售粮进度变化</li>
+                <li>饲料企业备货情况</li>
+                <li>国际玉米价格波动</li>
+              </ul>
+
+              <button class="expand-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="m6 9 6 6 6-6"/>
+                </svg>
+                展开全部内容
+              </button>
+            </div>
+          </div>
+
+          <div class="preview-section">
+            <div class="preview-section-title">相关知识</div>
+            <div class="related-list">
+              <div class="related-item">
+                <span class="icon">📄</span>
+                <div class="info">
+                  <div class="title">玉米期货周报</div>
+                  <div class="meta">🌐 粮信网 | 相关度 95%</div>
+                </div>
+                <span class="score">95%</span>
+              </div>
+              <div class="related-item">
+                <span class="icon">📄</span>
+                <div class="info">
+                  <div class="title">饲料需求月度分析</div>
+                  <div class="meta">📺 我的钢铁 | 相关度 87%</div>
+                </div>
+                <span class="score">87%</span>
+              </div>
+              <div class="related-item">
+                <span class="icon">📄</span>
+                <div class="info">
+                  <div class="title">深加工企业开工率</div>
+                  <div class="meta">🌾 中华粮网 | 相关度 82%</div>
+                </div>
+                <span class="score">82%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="preview-section">
+            <div class="preview-section-title">版本历史</div>
+            <div class="version-list">
+              <div class="version-item current">
+                <div class="version-badge">v3</div>
+                <div class="info">
+                  <div class="title">系统采集更新</div>
+                  <div class="meta">2024-01-15 15:30 | 自动采集</div>
+                </div>
+                <div class="actions">
+                  <button title="预览此版本">👁️</button>
+                  <button title="恢复此版本">↩️</button>
+                </div>
+              </div>
+              <div class="version-item">
+                <div class="version-badge">v2</div>
+                <div class="info">
+                  <div class="title">人工修正价格数据</div>
+                  <div class="meta">2024-01-10 10:20 | 管理员</div>
+                </div>
+                <div class="actions">
+                  <button title="预览此版本">👁️</button>
+                  <button title="恢复此版本">↩️</button>
+                </div>
+              </div>
+              <div class="version-item">
+                <div class="version-badge">v1</div>
+                <div class="info">
+                  <div class="title">初始导入</div>
+                  <div class="meta">2024-01-01 09:00 | 系统</div>
+                </div>
+                <div class="actions">
+                  <button title="预览此版本">👁️</button>
+                  <button title="恢复此版本">↩️</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="preview-footer">
+          <button class="btn btn-primary" onclick="editCurrentKnowledge()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            编辑内容
+          </button>
+          <button class="btn btn-secondary" onclick="revectorizeCurrent()">🔄 重向量化</button>
+          <button class="btn btn-secondary" onclick="exportCurrent()">📤 导出</button>
+        </div>
+
+        <div class="preview-footer-meta">
+          <span>最后更新：2小时前</span>
+          <span>
+            <a href="#" style="color: var(--accent); text-decoration: none;">查看向量详情</a> ·
+            <a href="#" style="color: var(--accent); text-decoration: none;">语义搜索</a>
+          </span>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Add Modal -->
+  <div class="modal-overlay" id="addModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>添加知识</h2>
+        <div class="modal-header-actions">
+          <button class="modal-close" onclick="closeAddModal()">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; gap: 8px; margin-bottom: 24px;">
+          <button class="btn btn-primary" style="flex: 1; justify-content: center;" onclick="setAddMode('upload', this)" id="addModeUpload">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="17,8 12,3 7,8"/>
+              <line x1="12" y1="3" x2="12" y2="15"/>
+            </svg>
+            上传文档
+          </button>
+          <button class="btn btn-secondary" style="flex: 1; justify-content: center;" onclick="setAddMode('manual', this)" id="addModeManual">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            人工录入
+          </button>
+          <button class="btn btn-secondary" style="flex: 1; justify-content: center;" onclick="setAddMode('batch', this)" id="addModeBatch">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="9" y1="21" x2="9" y2="9"/>
+            </svg>
+            批量导入
+          </button>
+        </div>
+
+        <div id="addFormUpload">
+          <div class="form-group">
+            <label>标题 <span class="required">*</span></label>
+            <input type="text" placeholder="请输入文档标题">
+          </div>
+          <div class="form-group">
+            <label>来源</label>
+            <input type="text" placeholder="如：粮信网">
+          </div>
+          <div class="form-group">
+            <label>标签</label>
+            <div class="tag-input-wrapper">
+              <span class="tag price">价格 <span class="remove">✕</span></span>
+              <span class="tag supply">供需 <span class="remove">✕</span></span>
+              <input type="text" placeholder="输入标签名称">
+            </div>
+            <p class="hint">按回车添加标签</p>
+          </div>
+          <div class="form-group">
+            <label>上传文件 <span class="required">*</span></label>
+            <div class="upload-zone" id="uploadZone">
+              <input type="file" accept=".pdf,.doc,.docx,.txt,.md" onchange="handleFileSelect(this)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17,8 12,3 7,8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p>将文件拖到此处，或点击选择文件</p>
+              <p class="formats">支持 PDF、Word、TXT、Markdown 格式</p>
+            </div>
+            <div class="file-info" id="fileInfo" style="display: none;">
+              <div class="name">
+                <span id="fileName">document.pdf</span>
+                <span class="size" id="fileSize">(2.3 MB)</span>
+              </div>
+              <button class="remove" onclick="removeSelectedFile()">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <div id="addFormManual" style="display: none;">
+          <div class="form-group">
+            <label>标题 <span class="required">*</span></label>
+            <input type="text" placeholder="请输入知识标题">
+          </div>
+          <div class="form-group">
+            <label>内容 <span class="required">*</span></label>
+            <textarea placeholder="请输入知识内容..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>来源</label>
+            <input type="text" placeholder="如：内部文档">
+          </div>
+          <div class="form-group">
+            <label>标签</label>
+            <div class="tag-input-wrapper">
+              <input type="text" placeholder="输入标签名称，按回车添加">
+            </div>
+          </div>
+        </div>
+
+        <div id="addFormBatch" style="display: none;">
+          <div class="form-group">
+            <label>导入方式</label>
+            <select>
+              <option>Excel 模板导入</option>
+              <option>JSON 批量导入</option>
+              <option>文件夹批量导入</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>下载模板</label>
+            <button class="btn btn-secondary" onclick="downloadTemplate()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7,10 12,15 17,10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              下载 Excel 模板
+            </button>
+          </div>
+          <div class="form-group">
+            <label>选择文件</label>
+            <div class="upload-zone">
+              <input type="file" accept=".xlsx,.xls,.json">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17,8 12,3 7,8"/>
+                <line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              <p>点击选择文件或将文件拖到此处</p>
+              <p class="formats">支持 .xlsx, .xls, .json 格式</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeAddModal()">取消</button>
+        <button class="btn btn-primary" onclick="submitAdd()">开始上传并处理</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Search Modal -->
+  <div class="modal-overlay" id="searchModal">
+    <div class="modal search-modal">
+      <div class="modal-header" style="padding: 16px 20px;">
+        <div class="search-input-wrapper" style="flex: 1; margin: 0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input type="text" placeholder="输入关键词搜索..." id="searchInput" autofocus onkeydown="handleSearchKeydown(event)"
+          <button class="search-clear" onclick="clearSearch()">✕</button>
+        </div>
+      </div>
+      <div class="modal-body" style="padding: 16px 20px;">
+        <div class="search-tabs">
+          <button class="search-tab active" onclick="setSearchMode('fulltext', this)">全文</button>
+          <button class="search-tab" onclick="setSearchMode('semantic', this)">语义</button>
+          <button class="search-tab" onclick="setSearchMode('hybrid', this)">混合</button>
+        </div>
+
+        <div class="search-filters">
+          <button class="search-filter-btn active">全部来源</button>
+          <button class="search-filter-btn">🌐 粮信网</button>
+          <button class="search-filter-btn">📺 我的钢铁</button>
+          <button class="search-filter-btn">🌾 中华粮网</button>
+        </div>
+
+        <div class="search-results" id="searchResults">
+          <div class="search-result-group">
+            <div class="search-result-group-title">搜索结果 · 23 条</div>
+
+            <div class="search-result-item" onclick="selectSearchResult(this, 1)">
+              <div class="search-result-header">
+                <span class="search-result-title">📄 玉米价格周报</span>
+                <span class="search-result-badge">粮信网</span>
+                <span class="search-result-badge" style="background: rgba(63, 185, 80, 0.15); color: var(--green);">98% 相关</span>
+              </div>
+              <div class="search-result-meta">📅 2024-01-15 | 📊 12 个文本块 | ✅ 已向量化</div>
+              <div class="search-result-snippet">本周<mark>玉米</mark>价格呈现稳中略涨态势，全国均价 <mark>2480</mark> 元/吨，环比上涨 0.8%...</div>
+            </div>
+
+            <div class="search-result-item" onclick="selectSearchResult(this, 2)">
+              <div class="search-result-header">
+                <span class="search-result-title">📄 玉米期货周报</span>
+                <span class="search-result-badge">我的钢铁</span>
+                <span class="search-result-badge" style="background: rgba(63, 185, 80, 0.15); color: var(--green);">95% 相关</span>
+              </div>
+              <div class="search-result-meta">📅 2024-01-14 | 📊 8 个文本块 | ✅ 已向量化</div>
+              <div class="search-result-snippet">预计下周<mark>玉米</mark>期货价格将维持震荡偏强走势，密切关注... </div>
+            </div>
+
+            <div class="search-result-item" onclick="selectSearchResult(this, 3)">
+              <div class="search-result-header">
+                <span class="search-result-title">📄 饲料需求分析报告</span>
+                <span class="search-result-badge">中华粮网</span>
+                <span class="search-result-badge" style="background: rgba(63, 185, 80, 0.15); color: var(--green);">87% 相关</span>
+              </div>
+              <div class="search-result-meta">📅 2024-01-13 | 📊 15 个文本块 | ✅ 已向量化</div>
+              <div class="search-result-snippet">本周<mark>玉米</mark>饲料需求环比增长 2.3%，主要受... </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="search-footer">
+        <div class="search-hints">
+          <span><kbd>↑</kbd><kbd>↓</kbd> 导航</span>
+          <span><kbd>Enter</kbd> 选择</span>
+          <span><kbd>Esc</kbd> 关闭</span>
+        </div>
+        <span>搜索历史</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div class="modal-overlay" id="editModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>编辑知识</h2>
+        <div class="modal-header-actions">
+          <button class="modal-close" onclick="closeEditModal()">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div class="edit-tabs">
+          <button class="edit-tab active" onclick="setEditTab('edit')">编辑</button>
+          <button class="edit-tab" onclick="setEditTab('preview')">预览</button>
+        </div>
+        <div id="editForm" style="margin-top: 16px;">
+          <div class="form-group">
+            <label>标题</label>
+            <input type="text" id="editTitle" class="form-input" value="" placeholder="请输入标题">
+          </div>
+          <div class="form-group">
+            <label>内容</label>
+            <textarea class="form-textarea" rows="10" placeholder="请输入内容..."></textarea>
+          </div>
+        </div>
+        <div id="editPreview" style="display: none; margin-top: 16px;">
+          <div class="preview-meta">
+            <span class="meta-item">📊 <span id="editChunks">12 个文本块</span></span>
+            <span class="meta-item">📅 <span id="editDate">2024-01-15</span></span>
+            <span class="meta-item">📍 <span id="editStatus">已向量化</span></span>
+          </div>
+          <div id="editPreviewContent" style="margin-top: 16px; padding: 16px; background: var(--bg-tertiary); border-radius: 8px; font-size: 14px; line-height: 1.8;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeEditModal()">取消</button>
+        <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Move Modal -->
+  <div class="modal-overlay" id="moveModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>移动到文件夹</h2>
+        <div class="modal-header-actions">
+          <button class="modal-close" onclick="closeMoveModal()">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">选择目标文件夹</p>
+        <div id="folderTree" class="folder-tree" style="max-height: 300px; overflow-y: auto;">
+          <!-- Folder tree will be rendered by JS -->
+        </div>
+        <button class="btn btn-secondary" style="margin-top: 12px; width: 100%;" onclick="createNewFolder()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+          新建文件夹
+        </button>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeMoveModal()">取消</button>
+        <button class="btn btn-primary" onclick="confirmMove()">确认移动</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tag Manager Modal -->
+  <div class="modal-overlay" id="tagManagerModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2>标签管理</h2>
+        <div class="modal-header-actions">
+          <button class="modal-close" onclick="closeTagManager()">✕</button>
+        </div>
+      </div>
+      <div class="modal-body">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+          <p style="font-size: 13px; color: var(--text-muted);">管理知识标签</p>
+          <button class="btn btn-primary btn-sm" onclick="addNewTag()">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            新增标签
+          </button>
+        </div>
+        <div id="tagList" style="display: flex; flex-direction: column; gap: 12px;">
+          <!-- Tag list will be rendered by JS -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeTagManager()">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div class="context-menu" id="contextMenu">
+    <div class="context-menu-item" onclick="contextAction('preview')">
+      <span class="icon">👁️</span>
+      预览
+      <span class="shortcut">Space</span>
+    </div>
+    <div class="context-menu-item" onclick="contextAction('edit')">
+      <span class="icon">✏️</span>
+      编辑内容
+      <span class="shortcut">E</span>
+    </div>
+    <div class="context-menu-item" onclick="contextAction('copy')">
+      <span class="icon">📋</span>
+      复制链接
+      <span class="shortcut">Ctrl+C</span>
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" onclick="contextAction('move')">
+      <span class="icon">📂</span>
+      移动到...
+      <span class="shortcut">Ctrl+M</span>
+    </div>
+    <div class="context-menu-item" onclick="contextAction('copyTo')">
+      <span class="icon">📄</span>
+      复制到...
+    </div>
+    <div class="context-menu-item" onclick="contextAction('tag')">
+      <span class="icon">🏷️</span>
+      管理标签
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item" onclick="contextAction('export')">
+      <span class="icon">📤</span>
+      导出
+    </div>
+    <div class="context-menu-item" onclick="contextAction('vectorize')">
+      <span class="icon">🔄</span>
+      重向量化
+    </div>
+    <div class="context-menu-divider"></div>
+    <div class="context-menu-item danger" onclick="contextAction('delete')">
+      <span class="icon">🗑️</span>
+      删除
+      <span class="shortcut">Del</span>
+    </div>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script>
+    // ==================== Data ====================
+    const knowledgeItems = [
+      {
+        id: 1, title: '玉米价格周报', source: '粮信网', sourceIcon: '🌐', date: '2024-01-15',
+        status: 'vectorized', chunks: 12,
+        preview: '本周玉米价格呈现稳中略涨态势，全国均价 2480 元/吨，环比上涨 0.8%。东北产区 2400-2500 元/吨...',
+        tags: ['price', 'supply']
+      },
+      {
+        id: 2, title: '小麦市场分析', source: '中华粮网', sourceIcon: '🌾', date: '2024-01-14',
+        status: 'vectorized', chunks: 8,
+        preview: '本周小麦价格整体平稳，局部地区小幅波动。面粉加工企业收购价约 2800-2900 元/吨...',
+        tags: ['price', 'international']
+      },
+      {
+        id: 3, title: '大豆进口数据月报', source: 'USDA', sourceIcon: '🦃', date: '2024-01-13',
+        status: 'pending', chunks: 15,
+        preview: 'USDA 供需报告数据显示，本月大豆进口量约 850 万吨，环比下降 12%...',
+        tags: ['supply', 'international']
+      },
+      {
+        id: 4, title: '稻谷行情周报', source: '粮信网', sourceIcon: '🌐', date: '2024-01-14',
+        status: 'vectorized', chunks: 10,
+        preview: '本周稻谷价格维持稳定，早籼稻约 2700-2800 元/吨，中晚籼稻约 2850-2950 元/吨...',
+        tags: ['price']
+      },
+      {
+        id: 5, title: '饲料需求月度报告', source: '我的钢铁', sourceIcon: '📺', date: '2024-01-12',
+        status: 'vectorized', chunks: 18,
+        preview: '1月饲料需求环比下降 3.2%，同比下降 5.8%。猪饲料需求占比约 45%...',
+        tags: ['supply']
+      },
+      {
+        id: 6, title: '政策解读：粮食补贴调整', source: '人工录入', sourceIcon: '✏️', date: '2024-01-10',
+        status: 'vectorized', chunks: 6,
+        preview: '财政部发布 2024 年粮食补贴政策调整方案，主要变化包括...',
+        tags: ['policy']
+      },
+      {
+        id: 7, title: '玉米期货周报', source: '我的钢铁', sourceIcon: '📺', date: '2024-01-13',
+        status: 'processing', chunks: 9,
+        preview: '本周玉米期货主力合约呈震荡上行态势，C2405 合约收盘价 2458 元/吨...',
+        tags: ['price']
+      },
+      {
+        id: 8, title: '国际粮食市场动态', source: 'USDA', sourceIcon: '🦃', date: '2024-01-11',
+        status: 'failed', chunks: 0,
+        preview: 'CBOT 玉米期货本周上涨 1.2%，受助于 USDA 报告利多...',
+        tags: ['international']
+      }
+    ];
+
+    let selectedCards = new Set();
+    let currentView = 'card';
+    let currentFilters = { source: '全部', status: '全部' };
+    let currentPreviewId = 1;
+
+    // ==================== Rendering ====================
+    function renderCards() {
+      const grid = document.getElementById('cardGrid');
+      grid.innerHTML = knowledgeItems.map(item => `
+        <div class="card ${selectedCards.has(item.id) ? 'selected' : ''}" data-id="${item.id}"
+             onclick="handleCardClick(event, ${item.id})" oncontextmenu="showContextMenu(event, ${item.id})"
+             draggable="true" ondragstart="handleDragStart(event, ${item.id})"
+             ondragover="handleDragOver(event)" ondrop="handleDrop(event, ${item.id})">
+          <div class="card-header">
+            <div class="card-checkbox ${selectedCards.has(item.id) ? 'checked' : ''}"
+                 onclick="event.stopPropagation(); toggleCardSelect(${item.id})"></div>
+            <div class="card-info">
+              <div class="card-title">
+                <span class="doc-icon">📄</span>
+                ${item.title}
+              </div>
+              <div class="card-source">
+                <span class="source-badge">${item.sourceIcon} ${item.source}</span>
+                <span>📅 ${item.date}</span>
+              </div>
+            </div>
+            <button class="card-menu-btn" onclick="event.stopPropagation(); showContextMenu(event, ${item.id})">⋮</button>
+          </div>
+          <div class="card-preview">💬 ${item.preview}</div>
+          <div class="card-tags">
+            ${item.tags.map(tag => `<span class="tag ${tag === 'price' ? 'price' : tag === 'supply' ? 'supply' : tag === 'policy' ? 'policy' : tag === 'international' ? 'international' : ''}">🏷️ ${tag === 'price' ? '价格' : tag === 'supply' ? '供需' : tag === 'policy' ? '政策' : tag === 'international' ? '国际' : tag}</span>`).join('')}
+          </div>
+          <div class="card-footer">
+            <div class="card-status ${item.status}">
+              <span class="dot"></span>
+              ${item.status === 'vectorized' ? '已向量化' : item.status === 'pending' ? '未向量化' : item.status === 'processing' ? '处理中' : '失败'}
+            </div>
+            <div class="card-actions">
+              <button onclick="event.stopPropagation(); viewPreview(${item.id})" title="预览">👁️</button>
+              <button onclick="event.stopPropagation(); editKnowledge(${item.id})" title="编辑">✏️</button>
+              <button onclick="event.stopPropagation(); revectorize(${item.id})" title="重向量化">🔄</button>
+              <button onclick="event.stopPropagation(); deleteKnowledge(${item.id})" title="删除" style="color: var(--red);">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = knowledgeItems.map(item => `
+        <tr class="${selectedCards.has(item.id) ? 'selected' : ''}" data-id="${item.id}"
+            oncontextmenu="showContextMenu(event, ${item.id})">
+          <td>
+            <div class="checkbox ${selectedCards.has(item.id) ? 'checked' : ''}"
+                 onclick="toggleCardSelect(${item.id})"></div>
+          </td>
+          <td>
+            <div class="title-cell">
+              <span class="icon">📄</span>
+              ${item.title}
+            </div>
+          </td>
+          <td><span class="source-badge">${item.sourceIcon} ${item.source}</span></td>
+          <td>
+            <span class="card-status ${item.status}" style="font-size: 12px;">
+              <span class="dot"></span>
+              ${item.status === 'vectorized' ? '已向量化' : item.status === 'pending' ? '未向量化' : item.status === 'processing' ? '处理中' : '失败'}
+            </span>
+          </td>
+          <td>${item.tags.map(t => `<span class="tag ${t}">🏷️</span>`).join(' ')}</td>
+          <td>${item.date}</td>
+          <td>
+            <div class="actions">
+              <button onclick="viewPreview(${item.id})" title="预览">👁️</button>
+              <button onclick="editKnowledge(${item.id})" title="编辑">✏️</button>
+              <button onclick="deleteKnowledge(${item.id})" title="删除">🗑️</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // ==================== View & Selection ====================
+    function setView(view, btn) {
+      currentView = view;
+      document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const cardGrid = document.getElementById('cardGrid');
+      const tableView = document.getElementById('tableView');
+
+      if (view === 'card') {
+        cardGrid.style.display = 'grid';
+        tableView.classList.remove('show');
+      } else {
+        cardGrid.style.display = 'none';
+        tableView.classList.add('show');
+        renderTable();
+      }
+    }
+
+    function toggleCardSelect(id) {
+      if (selectedCards.has(id)) {
+        selectedCards.delete(id);
+      } else {
+        selectedCards.add(id);
+      }
+      updateBatchBar();
+      if (currentView === 'card') {
+        renderCards();
+      } else {
+        renderTable();
+      }
+    }
+
+    function updateBatchBar() {
+      const bar = document.getElementById('batchBar');
+      const count = document.getElementById('selectedCount');
+      if (selectedCards.size > 0) {
+        bar.classList.add('show');
+        count.textContent = selectedCards.size;
+      } else {
+        bar.classList.remove('show');
+      }
+    }
+
+    function clearSelection() {
+      selectedCards.clear();
+      updateBatchBar();
+      if (currentView === 'card') {
+        renderCards();
+      } else {
+        renderTable();
+      }
+    }
+
+    function handleCardClick(event, id) {
+      if (event.target.closest('.card-checkbox') || event.target.closest('.card-menu-btn') || event.target.closest('.card-actions')) {
+        return;
+      }
+      viewPreview(id);
+    }
+
+    // ==================== Layout States ====================
+    // States: normal, sidebar-collapsed, list-collapsed, fullscreen-preview
+
+    function viewPreview(id) {
+      currentPreviewId = id;
+      const item = knowledgeItems.find(i => i.id === id);
+      if (item) {
+        document.getElementById('previewTitleText').textContent = item.title;
+        document.getElementById('previewPanel').classList.remove('hidden');
+
+        // Collapse sidebar, switch list to sidebar mode
+        const sidebar = document.getElementById('sidebar');
+        sidebar.classList.add('collapsed');
+
+        const listArea = document.getElementById('listArea');
+        listArea.classList.add('list-sidebar-mode');
+        listArea.classList.remove('list-collapsed');
+
+        // Render list items in sidebar mode
+        renderSidebarList();
+      }
+    }
+
+    function closePreview() {
+      document.getElementById('previewPanel').classList.add('hidden');
+
+      const listArea = document.getElementById('listArea');
+
+      // Remove sidebar list items and loading
+      const oldList = listArea.querySelector('.list-items');
+      const oldLoading = listArea.querySelector('.list-loading');
+      if (oldList) oldList.remove();
+      if (oldLoading) oldLoading.remove();
+
+      // Restore normal content
+      const cardGrid = listArea.querySelector('.card-grid');
+      const filtersBar = listArea.querySelector('.filters-bar');
+      const pagination = listArea.querySelector('.pagination-wrapper');
+      if (cardGrid) cardGrid.style.display = '';
+      if (filtersBar) filtersBar.style.display = '';
+      if (pagination) pagination.style.display = '';
+
+      listArea.classList.remove('list-sidebar-mode', 'list-collapsed');
+
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.remove('collapsed');
+    }
+
+    // Render list items in sidebar mode (compact list view with infinite scroll)
+    let sidebarListPage = 1;
+    const SIDEBAR_LIST_PAGE_SIZE = 5;
+
+    function renderSidebarList() {
+      const listArea = document.getElementById('listArea');
+
+      // Remove old list items and loading
+      const oldList = listArea.querySelector('.list-items');
+      const oldLoading = listArea.querySelector('.list-loading');
+      if (oldList) oldList.remove();
+      if (oldLoading) oldLoading.remove();
+
+      // Hide normal content, show compact list
+      const cardGrid = listArea.querySelector('.card-grid');
+      const tableView = listArea.querySelector('.table-view');
+      const filtersBar = listArea.querySelector('.filters-bar');
+
+      if (cardGrid) cardGrid.style.display = 'none';
+      if (tableView) tableView.classList.remove('show');
+      if (filtersBar) filtersBar.style.display = 'none';
+
+      sidebarListPage = 1;
+      loadMoreSidebarItems();
+    }
+
+    function loadMoreSidebarItems() {
+      const listArea = document.getElementById('listArea');
+      let listItems = listArea.querySelector('.list-items');
+
+      if (!listItems) {
+        listItems = document.createElement('div');
+        listItems.className = 'list-items';
+        listArea.appendChild(listItems);
+      }
+
+      const start = (sidebarListPage - 1) * SIDEBAR_LIST_PAGE_SIZE;
+      const end = start + SIDEBAR_LIST_PAGE_SIZE;
+      const itemsToShow = knowledgeItems.slice(start, end);
+
+      itemsToShow.forEach(item => {
+        const statusClass = item.status === 'vectorized' ? '' : item.status;
+        const statusText = item.status === 'vectorized' ? '已向量化' :
+                          item.status === 'pending' ? '未向量化' :
+                          item.status === 'processing' ? '处理中' : '失败';
+
+        const div = document.createElement('div');
+        div.className = `list-item ${item.id === currentPreviewId ? 'active' : ''}`;
+        div.onclick = () => viewPreview(item.id);
+        div.innerHTML = `
+          <span class="item-icon">📄</span>
+          <div class="item-info">
+            <div class="item-title">${item.title}</div>
+            <div class="item-meta">
+              <span class="item-status ${statusClass}"></span>
+              <span>${statusText}</span>
+              <span>·</span>
+              <span>${item.date}</span>
+            </div>
+          </div>
+        `;
+        listItems.appendChild(div);
+      });
+
+      // Remove old loading
+      const oldLoading = listArea.querySelector('.list-loading');
+      if (oldLoading) oldLoading.remove();
+
+      // Check if there are more items
+      if (end < knowledgeItems.length) {
+        // Add loading indicator
+        const loading = document.createElement('div');
+        loading.className = 'list-loading';
+        loading.innerHTML = `
+          <div class="spinner"></div>
+          <div class="list-loading-text">加载更多...</div>
+        `;
+        listArea.appendChild(loading);
+
+        // Scroll to load more
+        setTimeout(() => {
+          const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+              sidebarListPage++;
+              loadMoreSidebarItems();
+            }
+          });
+          observer.observe(loading);
+        }, 100);
+      }
+    }
+
+    // Toggle sidebar (分类/标签栏)
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+
+      const btn = sidebar.querySelector('.sidebar-toggle-btn');
+      if (sidebar.classList.contains('collapsed')) {
+        btn.textContent = '▶';
+      } else {
+        btn.textContent = '◀';
+      }
+    }
+
+    // Toggle list visibility (知识列表)
+    function toggleList() {
+      const listArea = document.getElementById('listArea');
+      const previewPanel = document.getElementById('previewPanel');
+
+      if (listArea.classList.contains('list-collapsed')) {
+        // List is hidden, restore to sidebar mode
+        listArea.classList.remove('list-collapsed');
+        listArea.classList.add('list-sidebar-mode');
+        renderSidebarList();
+      } else if (listArea.classList.contains('list-sidebar-mode')) {
+        // List is visible, hide it
+        listArea.classList.remove('list-sidebar-mode');
+        listArea.classList.add('list-collapsed');
+      } else if (!previewPanel.classList.contains('hidden')) {
+        // Normal mode with preview open - enter sidebar mode
+        listArea.classList.add('list-sidebar-mode');
+        renderSidebarList();
+      }
+    }
+
+    function toggleFullPreview() {
+      // Same as toggleList - toggle list visibility
+      toggleList();
+    }
+
+    function toggleListPanel() {
+      // Same as toggleList
+      toggleList();
+    }
+
+    function changeStatus(status, el) {
+      document.querySelectorAll('.status-option').forEach(s => s.classList.remove('active'));
+      el.classList.add('active');
+      showToast('success', '状态更新', `已切换为: ${status === 'vectorized' ? '已向量化' : status === 'pending' ? '未向量化' : status === 'processing' ? '处理中' : '失败'}`);
+    }
+
+    // ==================== Sidebar ====================
+    function switchSidebarTab(tab, btn) {
+      document.querySelectorAll('.sidebar-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+
+      if (tab === 'tree') {
+        document.getElementById('sidebarTree').style.display = 'block';
+        document.getElementById('sidebarTags').style.display = 'none';
+      } else {
+        document.getElementById('sidebarTree').style.display = 'none';
+        document.getElementById('sidebarTags').style.display = 'block';
+      }
+    }
+
+    function toggleFolder(el) {
+      el.classList.toggle('open');
+      const icon = el.querySelector('.icon');
+      if (el.classList.contains('open')) {
+        icon.textContent = '📂';
+      } else {
+        icon.textContent = '📁';
+      }
+    }
+
+    function filterByStatus(status, el) {
+      document.querySelectorAll('.sidebar-section:first-child .sidebar-item').forEach(i => i.classList.remove('active'));
+      el.classList.add('active');
+      showToast('info', '筛选', `已筛选: ${status === 'all' ? '全部知识' : status === 'vectorized' ? '已向量化' : status === 'pending' ? '未向量化' : status}`);
+    }
+
+    function filterBySource(source, el) {
+      if (el) {
+        document.querySelectorAll('.sub-items .sidebar-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+      }
+      showToast('info', '筛选', `已筛选来源: ${source}`);
+    }
+
+    function filterByTag(tag, el) {
+      document.querySelectorAll('#sidebarTags .sidebar-item').forEach(i => i.classList.remove('active'));
+      el.classList.add('active');
+      showToast('info', '筛选', `已筛选标签: ${tag}`);
+    }
+
+    // ==================== Folder Management ====================
+    function startRename(el) {
+      const item = el.closest('.sidebar-item');
+      const nameSpan = item.querySelector('.name');
+      const currentName = nameSpan.textContent;
+      const iconSpan = item.querySelector('.icon');
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'rename-input';
+      input.value = currentName.replace(/^[^\s]+\s*/, '');
+
+      nameSpan.style.display = 'none';
+      iconSpan.style.display = 'none';
+
+      const parent = nameSpan.parentNode;
+      parent.insertBefore(input, nameSpan);
+
+      input.focus();
+      input.select();
+
+      const finishRename = () => {
+        const newName = input.value.trim();
+        if (newName) {
+          nameSpan.textContent = iconSpan.textContent + ' ' + newName;
+          showToast('success', '重命名成功', `已重命名为: ${newName}`);
+        }
+        nameSpan.style.display = '';
+        iconSpan.style.display = '';
+        input.remove();
+      };
+
+      input.addEventListener('blur', finishRename);
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          input.blur();
+        } else if (e.key === 'Escape') {
+          input.value = currentName;
+          input.blur();
+        }
+      });
+    }
+
+    function addSubfolder(btn) {
+      const parentItem = btn.closest('.sidebar-item');
+      const subItems = parentItem.nextElementSibling;
+
+      if (!subItems || !subItems.classList.contains('sub-items')) {
+        showToast('error', '操作失败', '请先展开文件夹');
+        return;
+      }
+
+      const newItem = document.createElement('div');
+      newItem.className = 'new-subfolder-item';
+      newItem.innerHTML = `
+        <span class="icon">📁</span>
+        <input type="text" placeholder="输入子分类名称..." autofocus>
+        <span style="font-size: 11px; color: var(--text-muted);">按 Enter 确认</span>
+      `;
+
+      subItems.appendChild(newItem);
+      const input = newItem.querySelector('input');
+      input.focus();
+
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const name = input.value.trim();
+          if (name) {
+            const icon = getRandomIcon();
+            const count = Math.floor(Math.random() * 50) + 5;
+            newItem.outerHTML = `
+              <div class="sidebar-item" onclick="filterBySource('new-sub', this)">
+                <span class="icon">${icon}</span>
+                <span class="name">${name}</span>
+                <span class="count">${count}</span>
+                <div class="sidebar-item-actions">
+                  <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+                  <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+                </div>
+              </div>
+            `;
+            showToast('success', '创建成功', `已添加子分类: ${name}`);
+          } else {
+            newItem.remove();
+          }
+        } else if (e.key === 'Escape') {
+          newItem.remove();
+        }
+      });
+
+      input.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (input.parentElement) {
+            input.value = input.value.trim();
+            if (!input.value) {
+              newItem.remove();
+            }
+          }
+        }, 100);
+      });
+    }
+
+    function importToFolder(btn) {
+      const folderName = btn.closest('.sidebar-item').querySelector('.name').textContent;
+      showToast('info', '导入文件', `正在导入到: ${folderName}`);
+      setTimeout(() => {
+        openAddModal();
+      }, 500);
+    }
+
+    function deleteFolder(btn) {
+      const item = btn.closest('.sidebar-item');
+      const name = item.querySelector('.name').textContent;
+      if (confirm(`确定要删除 "${name}" 吗？子分类也会被删除。`)) {
+        const subItems = item.nextElementSibling;
+        if (subItems && subItems.classList.contains('sub-items')) {
+          subItems.remove();
+        }
+        item.remove();
+        showToast('success', '删除成功', `已删除: ${name}`);
+      }
+    }
+
+    function createRootFolder() {
+      const header = document.querySelector('.sidebar-section:has(.sidebar-header:contains("来源分类")) .sidebar-header');
+      const section = header.parentElement;
+
+      const newItem = document.createElement('div');
+      newItem.className = 'sidebar-item folder';
+      newItem.innerHTML = `
+        <span class="icon">📂</span>
+        <span class="name">新建分类</span>
+        <span class="count">0</span>
+        <span class="arrow">▶</span>
+        <div class="sidebar-item-actions">
+          <button onclick="event.stopPropagation(); addSubfolder(this)" title="添加子分类">+</button>
+          <button onclick="event.stopPropagation(); startRename(this)" title="重命名">✏️</button>
+          <button onclick="event.stopPropagation(); importToFolder(this)" title="导入文件">📥</button>
+          <button onclick="event.stopPropagation(); deleteFolder(this)" title="删除">🗑️</button>
+        </div>
+      `;
+
+      section.appendChild(newItem);
+      startRename(newItem);
+    }
+
+    function getRandomIcon() {
+      const icons = ['📁', '📊', '📈', '📉', '📋', '📌', '📎', '🗂️', '📂', '📰', '📑', '🔖'];
+      return icons[Math.floor(Math.random() * icons.length)];
+    }
+
+    // ==================== Filters ====================
+    function toggleFilterDropdown(id) {
+      document.querySelectorAll('.filter-dropdown').forEach(d => {
+        if (d.id === id) {
+          d.classList.toggle('open');
+        } else {
+          d.classList.remove('open');
+        }
+      });
+    }
+
+    function selectFilter(type, value, el) {
+      currentFilters[type] = value;
+      document.getElementById(type + 'FilterValue').textContent = value;
+
+      el.parentElement.querySelectorAll('.filter-dropdown-item').forEach(i => i.classList.remove('selected'));
+      el.classList.add('selected');
+
+      document.getElementById(type + 'Filter').classList.remove('open');
+      document.getElementById('clearFiltersBtn').style.display = 'flex';
+
+      showToast('info', '筛选', `已应用筛选: ${value}`);
+    }
+
+    function clearAllFilters() {
+      currentFilters = { source: '全部', status: '全部' };
+      document.getElementById('sourceFilterValue').textContent = '全部';
+      document.getElementById('statusFilterValue').textContent = '全部';
+      document.getElementById('clearFiltersBtn').style.display = 'none';
+      showToast('info', '筛选', '已清除所有筛选');
+    }
+
+    // ==================== Modals ====================
+    function openAddModal() {
+      document.getElementById('addModal').classList.add('show');
+    }
+
+    function closeAddModal() {
+      document.getElementById('addModal').classList.remove('show');
+    }
+
+    function setAddMode(mode, btn) {
+      document.getElementById('addModeUpload').classList.remove('btn-primary');
+      document.getElementById('addModeUpload').classList.add('btn-secondary');
+      document.getElementById('addModeManual').classList.remove('btn-primary');
+      document.getElementById('addModeManual').classList.add('btn-secondary');
+      document.getElementById('addModeBatch').classList.remove('btn-primary');
+      document.getElementById('addModeBatch').classList.add('btn-secondary');
+      btn.classList.remove('btn-secondary');
+      btn.classList.add('btn-primary');
+
+      document.getElementById('addFormUpload').style.display = mode === 'upload' ? 'block' : 'none';
+      document.getElementById('addFormManual').style.display = mode === 'manual' ? 'block' : 'none';
+      document.getElementById('addFormBatch').style.display = mode === 'batch' ? 'block' : 'none';
+    }
+
+    function handleFileSelect(input) {
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const uploadZone = document.getElementById('uploadZone');
+        const fileInfo = document.getElementById('fileInfo');
+
+        uploadZone.classList.add('has-file');
+        fileInfo.style.display = 'flex';
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = `(${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+      }
+    }
+
+    function removeSelectedFile() {
+      document.getElementById('uploadZone').classList.remove('has-file');
+      document.getElementById('fileInfo').style.display = 'none';
+      document.querySelector('#uploadZone input').value = '';
+    }
+
+    function submitAdd() {
+      closeAddModal();
+      showToast('success', '上传成功', '知识添加成功，正在后台处理...');
+    }
+
+    function openSearch() {
+      document.getElementById('searchModal').classList.add('show');
+      document.getElementById('searchInput').focus();
+    }
+
+    function closeSearch() {
+      document.getElementById('searchModal').classList.remove('show');
+    }
+
+    function clearSearch() {
+      document.getElementById('searchInput').value = '';
+      document.getElementById('searchInput').focus();
+    }
+
+    function setSearchMode(mode, btn) {
+      document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    function selectSearchResult(el, id) {
+      el.classList.add('selected');
+      closeSearch();
+      viewPreview(id);
+    }
+
+    // ==================== Context Menu ====================
+    let contextTargetId = null;
+    let contextType = 'item';
+
+    function showContextMenu(event, id) {
+      event.preventDefault();
+      event.stopPropagation();
+      contextTargetId = id;
+      contextType = typeof id === 'string' ? 'folder' : 'item';
+
+      const menu = document.getElementById('contextMenu');
+
+      // Update menu items based on context
+      if (contextType === 'folder') {
+        menu.innerHTML = `
+          <div class="context-menu-item" onclick="contextAction('rename')">
+            <span class="icon">✏️</span> 重命名
+          </div>
+          <div class="context-menu-item" onclick="contextAction('newSubfolder')">
+            <span class="icon">📂</span> 新建子文件夹
+          </div>
+          <div class="context-menu-divider"></div>
+          <div class="context-menu-item" onclick="contextAction('move')">
+            <span class="icon">📂</span> 移动到...
+          </div>
+          <div class="context-menu-item" onclick="contextAction('merge')">
+            <span class="icon">🔗</span> 合并文件夹
+          </div>
+          <div class="context-menu-divider"></div>
+          <div class="context-menu-item danger" onclick="contextAction('delete')">
+            <span class="icon">🗑️</span> 删除
+          </div>
+        `;
+      } else {
+        menu.innerHTML = `
+          <div class="context-menu-item" onclick="contextAction('preview')">
+            <span class="icon">👁️</span> 预览
+            <span class="shortcut">Space</span>
+          </div>
+          <div class="context-menu-item" onclick="contextAction('edit')">
+            <span class="icon">✏️</span> 编辑内容
+            <span class="shortcut">E</span>
+          </div>
+          <div class="context-menu-item" onclick="contextAction('copy')">
+            <span class="icon">📋</span> 复制链接
+            <span class="shortcut">Ctrl+C</span>
+          </div>
+          <div class="context-menu-divider"></div>
+          <div class="context-menu-item" onclick="contextAction('move')">
+            <span class="icon">📂</span> 移动到...
+            <span class="shortcut">Ctrl+M</span>
+          </div>
+          <div class="context-menu-item" onclick="contextAction('copyTo')">
+            <span class="icon">📄</span> 复制到...
+          </div>
+          <div class="context-menu-item" onclick="contextAction('tag')">
+            <span class="icon">🏷️</span> 管理标签
+          </div>
+          <div class="context-menu-divider"></div>
+          <div class="context-menu-item" onclick="contextAction('export')">
+            <span class="icon">📤</span> 导出
+          </div>
+          <div class="context-menu-item" onclick="contextAction('vectorize')">
+            <span class="icon">🔄</span> 重向量化
+          </div>
+          <div class="context-menu-divider"></div>
+          <div class="context-menu-item danger" onclick="contextAction('delete')">
+            <span class="icon">🗑️</span> 删除
+            <span class="shortcut">Del</span>
+          </div>
+        `;
+      }
+
+      menu.style.left = Math.min(event.pageX, window.innerWidth - 220) + 'px';
+      menu.style.top = Math.min(event.pageY, window.innerHeight - 300) + 'px';
+      menu.classList.add('show');
+    }
+
+    function hideContextMenu() {
+      document.getElementById('contextMenu').classList.remove('show');
+    }
+
+    function contextAction(action) {
+      hideContextMenu();
+      switch (action) {
+        case 'preview':
+          viewPreview(contextTargetId);
+          break;
+        case 'edit':
+          editKnowledge(contextTargetId);
+          break;
+        case 'delete':
+          if (confirm('确定要删除这个知识吗？')) {
+            showToast('success', '删除成功', '知识已删除');
+          }
+          break;
+        case 'vectorize':
+          showToast('info', '重向量化', '开始重新向量化...');
+          break;
+        case 'export':
+          showToast('info', '导出', '正在导出...');
+          break;
+        case 'move':
+          showToast('info', '移动', '选择目标文件夹');
+          break;
+        case 'copy':
+          showToast('success', '已复制', '链接已复制到剪贴板');
+          break;
+        case 'tag':
+          openTagManager();
+          break;
+        case 'rename':
+          showToast('info', '重命名', '输入新名称');
+          break;
+        case 'newSubfolder':
+          showToast('info', '新建文件夹', '创建子文件夹');
+          break;
+        default:
+          showToast('info', action, `执行: ${action}`);
+      }
+    }
+
+    // ==================== Actions ====================
+    function batchAction(action) {
+      showToast('info', '批量操作', `正在对 ${selectedCards.size} 项进行 ${action} 操作...`);
+      if (action === 'delete') {
+        if (confirm(`确定要删除选中的 ${selectedCards.size} 项知识吗？`)) {
+          clearSelection();
+          showToast('success', '删除成功', '已删除选中的知识');
+        }
+      }
+    }
+
+    function editKnowledge(id) {
+      showToast('info', '编辑', `打开知识 #${id} 的编辑器`);
+    }
+
+    function revectorize(id) {
+      showToast('info', '重向量化', `正在重新向量化知识 #${id}...`);
+    }
+
+    function deleteKnowledge(id) {
+      if (confirm('确定要删除这个知识吗？')) {
+        showToast('success', '删除成功', '知识已删除');
+      }
+    }
+
+    function refreshData() {
+      showToast('info', '刷新', '正在刷新数据...');
+    }
+
+    function exportCurrent() {
+      showToast('info', '导出', '正在导出当前知识...');
+    }
+
+    function revectorizeCurrent() {
+      showToast('info', '重向量化', '正在重新向量化...');
+    }
+
+    function editCurrentKnowledge() {
+      showToast('info', '编辑', '打开内容编辑器');
+    }
+
+    function openInNewWindow() {
+      showToast('info', '新窗口', '正在新窗口中打开...');
+    }
+
+    function toggleFullscreen() {
+      const previewPanel = document.getElementById('previewPanel');
+      const listArea = document.getElementById('listArea');
+
+      if (previewPanel.classList.contains('fullscreen')) {
+        // Exit fullscreen
+        previewPanel.classList.remove('fullscreen');
+        listArea.style.display = '';
+      } else {
+        // Enter fullscreen - hide list area
+        previewPanel.classList.add('fullscreen');
+        listArea.style.display = 'none';
+      }
+    }
+
+    function openTagManager() {
+      document.getElementById('tagManagerModal').classList.add('show');
+      renderTagList();
+    }
+
+    function closeTagManager() {
+      document.getElementById('tagManagerModal').classList.remove('show');
+    }
+
+    function renderTagList() {
+      const list = document.getElementById('tagList');
+      const tags = [
+        { name: '价格', key: 'price', color: 'price', count: 12 },
+        { name: '供需', key: 'supply', color: 'supply', count: 8 },
+        { name: '政策', key: 'policy', color: 'policy', count: 5 },
+        { name: '国际', key: 'international', color: 'international', count: 6 }
+      ];
+      list.innerHTML = tags.map(tag => `
+        <div class="tag-item">
+          <span class="tag ${tag.color}">🏷️ ${tag.name}</span>
+          <span class="tag-count">${tag.count} 条</span>
+          <div class="tag-actions">
+            <button onclick="editTag('${tag.key}')">✏️</button>
+            <button onclick="deleteTag('${tag.key}')">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function addNewTag() {
+      const name = prompt('请输入新标签名称:');
+      if (name) {
+        showToast('success', '添加标签', `已添加标签: ${name}`);
+        renderTagList();
+      }
+    }
+
+    // ==================== Edit Modal ====================
+    function openEditModal(id) {
+      const item = knowledgeItems.find(i => i.id === id);
+      if (!item) return;
+
+      document.getElementById('editTitle').value = item.title;
+      document.getElementById('editPreviewContent').innerHTML = `<p>${item.preview}</p>`;
+      document.getElementById('editStatus').textContent = item.status === 'vectorized' ? '已向量化' : item.status === 'pending' ? '未向量化' : item.status === 'processing' ? '处理中' : '失败';
+      document.getElementById('editChunks').textContent = item.chunks + ' 个文本块';
+      document.getElementById('editModal').classList.add('show');
+
+      // Toggle to preview tab
+      setEditTab('preview');
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').classList.remove('show');
+    }
+
+    function setEditTab(tab) {
+      document.querySelectorAll('.edit-tab').forEach(t => t.classList.remove('active'));
+      document.querySelector(`.edit-tab[onclick="setEditTab('${tab}')"]`).classList.add('active');
+
+      if (tab === 'edit') {
+        document.getElementById('editForm').style.display = 'block';
+        document.getElementById('editPreview').style.display = 'none';
+      } else {
+        document.getElementById('editForm').style.display = 'none';
+        document.getElementById('editPreview').style.display = 'block';
+      }
+    }
+
+    function saveEdit() {
+      const title = document.getElementById('editTitle').value;
+      if (title) {
+        showToast('success', '保存成功', '知识内容已更新');
+        closeEditModal();
+      }
+    }
+
+    // ==================== Move Modal ====================
+    function openMoveModal(id) {
+      document.getElementById('moveModal').classList.add('show');
+      renderFolderTree();
+    }
+
+    function closeMoveModal() {
+      document.getElementById('moveModal').classList.remove('show');
+    }
+
+    function renderFolderTree() {
+      const tree = document.getElementById('folderTree');
+      tree.innerHTML = `
+        <div class="folder-item selected">
+          <span class="icon">📁</span>
+          <span class="name">全部知识</span>
+        </div>
+        <div class="folder-item">
+          <span class="icon">📂</span>
+          <span class="name">价格分析</span>
+        </div>
+        <div class="folder-item">
+          <span class="icon">📂</span>
+          <span class="name">供需数据</span>
+        </div>
+        <div class="folder-item">
+          <span class="icon">📂</span>
+          <span class="name">政策文件</span>
+        </div>
+        <div class="folder-item">
+          <span class="icon">📂</span>
+          <span class="name">国际市场</span>
+        </div>
+      `;
+
+      tree.querySelectorAll('.folder-item').forEach(item => {
+        item.addEventListener('click', () => {
+          tree.querySelectorAll('.folder-item').forEach(i => i.classList.remove('selected'));
+          item.classList.add('selected');
+        });
+      });
+    }
+
+    function confirmMove() {
+      const selected = document.querySelector('#folderTree .folder-item.selected');
+      if (selected) {
+        showToast('success', '移动成功', `已移动到: ${selected.querySelector('.name').textContent}`);
+        closeMoveModal();
+      }
+    }
+
+    function createNewFolder() {
+      const name = prompt('请输入新文件夹名称:');
+      if (name) {
+        showToast('success', '创建文件夹', `已创建文件夹: ${name}`);
+        renderFolderTree();
+      }
+    }
+
+    // ==================== Skeleton Loading ====================
+    function showSkeletonLoading() {
+      const grid = document.getElementById('cardGrid');
+      grid.innerHTML = `
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text short"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text short"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text short"></div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton skeleton-title"></div>
+          <div class="skeleton skeleton-text"></div>
+          <div class="skeleton skeleton-text short"></div>
+        </div>
+      `;
+    }
+
+    // ==================== Sort ====================
+    function toggleSortDropdown() {
+      const dropdown = document.getElementById('sortDropdown');
+      dropdown.classList.toggle('open');
+    }
+
+    function handleSort(sortBy, el) {
+      document.getElementById('sortValue').textContent = el.textContent;
+      document.querySelectorAll('#sortMenu .filter-dropdown-item').forEach(i => i.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('sortDropdown').classList.remove('open');
+
+      showToast('info', '排序', `已按 ${el.textContent} 排序`);
+    }
+
+    // ==================== Search Keyboard Navigation ====================
+    function handleSearchKeydown(e) {
+      const results = document.querySelectorAll('.search-result-item');
+      const hints = document.querySelectorAll('.search-hints kbd');
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const current = document.querySelector('.search-result-item.selected');
+        const index = Array.from(results).indexOf(current);
+        results.forEach(r => r.classList.remove('selected'));
+        if (index < results.length - 1) {
+          results[index + 1].classList.add('selected');
+        } else if (results.length > 0) {
+          results[0].classList.add('selected');
+        }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const current = document.querySelector('.search-result-item.selected');
+        const index = Array.from(results).indexOf(current);
+        results.forEach(r => r.classList.remove('selected'));
+        if (index > 0) {
+          results[index - 1].classList.add('selected');
+        } else if (results.length > 0) {
+          results[results.length - 1].classList.add('selected');
+        }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        const selected = document.querySelector('.search-result-item.selected');
+        if (selected) {
+          selectSearchResult(selected, 1);
+        }
+      }
+    }
+
+    function selectSearchResult(el, id) {
+      document.querySelectorAll('.search-result-item').forEach(r => r.classList.remove('selected'));
+      el.classList.add('selected');
+      viewPreview(id);
+      closeSearch();
+    }
+
+    function setSearchMode(mode, btn) {
+      document.querySelectorAll('.search-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      showToast('info', '搜索模式', `已切换到: ${mode === 'fulltext' ? '全文' : mode === 'semantic' ? '语义' : '混合'}搜索`);
+    }
+
+    // ==================== Progress Bar ====================
+    function showProgress(message) {
+      let progressBar = document.getElementById('progressBar');
+      if (!progressBar) {
+        progressBar = document.createElement('div');
+        progressBar.id = 'progressBar';
+        progressBar.className = 'progress-bar';
+        progressBar.innerHTML = `
+          <div class="progress-content">
+            <div class="progress-spinner"></div>
+            <span class="progress-message">${message || '处理中...'}</span>
+          </div>
+          <div class="progress-track"><div class="progress-fill"></div></div>
+        `;
+        document.body.appendChild(progressBar);
+      } else {
+        progressBar.querySelector('.progress-message').textContent = message || '处理中...';
+      }
+      progressBar.style.display = 'flex';
+    }
+
+    function hideProgress() {
+      const progressBar = document.getElementById('progressBar');
+      if (progressBar) {
+        progressBar.style.display = 'none';
+      }
+    }
+
+    // ==================== Drag & Drop Feedback ====================
+    function handleDragEnter(e) {
+      e.target.closest('.card').classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+      e.target.closest('.card').classList.remove('drag-over');
+    }
+
+    // ==================== Refresh Data ====================
+    function refreshData() {
+      showSkeletonLoading();
+      showProgress('正在加载知识数据...');
+
+      setTimeout(() => {
+        hideProgress();
+        renderCards();
+        showToast('success', '刷新成功', '知识列表已更新');
+      }, 1500);
+    }
+
+    function downloadTemplate() {
+      showToast('info', '下载', '正在下载 Excel 模板...');
+    }
+
+    // ==================== Drag & Drop ====================
+    let draggedId = null;
+
+    function handleDragStart(event, id) {
+      draggedId = id;
+      event.target.classList.add('dragging');
+      event.dataTransfer.effectAllowed = 'move';
+    }
+
+    function handleDragOver(event) {
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDrop(event, targetId) {
+      event.preventDefault();
+      const card = event.target.closest('.card');
+      if (card) card.classList.remove('drag-over');
+
+      if (draggedId && draggedId !== targetId) {
+        showToast('info', '移动', `将知识 #${draggedId} 移动到 #${targetId} 的位置`);
+      }
+      draggedId = null;
+    }
+
+    // ==================== Toast Notifications ====================
+    function showToast(type, title, message) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      const icons = {
+        success: '✅',
+        error: '❌',
+        warning: '⚠️',
+        info: 'ℹ️'
+      };
+
+      toast.innerHTML = `
+        <span class="toast-icon">${icons[type]}</span>
+        <div class="toast-content">
+          <div class="toast-title">${title}</div>
+          <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="this.parentElement.remove()">✕</button>
+      `;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.style.animation = 'toastIn 0.3s ease reverse';
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+
+    // ==================== Keyboard Shortcuts ====================
+    document.addEventListener('keydown', (e) => {
+      // Ctrl/Cmd + K - Open search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        openSearch();
+      }
+      // Escape - Close modals
+      if (e.key === 'Escape') {
+        closeSearch();
+        closeAddModal();
+        hideContextMenu();
+        closePreview();
+      }
+      // Delete - Delete selected
+      if (e.key === 'Delete' && selectedCards.size > 0) {
+        if (confirm(`确定要删除选中的 ${selectedCards.size} 项吗？`)) {
+          showToast('success', '删除成功', '已删除选中的知识');
+          clearSelection();
+        }
+      }
+      // Space - Preview selected
+      if (e.key === ' ' && !e.target.matches('input, textarea') && selectedCards.size === 1) {
+        e.preventDefault();
+        viewPreview([...selectedCards][0]);
+      }
+    });
+
+    // Close context menu on click outside
+    document.addEventListener('click', hideContextMenu);
+
+    // Close dropdowns on click outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.filter-dropdown')) {
+        document.querySelectorAll('.filter-dropdown').forEach(d => d.classList.remove('open'));
+      }
+    });
+
+    // ==================== Initialize ====================
+    renderCards();
+  </script>
+</body>
+</html>
