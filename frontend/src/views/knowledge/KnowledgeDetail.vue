@@ -101,6 +101,14 @@
           </svg>
           {{ knowledge.collectionReportType }}
         </span>
+        <!-- 原文地址 -->
+        <span class="meta-item" v-if="knowledge.originalUrl">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1L13 7L7 13" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M1 7H13" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          <a :href="knowledge.originalUrl" target="_blank" rel="noopener noreferrer" class="original-link">查看原文</a>
+        </span>
       </div>
 
       <!-- 来源小字 -->
@@ -630,6 +638,8 @@ onMounted(async () => {
   font-family: 'Fira Code', monospace;
 }
 
+.original-link { color: #58a6ff; text-decoration: none; }
+.original-link:hover { text-decoration: underline; color: #79b8ff; }
 .meta-item.status-pending { color: #e6c384; }
 .meta-item.status-processing { color: #58a6ff; }
 .meta-item.status-vectorized { color: #3fb950; }
