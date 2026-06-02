@@ -1672,6 +1672,18 @@ function getSourceTypeText(type?: string) {
   return map[type || ''] || type || '-'
 }
 
+const sourceNameMap: Record<string, string> = {
+  liangxin: '\u7cae\u4fe1\u7f51\u7389\u7c73\u6668\u62a5',
+  mysteel: '\u6211\u7684\u94a2\u94c1\u7f51',
+  chinagrain: '\u4e2d\u534e\u7cae\u7f51',
+  usda: 'USDA',
+}
+
+function getSourceDisplayName(item: any): string {
+  if (item.sourceName && item.sourceName !== 'liangxin' && item.sourceName !== item.sourceType) return item.sourceName
+  return sourceNameMap[item.sourceType] || item.sourceType || item.sourceName || '\u672a\u77e5'
+}
+
 function getSourceIcon(type?: string): string {
   const map: Record<string, string> = {
     liangxin: '🌐',
