@@ -242,7 +242,7 @@
           <div class="card-icon">{{ item.sourceIcon || '📄' }}</div>
           <h3 class="card-title">{{ item.title }}</h3>
           <div class="card-meta">
-            <span>{{ item.sourceName || item.sourceType }}</span>
+            <span>{{ getSourceDisplayName(item) }}</span>
             <span>发布于 {{ formatTime(item.publishTime || item.createdAt) }}</span>
           </div>
         </div>
@@ -295,7 +295,7 @@
             <div class="item-title">{{ item.title }}</div>
             <div class="item-meta">
               <span class="item-status" :class="item.vectorStatus"></span>
-              <span>{{ item.sourceName || item.sourceType }}</span>
+              <span>{{ getSourceDisplayName(item) }}</span>
             </div>
           </div>
         </div>
@@ -313,6 +313,7 @@
               <th>来源</th>
               <th>状态</th>
               <th>发布日期</th>
+			  <th>采集时间</th>
               <th style="width: 120px;">操作</th>
             </tr>
           </thead>
@@ -327,13 +328,14 @@
                   {{ item.title }}
                 </div>
               </td>
-              <td>{{ item.sourceName || item.sourceType }}</td>
+              <td>{{ getSourceDisplayName(item) }}</td>
               <td>
                 <span class="status-badge" :class="item.vectorStatus">
                   {{ getStatusText(item.vectorStatus) }}
                 </span>
               </td>
               <td>{{ formatTime(item.publishTime || item.createdAt) }}</td>
+			  <td>{{ formatTime(item.createdAt) }}</td>
               <td>
                 <div class="actions">
                   <button class="action-btn" @click.stop="viewDetail(item)" title="查看">
