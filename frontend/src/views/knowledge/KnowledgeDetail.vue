@@ -95,6 +95,11 @@
         </span>
       </div>
 
+      <!-- 来源小字 -->
+      <div class="source-line" v-if="knowledge.publishTime || knowledge.sourceName || knowledge.sourceType">
+        {{ formatDate(knowledge.publishTime) }} 来源：{{ knowledge.sourceName || knowledge.sourceType }}
+      </div>
+
       <div class="detail-body">
         <div v-for="(block, i) in renderedBlocks" :key="i">
           <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
@@ -302,9 +307,20 @@ const parseMixedContent = (content: string, tableMetaJson: string | null): Conte
   let tableIdx = 0
   const hasTables = tables.length > 0
 
+  const renderArticle = (text: string): string => {
+    let html = marked(text, { breaks: true, gfm: true })
+    // 一、二、三等版块标题 → 黄底高亮
+    html = html.replace(/<p>([一二三四五六七八九十]+[、．.][^<]*)<\/p>/g, '<p class="section-title">$1<\/p>')
+    // 二级标题（国际期货/国内期货等）
+    html = html.replace(/<p>(\s*(国际期货|国内期货|北方港口|南方港口|饲料|加工厂)[：:][^<]*)<\/p>/g, '<p class="sub-title">$1<\/p>')
+    // ★ 开头段落：取消首行缩进
+    html = html.replace(/<p>(★[^<]*)<\/p>/g, '<p class="star-item">$1<\/p>')
+    return html
+  }
+
   const flushText = (textParts: string[]) => {
     const raw = textParts.join('\n').trim()
-    if (raw) blocks.push({ type: 'text', html: marked(raw, { breaks: true, gfm: true }) })
+    if (raw) blocks.push({ type: 'text', html: renderArticle(raw) })
   }
 
   let textBuffer: string[] = []
@@ -611,6 +627,38 @@ onMounted(async () => {
 .meta-item.status-vectorized { color: #3fb950; }
 .meta-item.status-failed { color: #f85149; }
 
+/* ====== 文章排版 ====== */
+.detail-content { padding: 0 20px; }
+
+/* 主标题居中 */
+.detail-title { text-align: center; font-size: 22px; font-weight: 700; margin: 24px 0 8px; }
+
+/* 来源小字 */
+.source-line { text-align: center; font-size: 13px; color: #6e7681; margin-bottom: 24px; }
+
+/* 版块标题（一、今日行情：等）黄底高亮 */
+.detail-body :deep(p.section-title) {
+  background: #d4a017; color: #0d1117; font-weight: 700; font-size: 15px;
+  padding: 4px 10px; display: inline-block; margin: 18px 0 10px; border-radius: 2px;
+  text-indent: 0;
+}
+
+/* 二级标题（国际期货等）左对齐加粗 */
+.detail-body :deep(p.sub-title) {
+  font-weight: 700; font-size: 15px; margin: 14px 0 8px; color: #e6edf3; text-indent: 0;
+}
+
+/* 正文段落：首行缩进2字符 */
+.detail-body :deep(p) {
+  text-indent: 2em; line-height: 1.8; margin: 8px 0; font-size: 15px; color: #c9d1d9;
+}
+
+/* ★ 开头的段落：不缩进 */
+.detail-body :deep(p.star-item) {
+  text-indent: 0;
+}
+
+/* 表格灰色表头 */
 .enhanced-table-wrapper {
   margin: 16px 0;
   background: #161b22;
@@ -636,11 +684,11 @@ onMounted(async () => {
 .enhanced-table-wrapper :deep(.el-table) {
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: rgba(245, 200, 122, 0.1);
-  --el-table-row-hover-bg-color: rgba(245, 200, 122, 0.05);
-  --el-table-border-color: rgba(255, 255, 255, 0.08);
+  --el-table-header-bg-color: #555;
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.05);
+  --el-table-border-color: rgba(255, 255, 255, 0.12);
   --el-table-text-color: #c9d1d9;
-  --el-table-header-text-color: #f5c87a;
+  --el-table-header-text-color: #e6edf3;
 }
 
 

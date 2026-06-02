@@ -468,7 +468,7 @@ class LiangxinCollector(BaseCollector):
                             markerIndex++;
                         });
                     } catch(e) {
-                        // tableMeta 保持为空数组
+                        tableMeta = [];
                     }
 
                     // 提取文本和HTML
@@ -481,6 +481,13 @@ class LiangxinCollector(BaseCollector):
                 stripped = (result.get("text") or "").strip() if result else ""
                 if stripped:
                     logger.info(f"正文提取成功，长度 {len(stripped)} 字，选择器: {used_selector}")
+                    # 清理HTML冗余空白 + 垃圾文本
+                    import re
+                    stripped = re.sub(r'[\t\r]+', '', stripped)
+                    stripped = re.sub(r'^[\s\u3000]*\u5206\u4eab\u5230[\u3000\uff1a:].*$', '', stripped, flags=re.MULTILINE)
+                    stripped = re.sub(r'&nbsp;', '', stripped)
+                    stripped = '\n'.join(l.strip() for l in stripped.split('\n'))
+                    stripped = re.sub(r'\n{3,}', '\n\n', stripped)
                     return {
                         "text": stripped,
                         "html": (result.get("html") or "").strip() if result else "",
@@ -507,6 +514,7 @@ class LiangxinCollector(BaseCollector):
                     return {
                         "text": combined,
                         "html": combined.replace("\n\n", "</p><p>"),
+                        "tableMeta": [],
                     }
                 else:
                     logger.warning(f"<p> 标签兜底也未提取到有效内容: {url}")
@@ -583,7 +591,7 @@ class LiangxinCollector(BaseCollector):
 
                     # 校验：TABLE_MARKER 数量必须与 tableMeta 长度一致
                     if table_meta_raw:
-                        marker_count = content["text"].count("<!--TABLE_MARKER_")
+                        marker_count = content["text"].count("<!--TABLE_MARKER_END_")
                         if marker_count != len(table_meta_raw):
                             logger.warning(
                                 f"table_meta 校验失败: markers={marker_count} != "
