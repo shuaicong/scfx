@@ -65,7 +65,9 @@
             <path d="M2 8H6V12H2V8Z" stroke="currentColor" stroke-width="1.5"/>
             <path d="M8 8H12V12H8V8Z" stroke="currentColor" stroke-width="1.5"/>
           </svg>
-          {{ knowledge.chunkCount }} 个切片
+          <span style="cursor:pointer;text-decoration:underline;text-decoration-style:dotted;" @click="toggleChunks" title="点击查看切片列表">
+            {{ knowledge.chunkCount }} 个切片
+          </span>
         </span>
         <!-- 向量状态 -->
         <span class="meta-item" v-if="knowledge.vectorStatus" :class="'status-' + knowledge.vectorStatus">
@@ -117,6 +119,35 @@
             <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
           </div>
           <div v-else v-html="block.html" class="text-block"></div>
+        </div>
+      </div>
+
+      <!-- 切片列表 -->
+      <div v-if="showChunks" class="chunks-section">
+        <div class="chunks-section-title">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <path d="M2 2H6V6H2V2Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M10 2H14V6H10V2Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M2 10H6V14H2V10Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M10 10H14V14H10V10Z" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          切片列表（{{ chunks.length }} 个）
+          <el-button size="small" text @click="showChunks = false" style="margin-left:auto;color:#6e7681;">关闭</el-button>
+        </div>
+        <div v-if="chunksLoading" class="chunks-loading">加载中...</div>
+        <div v-else-if="chunks.length === 0" class="chunks-empty">暂无切片数据</div>
+        <div v-else class="chunks-list">
+          <div v-for="(chunk, i) in chunks" :key="i" class="chunk-card">
+            <div class="chunk-card-header">
+              <span class="chunk-index">#{{ i + 1 }}</span>
+              <span :class="'chunk-type-tag tag-' + (chunk.chunkType || 'text')">
+                {{ chunk.chunkType === 'table' ? '📊 表格' : '📝 文本' }}
+              </span>
+              <span class="chunk-tokens" v-if="chunk.tokenCount">{{ chunk.tokenCount }} tokens</span>
+              <span class="chunk-tokens" v-else>{{ (chunk.content || '').length }} 字符</span>
+            </div>
+            <div class="chunk-card-content">{{ (chunk.content || '').slice(0, 300) }}...</div>
+          </div>
         </div>
       </div>
     </div>
@@ -279,6 +310,29 @@ const parseMixedContent = (content: string, tableMetaJson: string | null): Conte
 }
 
 const renderedBlocks = ref<ContentBlock[]>([])
+
+// 切片查看
+const showChunks = ref(false)
+const chunks = ref<any[]>([])
+const chunksLoading = ref(false)
+
+const toggleChunks = async () => {
+  if (showChunks.value) {
+    showChunks.value = false
+    return
+  }
+  showChunks.value = true
+  if (chunks.value.length === 0) {
+    chunksLoading.value = true
+    try {
+      const res: any = await request.get(`/knowledge/${knowledge.value.id}/chunks`)
+      if (res.code === 200) {
+        chunks.value = res.data || []
+      }
+    } catch { /* ignore */ }
+    chunksLoading.value = false
+  }
+}
 
 const handleSortChange = (tableIdx: number, sortInfo: any) => {
   const blocks = parseMixedContent(knowledge.value?.content || '', knowledge.value?.tableMeta || null)
@@ -571,5 +625,69 @@ onMounted(async () => {
   --el-table-border-color: rgba(255, 255, 255, 0.08);
   --el-table-text-color: #c9d1d9;
   --el-table-header-text-color: #f5c87a;
+}
+
+/* 切片列表 */
+.chunks-section {
+  margin-top: 32px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 20px;
+}
+.chunks-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #e6edf3;
+  margin-bottom: 16px;
+}
+.chunks-loading, .chunks-empty {
+  color: #6e7681;
+  font-size: 14px;
+  padding: 20px 0;
+  text-align: center;
+}
+.chunks-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.chunk-card {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.chunk-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.chunk-index {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6e7681;
+  background: rgba(255,255,255,0.05);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.chunk-type-tag {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+.tag-text { background: rgba(88,166,255,0.15); color: #58a6ff; }
+.tag-table { background: rgba(245,200,122,0.15); color: #f5c87a; }
+.chunk-tokens {
+  font-size: 11px;
+  color: #6e7681;
+  margin-left: auto;
+}
+.chunk-card-content {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #8b949e;
 }
 </style>
