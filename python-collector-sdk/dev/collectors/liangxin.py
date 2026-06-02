@@ -212,11 +212,28 @@ class LiangxinCollector(BaseCollector):
                             href = "https://" + href[7:]
                         elif href.startswith("//"):
                             href = "https:" + href
+
+                        # 提取真实发布时间：列表每个条目有 <span class="items-left-space">时间：YYYY-MM-DD HH:mm:ss</span>
+                        publish_time = f"{date_str}T09:00:00"  # 默认兜底
+                        try:
+                            time_text = link.evaluate("""(el) => {
+                                const li = el.closest('li');
+                                if (!li) return '';
+                                const span = li.querySelector('span.items-left-space');
+                                return span ? span.textContent.trim() : '';
+                            }""")
+                            import re
+                            time_match = re.search(r'时间：(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', time_text)
+                            if time_match:
+                                publish_time = time_match.group(1).replace(' ', 'T')
+                                logger.info(f"提取到真实发布时间: {publish_time}")
+                        except Exception as e:
+                            logger.warning(f"提取发布时间失败: {e}")
+
                         reports.append({
                             "title": text_stripped,
                             "url": href,
-                            # 使用完整datetime格式，兼容Java的LocalDateTime.parse()
-                            "publish_time": f"{date_str}T09:00:00"
+                            "publish_time": publish_time,
                         })
                         logger.info(f"找到报告: {text_stripped}")
                         break
@@ -355,10 +372,110 @@ class LiangxinCollector(BaseCollector):
                     clone.querySelectorAll('.footer, .footer-box-top, .header').forEach(n => n.remove());
                     // 移除隐藏元素
                     clone.querySelectorAll('[style*="display:none"], [style*="display: none"], [style*="visibility:hidden"], [style*="visibility: hidden"]').forEach(n => n.remove());
+
+                    // 提取表格
+                    const tableMeta = [];
+                    try {
+                        const tables = clone.querySelectorAll('table');
+                        let markerIndex = 0;
+                        tables.forEach(table => {
+                            // 跳过嵌套表格
+                            let parent = table.parentElement;
+                            let isNested = false;
+                            while (parent && parent !== clone) {
+                                if (parent.tagName === 'TABLE') {
+                                    isNested = true;
+                                    break;
+                                }
+                                parent = parent.parentElement;
+                            }
+                            if (isNested) return;
+
+                            const rows = table.querySelectorAll('tr');
+                            if (rows.length === 0) return;
+
+                            // 解析行: 展开 colspan
+                            const parseRow = (row) => {
+                                const cells = row.querySelectorAll('th, td');
+                                const result = [];
+                                cells.forEach(cell => {
+                                    const colspan = parseInt(cell.getAttribute('colspan')) || 1;
+                                    const text = cell.textContent.trim();
+                                    for (let j = 0; j < colspan; j++) {
+                                        result.push(text);
+                                    }
+                                });
+                                return result;
+                            };
+
+                            // 检测表头行: th 过半的首个行
+                            let headerRow = null;
+                            let headerRowIndex = -1;
+                            for (let i = 0; i < rows.length; i++) {
+                                const cells = rows[i].querySelectorAll('th, td');
+                                let thCount = 0;
+                                cells.forEach(c => { if (c.tagName === 'TH') thCount++; });
+                                if (thCount > cells.length / 2) {
+                                    headerRow = rows[i];
+                                    headerRowIndex = i;
+                                    break;
+                                }
+                            }
+
+                            // 提取表头
+                            let headers = [];
+                            if (headerRow) {
+                                headers = parseRow(headerRow);
+                            } else {
+                                headers = parseRow(rows[0]);
+                            }
+
+                            // 提取数据行
+                            const startIdx = headerRowIndex >= 0 ? headerRowIndex + 1 : 1;
+                            const dataRows = [];
+                            for (let i = startIdx; i < rows.length; i++) {
+                                dataRows.push(parseRow(rows[i]));
+                            }
+
+                            // 获取 caption（前一个同级别元素，非 TABLE/FIGURE/DIV）
+                            let caption = '';
+                            const prev = table.previousElementSibling;
+                            if (prev && !['TABLE', 'FIGURE', 'DIV'].includes(prev.tagName)) {
+                                caption = prev.textContent.trim();
+                            }
+
+                            tableMeta.push({
+                                caption: caption,
+                                headers: headers,
+                                rows: dataRows,
+                            });
+
+                            // 构建 pipe 表格文本
+                            const lines = [];
+                            lines.push('<!--TABLE_MARKER_' + markerIndex + '-->');
+                            lines.push('| ' + headers.join(' | ') + ' |');
+                            lines.push('| ' + headers.map(function() { return '---'; }).join(' | ') + ' |');
+                            dataRows.forEach(function(row) {
+                                lines.push('| ' + row.join(' | ') + ' |');
+                            });
+                            lines.push('<!--TABLE_MARKER_END_' + markerIndex + '-->');
+                            const pipeText = lines.join('\\n');
+
+                            // 用 marker + pipe 文本替换该 table
+                            const wrapper = document.createElement('div');
+                            wrapper.textContent = pipeText;
+                            table.parentNode.replaceChild(wrapper, table);
+                            markerIndex++;
+                        });
+                    } catch(e) {
+                        // tableMeta 保持为空数组
+                    }
+
                     // 提取文本和HTML
                     return {
                         text: clone.textContent.trim(),
-                        html: clone.innerHTML.trim()
+                        html: clone.innerHTML.trim(),
+                        tableMeta: tableMeta
                     };
                 }""")
                 stripped = (result.get("text") or "").strip() if result else ""
@@ -366,7 +483,8 @@ class LiangxinCollector(BaseCollector):
                     logger.info(f"正文提取成功，长度 {len(stripped)} 字，选择器: {used_selector}")
                     return {
                         "text": stripped,
-                        "html": (result.get("html") or "").strip() if result else ""
+                        "html": (result.get("html") or "").strip() if result else "",
+                        "tableMeta": result.get("tableMeta", []) if result else []
                     }
                 else:
                     logger.warning(f"正文容器存在但内容为空: {url}")
@@ -457,6 +575,22 @@ class LiangxinCollector(BaseCollector):
 
                 content = self._get_report_content(report["url"])
                 if content:
+                    import json
+
+                    table_meta_raw = content.get("tableMeta", [])
+                    if not isinstance(table_meta_raw, list):
+                        table_meta_raw = []
+
+                    # 校验：TABLE_MARKER 数量必须与 tableMeta 长度一致
+                    if table_meta_raw:
+                        marker_count = content["text"].count("<!--TABLE_MARKER_")
+                        if marker_count != len(table_meta_raw):
+                            logger.warning(
+                                f"table_meta 校验失败: markers={marker_count} != "
+                                f"entries={len(table_meta_raw)}, 已清空降级"
+                            )
+                            table_meta_raw = []
+
                     self.submit_report(
                         title=report["title"],
                         source="liangxin",
@@ -466,6 +600,7 @@ class LiangxinCollector(BaseCollector):
                         content=content["text"],
                         content_html=content["html"],
                         publish_time=report["publish_time"],
+                        table_meta=json.dumps(table_meta_raw, ensure_ascii=False),
                     )
                     count += 1
                     self._success_count += 1
