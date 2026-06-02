@@ -643,26 +643,6 @@ onMounted(async () => {
   --el-table-header-text-color: #f5c87a;
 }
 
-/* 切片抽屉 - 暗色主题 */
-.chunk-drawer-dark :deep(.el-drawer) {
-  background: #0d1117;
-  border-left: 1px solid rgba(255,255,255,0.08);
-}
-.chunk-drawer-dark :deep(.el-drawer__header) {
-  color: #f5c87a;
-  font-weight: 600;
-  font-size: 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  margin-bottom: 0;
-  padding: 20px 20px 16px;
-}
-.chunk-drawer-dark :deep(.el-drawer__close-btn) {
-  color: #6e7681;
-}
-.chunk-drawer-dark :deep(.el-drawer__body) {
-  padding: 16px 20px;
-  color: #c9d1d9;
-}
 
 /* 概览统计 */
 .chunk-summary {
@@ -770,5 +750,29 @@ onMounted(async () => {
   word-break: break-word;
   font-family: inherit;
   margin: 0;
+}
+</style>
+
+<!-- 全局样式：覆盖 el-drawer 的默认白色背景 -->
+<style>
+.chunk-drawer-dark {
+  background: #0d1117 !important;
+  border-left: 1px solid rgba(255,255,255,0.08);
+}
+.chunk-drawer-dark .el-drawer__header {
+  color: #f5c87a !important;
+  font-weight: 600;
+  font-size: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 0;
+  padding: 20px 20px 16px;
+}
+.chunk-drawer-dark .el-drawer__close-btn {
+  color: #6e7681 !important;
+}
+.chunk-drawer-dark .el-drawer__body {
+  padding: 16px 20px;
+  color: #c9d1d9 !important;
+  background: #0d1117 !important;
 }
 </style>
