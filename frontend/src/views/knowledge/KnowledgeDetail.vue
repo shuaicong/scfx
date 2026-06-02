@@ -122,35 +122,31 @@
         </div>
       </div>
 
-      <!-- 切片列表 -->
-      <div v-if="showChunks" class="chunks-section">
-        <div class="chunks-section-title">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-            <path d="M2 2H6V6H2V2Z" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M10 2H14V6H10V2Z" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M2 10H6V14H2V10Z" stroke="currentColor" stroke-width="1.5"/>
-            <path d="M10 10H14V14H10V10Z" stroke="currentColor" stroke-width="1.5"/>
-          </svg>
-          切片列表（{{ chunks.length }} 个）
-          <el-button size="small" text @click="showChunks = false" style="margin-left:auto;color:#6e7681;">关闭</el-button>
-        </div>
-        <div v-if="chunksLoading" class="chunks-loading">加载中...</div>
-        <div v-else-if="chunks.length === 0" class="chunks-empty">暂无切片数据</div>
-        <div v-else class="chunks-list">
-          <div v-for="(chunk, i) in chunks" :key="i" class="chunk-card">
-            <div class="chunk-card-header">
-              <span class="chunk-index">#{{ i + 1 }}</span>
-              <span :class="'chunk-type-tag tag-' + (chunk.chunkType || 'text')">
-                {{ chunk.chunkType === 'table' ? '📊 表格' : '📝 文本' }}
-              </span>
-              <span class="chunk-tokens" v-if="chunk.tokenCount">{{ chunk.tokenCount }} tokens</span>
-              <span class="chunk-tokens" v-else>{{ (chunk.content || '').length }} 字符</span>
-            </div>
-            <div class="chunk-card-content">{{ (chunk.content || '').slice(0, 300) }}...</div>
+    </div>
+
+    <!-- 切片列表 - 侧滑抽屉 -->
+    <el-drawer
+      v-model="showChunks"
+      :title="`切片列表（${chunks.length} 个）`"
+      size="520px"
+      destroy-on-close
+    >
+      <div v-if="chunksLoading" class="chunks-loading">加载中...</div>
+      <div v-else-if="chunks.length === 0" class="chunks-empty">暂无切片数据</div>
+      <div v-else class="chunks-list">
+        <div v-for="(chunk, i) in chunks" :key="i" class="chunk-card">
+          <div class="chunk-card-header">
+            <span class="chunk-index">#{{ i + 1 }}</span>
+            <span :class="'chunk-type-tag tag-' + (chunk.chunkType || 'text')">
+              {{ chunk.chunkType === 'table' ? '📊 表格' : '📝 文本' }}
+            </span>
+            <span class="chunk-tokens" v-if="chunk.tokenCount">{{ chunk.tokenCount }} tokens</span>
+            <span class="chunk-tokens" v-else>{{ (chunk.content || '').length }} 字符</span>
           </div>
+          <div class="chunk-card-content">{{ (chunk.content || '').slice(0, 300) }}...</div>
         </div>
       </div>
-    </div>
+    </el-drawer>
   </div>
 </template>
 
@@ -317,10 +313,6 @@ const chunks = ref<any[]>([])
 const chunksLoading = ref(false)
 
 const toggleChunks = async () => {
-  if (showChunks.value) {
-    showChunks.value = false
-    return
-  }
   showChunks.value = true
   if (chunks.value.length === 0) {
     chunksLoading.value = true
@@ -627,21 +619,7 @@ onMounted(async () => {
   --el-table-header-text-color: #f5c87a;
 }
 
-/* 切片列表 */
-.chunks-section {
-  margin-top: 32px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 20px;
-}
-.chunks-section-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #e6edf3;
-  margin-bottom: 16px;
-}
+/* 切片抽屉 */
 .chunks-loading, .chunks-empty {
   color: #6e7681;
   font-size: 14px;
