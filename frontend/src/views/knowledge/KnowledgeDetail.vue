@@ -26,6 +26,7 @@
     <div v-else-if="knowledge" class="detail-content">
       <h1 class="detail-title">{{ knowledge.title }}</h1>
       <div class="detail-meta">
+        <!-- 时间 -->
         <span class="meta-item" v-if="knowledge.publishTime">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
@@ -33,13 +34,15 @@
           </svg>
           {{ formatDate(knowledge.publishTime) }}
         </span>
-        <span class="meta-item" v-if="knowledge.sourceType">
+        <!-- 来源 -->
+        <span class="meta-item" v-if="knowledge.sourceName || knowledge.sourceType">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M7 1C3.69 1 1 3.69 1 7C1 10.31 3.69 13 7 13C10.31 13 13 10.31 13 7C13 3.69 10.31 1 7 1Z" stroke="currentColor" stroke-width="1.5"/>
             <path d="M7 4V7L9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
-          {{ knowledge.sourceType }}
+          {{ knowledge.sourceName || knowledge.sourceType }}
         </span>
+        <!-- 作者 -->
         <span class="meta-item" v-if="knowledge.author">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M7 8C8.6 8 9.67 6.93 9.67 5.33C9.67 3.73 8.6 2.67 7 2.67C5.4 2.67 4.33 3.73 4.33 5.33C4.33 6.93 5.4 8 7 8Z" stroke="currentColor" stroke-width="1.5"/>
@@ -47,11 +50,46 @@
           </svg>
           {{ knowledge.author }}
         </span>
+        <!-- 分类 -->
         <span class="meta-item" v-if="knowledge.categoryName">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M5.67 2.33H2.33C1.6 2.33 1 2.93 1 3.67V11C1 11.74 1.6 12.33 2.33 12.33H11.67C12.4 12.33 13 11.74 13 11V4.33C13 3.6 12.4 3 11.67 3H7.67L5.67 2.33Z" stroke="currentColor" stroke-width="1.5"/>
           </svg>
           {{ knowledge.categoryName }}
+        </span>
+        <!-- 切片数 -->
+        <span class="meta-item" v-if="knowledge.chunkCount !== undefined && knowledge.chunkCount !== null">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2 2H6V6H2V2Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M8 2H12V6H8V2Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M2 8H6V12H2V8Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M8 8H12V12H8V8Z" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          {{ knowledge.chunkCount }} 个切片
+        </span>
+        <!-- 向量状态 -->
+        <span class="meta-item" v-if="knowledge.vectorStatus" :class="'status-' + knowledge.vectorStatus">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+            <circle cx="7" cy="7" r="3" fill="currentColor"/>
+          </svg>
+          {{ { pending: '未向量化', processing: '处理中', vectorized: '已向量化', failed: '失败' }[knowledge.vectorStatus] || knowledge.vectorStatus }}
+        </span>
+        <!-- 品种 -->
+        <span class="meta-item" v-if="knowledge.collectionVariety">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M7 1C3.69 1 1 3.69 1 7C1 10.31 3.69 13 7 13C10.31 13 13 10.31 13 7C13 3.69 10.31 1 7 1Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M7 4V7L9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+          {{ knowledge.collectionVariety }}
+        </span>
+        <!-- 报告类型 -->
+        <span class="meta-item" v-if="knowledge.collectionReportType">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path d="M2 2H12V12H2V2Z" stroke="currentColor" stroke-width="1.5"/>
+            <path d="M5 2V12" stroke="currentColor" stroke-width="1.5"/>
+          </svg>
+          {{ knowledge.collectionReportType }}
         </span>
       </div>
 
@@ -497,6 +535,11 @@ onMounted(async () => {
   font-size: 13px;
   font-family: 'Fira Code', monospace;
 }
+
+.meta-item.status-pending { color: #e6c384; }
+.meta-item.status-processing { color: #58a6ff; }
+.meta-item.status-vectorized { color: #3fb950; }
+.meta-item.status-failed { color: #f85149; }
 
 .enhanced-table-wrapper {
   margin: 16px 0;
