@@ -128,22 +128,46 @@
     <el-drawer
       v-model="showChunks"
       :title="`切片列表（${chunks.length} 个）`"
-      size="520px"
+      size="560px"
       destroy-on-close
+      class="chunk-drawer-dark"
     >
+      <!-- 概览统计 -->
+      <div class="chunk-summary" v-if="chunks.length > 0">
+        <div class="chunk-summary-item">
+          <span class="summary-value">{{ chunks.length }}</span>
+          <span class="summary-label">切片数</span>
+        </div>
+        <div class="chunk-summary-item">
+          <span class="summary-value">{{ chunks.filter((c: any) => c.chunkType === 'table').length }}</span>
+          <span class="summary-label">表格切片</span>
+        </div>
+        <div class="chunk-summary-item">
+          <span class="summary-value">{{ chunks.reduce((s: number, c: any) => s + ((c as any).content || '').length, 0) }}</span>
+          <span class="summary-label">总字符</span>
+        </div>
+      </div>
+
       <div v-if="chunksLoading" class="chunks-loading">加载中...</div>
       <div v-else-if="chunks.length === 0" class="chunks-empty">暂无切片数据</div>
       <div v-else class="chunks-list">
         <div v-for="(chunk, i) in chunks" :key="i" class="chunk-card">
           <div class="chunk-card-header">
-            <span class="chunk-index">#{{ i + 1 }}</span>
-            <span :class="'chunk-type-tag tag-' + (chunk.chunkType || 'text')">
-              {{ chunk.chunkType === 'table' ? '📊 表格' : '📝 文本' }}
-            </span>
-            <span class="chunk-tokens" v-if="chunk.tokenCount">{{ chunk.tokenCount }} tokens</span>
-            <span class="chunk-tokens" v-else>{{ (chunk.content || '').length }} 字符</span>
+            <div class="chunk-card-header-left">
+              <span class="chunk-index">#{{ i + 1 }}</span>
+              <span :class="'chunk-type-tag tag-' + (chunk.chunkType || 'text')">
+                {{ chunk.chunkType === 'table' ? '📊 表格' : '📝 文本' }}
+              </span>
+            </div>
+            <div class="chunk-card-header-right">
+              <span class="chunk-tokens" v-if="chunk.tokenCount">{{ chunk.tokenCount }} tokens</span>
+              <span class="chunk-tokens" v-else>{{ (chunk.content || '').length }} 字符</span>
+              <span class="chunk-order" v-if="chunks.length > 1">{{ i + 1 }}/{{ chunks.length }}</span>
+            </div>
           </div>
-          <div class="chunk-card-content">{{ (chunk.content || '').slice(0, 300) }}...</div>
+          <div class="chunk-card-body">
+            <pre class="chunk-card-content">{{ chunk.content || '' }}</pre>
+          </div>
         </div>
       </div>
     </el-drawer>
@@ -619,53 +643,132 @@ onMounted(async () => {
   --el-table-header-text-color: #f5c87a;
 }
 
-/* 切片抽屉 */
+/* 切片抽屉 - 暗色主题 */
+.chunk-drawer-dark :deep(.el-drawer) {
+  background: #0d1117;
+  border-left: 1px solid rgba(255,255,255,0.08);
+}
+.chunk-drawer-dark :deep(.el-drawer__header) {
+  color: #f5c87a;
+  font-weight: 600;
+  font-size: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 0;
+  padding: 20px 20px 16px;
+}
+.chunk-drawer-dark :deep(.el-drawer__close-btn) {
+  color: #6e7681;
+}
+.chunk-drawer-dark :deep(.el-drawer__body) {
+  padding: 16px 20px;
+  color: #c9d1d9;
+}
+
+/* 概览统计 */
+.chunk-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.chunk-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 12px 20px;
+  flex: 1;
+}
+.summary-value {
+  font-size: 20px;
+  font-weight: 700;
+  color: #f5c87a;
+}
+.summary-label {
+  font-size: 11px;
+  color: #6e7681;
+}
+
 .chunks-loading, .chunks-empty {
   color: #6e7681;
   font-size: 14px;
-  padding: 20px 0;
+  padding: 40px 0;
   text-align: center;
 }
 .chunks-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 .chunk-card {
   background: rgba(255,255,255,0.02);
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 8px;
-  padding: 14px 16px;
+  border-radius: 10px;
+  overflow: hidden;
 }
 .chunk-card-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(255,255,255,0.03);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.chunk-card-header-left, .chunk-card-header-right {
+  display: flex;
+  align-items: center;
   gap: 10px;
-  margin-bottom: 8px;
 }
 .chunk-index {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #6e7681;
-  background: rgba(255,255,255,0.05);
+  background: rgba(255,255,255,0.06);
   padding: 2px 8px;
   border-radius: 4px;
 }
 .chunk-type-tag {
   font-size: 11px;
+  font-weight: 500;
   padding: 2px 8px;
   border-radius: 4px;
 }
-.tag-text { background: rgba(88,166,255,0.15); color: #58a6ff; }
-.tag-table { background: rgba(245,200,122,0.15); color: #f5c87a; }
+.tag-text { background: rgba(88,166,255,0.12); color: #58a6ff; }
+.tag-table { background: rgba(245,200,122,0.12); color: #f5c87a; }
 .chunk-tokens {
   font-size: 11px;
   color: #6e7681;
-  margin-left: auto;
+}
+.chunk-order {
+  font-size: 10px;
+  color: #484f58;
+  background: rgba(255,255,255,0.03);
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+.chunk-card-body {
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 12px 16px;
+}
+.chunk-card-body::-webkit-scrollbar {
+  width: 4px;
+}
+.chunk-card-body::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px;
 }
 .chunk-card-content {
   font-size: 13px;
-  line-height: 1.7;
-  color: #8b949e;
+  line-height: 1.8;
+  color: #c9d1d9;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  margin: 0;
 }
 </style>
