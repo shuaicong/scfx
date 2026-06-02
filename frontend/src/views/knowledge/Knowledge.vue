@@ -333,8 +333,6 @@
                   {{ getStatusText(item.vectorStatus) }}
                 </span>
               </td>
-              <td>
-              </td>
               <td>{{ formatTime(item.publishTime || item.createdAt) }}</td>
               <td>
                 <div class="actions">
