@@ -245,9 +245,6 @@
             <span>{{ item.sourceName || item.sourceType }}</span>
             <span>发布于 {{ formatTime(item.publishTime || item.createdAt) }}</span>
           </div>
-          <div class="card-tags" v-if="item.tags?.length">
-            <span v-for="tag in item.tags" :key="tag" class="card-tag" :class="tag">{{ tag }}</span>
-          </div>
         </div>
         <div v-if="filteredList.length === 0 && !loading" class="empty-state">
           <span class="empty-icon">📭</span>
@@ -315,7 +312,6 @@
               <th>标题</th>
               <th>来源</th>
               <th>状态</th>
-              <th>标签</th>
               <th>发布日期</th>
               <th style="width: 120px;">操作</th>
             </tr>
@@ -338,9 +334,6 @@
                 </span>
               </td>
               <td>
-                <div class="table-tags" v-if="item.tags?.length">
-                  <span v-for="tag in item.tags" :key="tag" class="card-tag" :class="tag">{{ tag }}</span>
-                </div>
               </td>
               <td>{{ formatTime(item.publishTime || item.createdAt) }}</td>
               <td>
@@ -474,10 +467,6 @@
         </div>
       </div>
 
-      <div class="preview-tags-section" v-if="currentPreview?.tags?.length">
-        <span v-for="tag in currentPreview.tags" :key="tag" class="preview-tag" :class="tag">{{ tag }}</span>
-        <span class="add-tag-btn">+ 添加标签</span>
-      </div>
 
       <!-- Preview Content: Read-only mode -->
       <div class="preview-content" v-if="currentPreview && !editing" style="display:none">
@@ -860,7 +849,6 @@ interface KnowledgeItem {
   content?: string
   contentHtml?: string
   fileType?: string
-  tags?: string[]
   revectorizing?: boolean
   score?: number
   executionId?: string
@@ -2487,29 +2475,9 @@ const totalTokens = computed(() => chunks.value.reduce((sum, c) => sum + (c.toke
   margin-bottom: 12px;
 }
 
-.card-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 
-.card-tag {
-  padding: 3px 8px;
-  background: var(--bg-tertiary);
-  border-radius: 4px;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
 
-.card-tag.price {
-  background: var(--accent-bg);
-  color: var(--accent);
-}
 
-.card-tag.supply {
-  background: rgba(88, 166, 255, 0.15);
-  color: var(--blue);
-}
 
 .empty-state {
   grid-column: 1 / -1;
@@ -2721,11 +2689,6 @@ const totalTokens = computed(() => chunks.value.reduce((sum, c) => sum + (c.toke
   color: var(--red);
 }
 
-.table-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-}
 
 .actions {
   display: flex;
