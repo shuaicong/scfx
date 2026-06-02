@@ -314,7 +314,7 @@
                 <div class="checkbox" :class="{ checked: isAllSelected }" @click="toggleSelectAll"></div>
               </th>
               <th>标题</th>
-              <th>来源</th>
+              <th>采集任务来源</th>
               <th>数据来源</th>
               <th>状态</th>
               <th>发布日期</th>
