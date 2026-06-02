@@ -143,6 +143,7 @@ public class CollectorController {
             kb.setOriginalUrl(originalUrl);
             kb.setContent(content);
             kb.setContentHtml((String) request.get("contentHtml"));
+            kb.setTableMeta((String) request.get("tableMeta"));
             kb.setPublishTime(publishTime);
             kb.setExecutionId(executionId);
             kb.setCollectionSource(source);

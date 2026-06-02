@@ -5,14 +5,17 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
 import com.scfx.entity.DrCoord;
 import com.scfx.entity.KnowledgeBase;
+import com.scfx.entity.KnowledgeChunk;
 import com.scfx.entity.KnowledgeViz;
 import com.scfx.mapper.DrCoordMapper;
 import com.scfx.mapper.DrVersionMapper;
+import com.scfx.mapper.KnowledgeChunkMapper;
 import com.scfx.mapper.KnowledgeBaseMapper;
 import com.scfx.mapper.KnowledgeVizMapper;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.VectorStore;
 import com.scfx.service.VectorTaskService;
+import com.scfx.service.impl.KnowledgeSearchService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +39,8 @@ public class KnowledgeBaseController {
     private final KnowledgeVizMapper knowledgeVizMapper;
     private final DrCoordMapper drCoordMapper;
     private final DrVersionMapper drVersionMapper;
+    private final KnowledgeChunkMapper knowledgeChunkMapper;
+    private final KnowledgeSearchService knowledgeSearchService;
 
     /** 重算锁：key=(categoryId,algorithm)，防重复点击 */
     private final ConcurrentHashMap<String, Boolean> recomputeLocks = new ConcurrentHashMap<>();
@@ -94,11 +99,23 @@ public class KnowledgeBaseController {
     public Result<KnowledgeBase> update(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
         KnowledgeBase kb = knowledgeBaseService.getById(id);
         if (kb == null) return Result.error("Not found");
+        boolean contentChanged = false;
         if (payload.containsKey("title")) kb.setTitle((String) payload.get("title"));
-        if (payload.containsKey("content")) kb.setContent((String) payload.get("content"));
+        if (payload.containsKey("content")) {
+            kb.setContent((String) payload.get("content"));
+            kb.setTableMeta(null);  // 清除旧 table_meta，前端降级为 marked 渲染
+            contentChanged = true;
+        }
         if (payload.containsKey("sourceType")) kb.setSourceType((String) payload.get("sourceType"));
         if (payload.containsKey("author")) kb.setAuthor((String) payload.get("author"));
+        if (payload.containsKey("categoryId")) {
+            kb.setCategoryId(((Number) payload.get("categoryId")).longValue());
+        }
         knowledgeBaseService.updateById(kb);
+        // 内容变更 → 异步触发重新切片+向量化
+        if (contentChanged && kb.getCategoryId() != null) {
+            vectorTaskService.processSingle(kb.getId());
+        }
         return Result.success(kb);
     }
 
@@ -116,12 +133,54 @@ public class KnowledgeBaseController {
         return Result.success(Map.of("status", "ok"));
     }
 
+    /**
+     * 语义搜索：对指定分类执行向量检索，返回 Top-K 文档。
+     * <p>
+     * 请求体：
+     *   { "query": "山东玉米价格", "categoryId": 1, "topK": 10 }
+     * <p>
+     * 搜索覆盖：
+     * - 已切片文档（≥500 字）：搜切片向量，按 doc_id 聚合取 MAX score
+     * - 未切片文档（&lt;500 字）：搜 DashScope 可视化向量
+     * - summary 切片权重 ×1.1
+     */
+    @PostMapping("/search")
+    public Result<List<KnowledgeSearchService.SearchResult>> search(
+            @RequestBody Map<String, Object> payload) {
+        String query = (String) payload.get("query");
+        Number catId = (Number) payload.get("categoryId");
+        int topK = payload.containsKey("topK") ? ((Number) payload.get("topK")).intValue() : 10;
+
+        if (query == null || query.isBlank()) {
+            return Result.error(400, "查询词不能为空", "EMPTY_QUERY");
+        }
+        if (catId == null) {
+            return Result.error(400, "分类 ID 不能为空", "NO_CATEGORY");
+        }
+
+        List<KnowledgeSearchService.SearchResult> results =
+            knowledgeSearchService.search(query, catId.longValue(), topK);
+        return Result.success(results);
+    }
+
+    /**
+     * 获取指定知识的切片列表
+     */
+    @GetMapping("/{knowledgeId}/chunks")
+    public Result<List<KnowledgeChunk>> getChunks(@PathVariable Long knowledgeId) {
+        List<KnowledgeChunk> chunks = knowledgeChunkMapper.selectByKnowledgeIdAndIsActive(knowledgeId, 1);
+        return Result.success(chunks);
+    }
+
     @PostMapping("/manual")
     public Result<KnowledgeBase> manualAdd(@RequestBody Map<String, Object> payload) {
         KnowledgeBase kb = new KnowledgeBase();
         kb.setTitle((String) payload.get("title"));
         kb.setContent((String) payload.get("content"));
         kb.setSourceType((String) payload.get("source"));
+        if (payload.containsKey("categoryId")) {
+            kb.setCategoryId(((Number) payload.get("categoryId")).longValue());
+        }
         knowledgeBaseService.save(kb);
         return Result.success(kb);
     }
