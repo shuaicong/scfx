@@ -242,7 +242,7 @@
           <div class="card-icon">{{ item.sourceIcon || '📄' }}</div>
           <h3 class="card-title">{{ item.title }}</h3>
           <div class="card-meta">
-            <span>{{ getSourceDisplayName(item) }}</span>
+            <span class="source-name">{{ getSourceDisplayName(item) }}</span><span class="ds-name" v-if="item.sourceName && item.sourceName !== item.sourceType">&nbsp;({{ item.sourceName }})</span>
             <span>发布于 {{ formatTime(item.publishTime || item.createdAt) }}</span>
           </div>
         </div>
@@ -295,7 +295,7 @@
             <div class="item-title">{{ item.title }}</div>
             <div class="item-meta">
               <span class="item-status" :class="item.vectorStatus"></span>
-              <span>{{ getSourceDisplayName(item) }}</span>
+              <span class="source-name">{{ getSourceDisplayName(item) }}</span><span class="ds-name" v-if="item.sourceName && item.sourceName !== item.sourceType">&nbsp;({{ item.sourceName }})</span>
             </div>
           </div>
         </div>
@@ -328,7 +328,7 @@
                   {{ item.title }}
                 </div>
               </td>
-              <td>{{ getSourceDisplayName(item) }}</td>
+              <td><span class="source-name">{{ getSourceDisplayName(item) }}</span><br><span class="ds-name" v-if="item.sourceName && item.sourceName !== item.sourceType">{{ item.sourceName }}</span></td>
               <td>
                 <span class="status-badge" :class="item.vectorStatus">
                   {{ getStatusText(item.vectorStatus) }}
