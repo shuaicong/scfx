@@ -142,7 +142,23 @@
             v-model="filters.search"
             placeholder="搜索标题/内容..."
             @input="onSearchInput"
+            @keydown="onSearchKeydown"
           />
+          <el-tooltip
+            placement="top"
+            :width="260"
+            :content="semanticMode
+              ? '语义模式已开启，输入关键词后按 Enter 进行语义检索'
+              : '根据语义含义匹配内容，而非简单关键词匹配。适合记不清原文精确措辞时的搜索。开启后输入关键词按 Enter 触发'"
+            :show-after="500"
+          >
+            <button
+              class="btn btn-sm btn-outline"
+              style="margin-left:6px;white-space:nowrap"
+              :class="{ active: semanticMode }"
+              @click="toggleSemanticSearch"
+            >🧠 语义</button>
+          </el-tooltip>
         </div>
         <div class="filter-group">
           <span class="filter-label">来源:</span>
@@ -211,7 +227,8 @@
       </div>
 
       <!-- Card Grid -->
-      <div class="card-grid" id="cardGrid" v-loading="loading" v-if="viewMode === 'card' && !previewVisible">
+      <!-- Semantic Search Results -->
+      <div class="card-grid" id="cardGrid" v-loading="loading || semanticLoading" v-if="viewMode === 'card' && !previewVisible && !semanticMode">
         <div
           v-for="item in filteredList"
           :key="item.id"
@@ -226,7 +243,7 @@
           <h3 class="card-title">{{ item.title }}</h3>
           <div class="card-meta">
             <span>{{ item.sourceName || item.sourceType }}</span>
-            <span>{{ item.publishTime || item.createdAt }}</span>
+            <span>发布于 {{ formatTime(item.publishTime || item.createdAt) }}</span>
           </div>
           <div class="card-tags" v-if="item.tags?.length">
             <span v-for="tag in item.tags" :key="tag" class="card-tag" :class="tag">{{ tag }}</span>
@@ -235,6 +252,35 @@
         <div v-if="filteredList.length === 0 && !loading" class="empty-state">
           <span class="empty-icon">📭</span>
           <span class="empty-text">暂无数据</span>
+        </div>
+      </div>
+
+      <!-- Semantic Search Results -->
+      <div class="card-grid" v-loading="semanticLoading" v-if="viewMode === 'card' && !previewVisible && semanticMode">
+        <div
+          v-for="item in semanticResults"
+          :key="item.id"
+          class="card semantic-result-card"
+          @click="viewSemanticDetail(item)"
+        >
+          <div class="card-icon">{{ getSourceIcon(item.sourceType) || '📄' }}</div>
+          <h3 class="card-title">
+            {{ item.title }}
+            <span class="score-badge" :class="scoreColor(item.score)">{{ (item.score * 100).toFixed(1) }}%</span>
+            <span v-if="item.summaryMatch" class="summary-badge">摘要</span>
+          </h3>
+          <div class="card-meta">
+            <span>{{ item.sourceType }} · {{ item.chunkCount }} 切片</span>
+          </div>
+          <div class="semantic-snippet" v-html="highlightMatch(item.content, item.matchedStartOffset, item.matchedEndOffset)"></div>
+        </div>
+        <div v-if="semanticResults.length === 0 && !semanticLoading && semanticSearched" class="empty-state">
+          <span class="empty-icon">🔍</span>
+          <span class="empty-text">未找到匹配结果</span>
+        </div>
+        <div v-if="!semanticSearched && !semanticLoading" class="empty-state">
+          <span class="empty-icon">🧠</span>
+          <span class="empty-text">输入查询词后点击「语义搜索」或按 Enter</span>
         </div>
       </div>
 
@@ -270,7 +316,7 @@
               <th>来源</th>
               <th>状态</th>
               <th>标签</th>
-              <th>日期</th>
+              <th>发布日期</th>
               <th style="width: 120px;">操作</th>
             </tr>
           </thead>
@@ -296,7 +342,7 @@
                   <span v-for="tag in item.tags" :key="tag" class="card-tag" :class="tag">{{ tag }}</span>
                 </div>
               </td>
-              <td>{{ item.publishTime || item.createdAt }}</td>
+              <td>{{ formatTime(item.publishTime || item.createdAt) }}</td>
               <td>
                 <div class="actions">
                   <button class="action-btn" @click.stop="viewDetail(item)" title="查看">
@@ -395,8 +441,8 @@
           <div class="value">{{ currentPreview.sourceIcon }} {{ currentPreview.sourceName || currentPreview.sourceType }}</div>
         </div>
         <div class="preview-meta-item">
-          <div class="label">日期</div>
-          <div class="value">{{ currentPreview.publishTime || currentPreview.createdAt || '-' }}</div>
+          <div class="label">发布日期</div>
+          <div class="value">{{ formatTime(currentPreview.publishTime || currentPreview.createdAt) }}</div>
         </div>
         <div class="preview-meta-item">
           <div class="label">文本块</div>
@@ -434,7 +480,7 @@
       </div>
 
       <!-- Preview Content: Read-only mode -->
-      <div class="preview-content" v-if="currentPreview && !editing">
+      <div class="preview-content" v-if="currentPreview && !editing" style="display:none">
         <div class="preview-section">
           <div class="preview-section-title">内容摘要</div>
           <!-- docx-preview container -->
@@ -692,41 +738,101 @@
       </div>
     </div>
   </div>
-</div>
+  <!-- 切片查看抽屉 - 时间轴设计 -->
+  <el-drawer v-model="chunkDrawerVisible" :title="chunkDrawerTitle" size="520px" destroy-on-close class="chunk-drawer">
+    <template #header>
+      <div class="chunk-drawer-header">
+        <div class="chunk-drawer-title-row">
+          <span class="chunk-drawer-icon">◧</span>
+          <span class="chunk-drawer-title">{{ chunkDrawerTitle }}</span>
+        </div>
+        <div class="chunk-drawer-meta" v-if="chunks.length > 0">
+          <span class="chunk-meta-item">
+            <span class="chunk-meta-dot"></span>
+            {{ vectorizedCount }}/{{ chunks.length }} 已向量化
+          </span>
+          <span class="chunk-meta-divider"></span>
+          <span class="chunk-meta-item">{{ totalTokens.toLocaleString() }} tokens</span>
+        </div>
+      </div>
+    </template>
 
-<!-- 切片查看抽屉 -->
-<el-drawer v-model="chunkDrawerVisible" :title="chunkDrawerTitle" size="500px" destroy-on-close>
-  <template #default>
-    <div v-if="chunks.length === 0" style="text-align: center; padding: 40px; color: #999">
-      暂无切片数据
+    <div v-if="chunks.length === 0" class="chunk-empty">
+      <div class="chunk-empty-icon">▣</div>
+      <p class="chunk-empty-text">暂无切片数据</p>
+      <p class="chunk-empty-hint">该文档内容较短，无需切片</p>
     </div>
-    <div v-else class="chunk-list">
-      <el-card
+    <div v-else class="chunk-timeline">
+      <div
         v-for="(chunk, i) in chunks"
         :key="chunk.id"
-        class="chunk-card"
-        :class="{ 'chunk-failed': chunk.vectorStatus === 'failed' }"
+        class="chunk-timeline-node"
+        :style="{ animationDelay: i * 40 + 'ms' }"
       >
-        <template #header>
-          <div class="chunk-header">
-            <span class="chunk-index">切片 #{{ i + 1 }}</span>
-            <el-tag
-              :type="chunk.vectorStatus === 'vectorized' ? 'success' : chunk.vectorStatus === 'failed' ? 'danger' : 'info'"
-              size="small"
+        <!-- 时间轴：圆点 + 连接线 -->
+        <div class="chunk-timeline-dot"
+          :class="{
+            'dot-summary': chunk.isSummary,
+            'dot-failed': chunk.vectorStatus === 'failed',
+            'dot-vectorized': chunk.vectorStatus === 'vectorized' && !chunk.isSummary
+          }"
+        ></div>
+        <div class="chunk-timeline-line" v-if="i < chunks.length - 1"></div>
+
+        <!-- 卡片 -->
+        <div class="chunk-card-custom"
+          :class="{
+            'card-failed': chunk.vectorStatus === 'failed',
+            'card-summary': chunk.isSummary
+          }"
+        >
+          <!-- 顶部：编号徽章 + 标题行 -->
+          <div class="chunk-card-top">
+            <div class="chunk-badge"
+              :class="{
+                'badge-failed': chunk.vectorStatus === 'failed',
+                'badge-summary': chunk.isSummary
+              }"
             >
-              {{ chunk.vectorStatus === 'vectorized' ? '已向量化' : chunk.vectorStatus === 'failed' ? '失败' : '待处理' }}
-            </el-tag>
-            <span class="chunk-tokens">{{ chunk.tokenCount || '?' }} tokens</span>
+              <span class="chunk-badge-num">{{ i + 1 }}</span>
+              <span v-if="chunk.isSummary" class="chunk-badge-star">★</span>
+            </div>
+            <div class="chunk-card-info">
+              <div class="chunk-card-title-row">
+                <span class="chunk-card-label">
+                  {{ chunk.isSummary ? '摘要切片' : '内容切片' }}
+                </span>
+                <span class="chunk-status-chip"
+                  :class="'chip-' + chunk.vectorStatus"
+                >
+                  <span class="chip-icon">
+                    {{ chunk.vectorStatus === 'vectorized' ? '✓' : chunk.vectorStatus === 'failed' ? '✗' : '◎' }}
+                  </span>
+                  {{ chunk.vectorStatus === 'vectorized' ? '已向量化' : chunk.vectorStatus === 'failed' ? '失败' : '待处理' }}
+                </span>
+              </div>
+              <div class="chunk-card-meta">
+                <span class="chunk-meta-tokens">{{ chunk.tokenCount ? '~' + chunk.tokenCount + ' tokens' : '--' }}</span>
+                <span class="chunk-meta-length" v-if="chunk.content">· {{ chunk.content.length }} 字符</span>
+              </div>
+            </div>
           </div>
-        </template>
-        <p class="chunk-content">{{ chunk.content }}</p>
-        <div v-if="chunk.errorMessage" class="chunk-error">
-          {{ chunk.errorMessage }}
+
+          <!-- 中间：文本内容 -->
+          <div class="chunk-card-body">
+            <div class="chunk-body-scroll">{{ chunk.content }}</div>
+          </div>
+
+          <!-- 错误信息 -->
+          <div v-if="chunk.errorMessage" class="chunk-error-bar">
+            <span class="chunk-error-icon">⚠</span>
+            <span class="chunk-error-text">{{ chunk.errorMessage }}</span>
+          </div>
         </div>
-      </el-card>
+      </div>
     </div>
-  </template>
-</el-drawer>
+  </el-drawer>
+</div>
 </template>
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
@@ -1064,6 +1170,13 @@ function onSearchInput() {
   }, 300)
 }
 
+/** 搜索框按 Enter 触发语义搜索（如果在语义模式下） */
+function onSearchKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && semanticMode.value && filters.search.trim()) {
+    doSemanticSearch(filters.search.trim())
+  }
+}
+
 const filteredList = computed(() => {
   const q = filters.search.toLowerCase().trim()
   if (!q) return list.value
@@ -1072,6 +1185,87 @@ const filteredList = computed(() => {
     (item.content && item.content.toLowerCase().includes(q))
   )
 })
+
+// ======================== 语义搜索 ========================
+const semanticMode = ref(false)
+const semanticLoading = ref(false)
+const semanticSearched = ref(false)
+const semanticQuery = ref('')
+const semanticResults = ref<import('@/api/knowledge').SearchResult[]>([])
+
+function toggleSemanticSearch() {
+  semanticMode.value = !semanticMode.value
+  if (!semanticMode.value) {
+    // 退出语义搜索模式，回到普通列表
+    semanticResults.value = []
+    semanticSearched.value = false
+  } else if (filters.search.trim()) {
+    // 有查询词时立即搜索
+    doSemanticSearch(filters.search.trim())
+  }
+}
+
+async function doSemanticSearch(query: string) {
+  if (!query || !selectedCategoryId.value) return
+  semanticLoading.value = true
+  semanticSearched.value = true
+  semanticQuery.value = query
+  try {
+    const res = await knowledgeApi.search({
+      query,
+      categoryId: selectedCategoryId.value,
+      topK: 20
+    })
+    semanticResults.value = res.data || []
+  } catch (e: any) {
+    console.error('语义搜索失败:', e)
+    ElMessage.error('语义搜索失败')
+    semanticResults.value = []
+  } finally {
+    semanticLoading.value = false
+  }
+}
+
+/** 搜索命中文段高亮（利用 matchedStartOffset/matchedEndOffset） */
+function highlightMatch(content: string, startOff: number | null, endOff: number | null): string {
+  if (!content || startOff == null || endOff == null || startOff >= endOff) {
+    // 没有偏移信息或非切片文档，显示前 200 字
+    return escapeHtml((content || '').substring(0, 200))
+  }
+  const before = escapeHtml(content.substring(0, startOff))
+  const matched = escapeHtml(content.substring(startOff, endOff))
+  const after = escapeHtml(content.substring(endOff, endOff + 200))
+  return `${before}<mark class="search-highlight">${matched}</mark>${after}`
+}
+
+/** 查看语义搜索结果详情 */
+function viewSemanticDetail(item: import('@/api/knowledge').SearchResult) {
+  if (!item.id) return
+  // 选中该项，触发预览面板展示
+  const kbItem: KnowledgeItem = {
+    id: item.id,
+    title: item.title,
+    content: item.content,
+    sourceType: item.sourceType,
+    score: item.score,
+  }
+  currentPreview.value = kbItem
+  previewVisible.value = true
+  updatePreviewRoute(item.id)
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function scoreColor(score: number): string {
+  if (score >= 0.7) return 'score-high'
+  if (score >= 0.4) return 'score-mid'
+  return 'score-low'
+}
 
 // Close dropdowns on click outside
 function clickHandler(e: MouseEvent) {
@@ -1352,29 +1546,9 @@ function clearSelection() {
   selectedItems.value = []
 }
 
-async function viewDetail(item: KnowledgeItem) {
-  try {
-    const res: any = await knowledgeApi.getById(item.id!)
-    currentPreview.value = res.data || item
-    previewVisible.value = true
-    editForm.title = currentPreview.value.title || ''
-    editForm.content = currentPreview.value.content || ''
-    editForm.sourceType = currentPreview.value.sourceType || ''
-    editForm.author = currentPreview.value.author || ''
-    // 对 .docx 文件：使用 docx-preview 渲染
-    if (item.fileType === 'docx' && item.id) {
-      await renderDocxPreview(item.id)
-    }
-  } catch (e) {
-    currentPreview.value = item
-    previewVisible.value = true
-    editForm.title = item.title || ''
-    editForm.content = item.content || ''
-    editForm.sourceType = item.sourceType || ''
-    editForm.author = item.author || ''
-    if (item.fileType === 'docx' && item.id) {
-      renderDocxPreview(item.id).catch(() => {})
-    }
+function viewDetail(item: KnowledgeItem) {
+  if (item.id) {
+    router.push({ name: 'KnowledgeDetail', params: { id: item.id } })
   }
 }
 
@@ -1689,6 +1863,11 @@ async function viewChunks(knowledgeId: number, title: string) {
     chunks.value = []
   }
 }
+
+// ======================== 切片抽屉 Computed ========================
+
+const vectorizedCount = computed(() => chunks.value.filter(c => c.vectorStatus === 'vectorized').length)
+const totalTokens = computed(() => chunks.value.reduce((sum, c) => sum + (c.tokenCount || 0), 0))
 
 // Mock data for testing
 
@@ -3627,43 +3806,406 @@ async function viewChunks(knowledgeId: number, title: string) {
   font-size: 12px;
 }
 
-/* ======================== 切片抽屉 ======================== */
-.chunk-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+/* ======================== 切片抽屉 - 时间轴 ======================== */
+
+/* Drawer 容器样式已在非 scoped 块中覆盖（teleport 到 body） */
+
+/* --- 自定义 Header --- */
+.chunk-drawer-header {
+  width: 100%;
 }
-.chunk-card {
-  border-left: 3px solid #409eff;
-}
-.chunk-card.chunk-failed {
-  border-left-color: #f56c6c;
-}
-.chunk-header {
+.chunk-drawer-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.chunk-index {
+.chunk-drawer-icon {
+  font-size: 18px;
+  color: var(--accent);
+  opacity: 0.8;
+}
+.chunk-drawer-title {
+  font-size: 15px;
   font-weight: 600;
-  font-size: 14px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.chunk-tokens {
+.chunk-drawer-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
   font-size: 12px;
-  color: #999;
-  margin-left: auto;
+  color: var(--text-muted);
 }
-.chunk-content {
+.chunk-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.chunk-meta-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green, #3fb950);
+}
+.chunk-meta-divider {
+  width: 1px;
+  height: 10px;
+  background: var(--border-color);
+}
+
+/* --- 空状态 --- */
+.chunk-empty {
+  text-align: center;
+  padding: 60px 20px;
+}
+.chunk-empty-icon {
+  font-size: 48px;
+  opacity: 0.3;
+  margin-bottom: 12px;
+  color: var(--text-muted);
+}
+.chunk-empty-text {
+  color: var(--text-secondary);
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+.chunk-empty-hint {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+/* --- 时间轴布局 --- */
+.chunk-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.chunk-timeline-node {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  position: relative;
+  padding-left: 24px;
+  animation: chunkFadeUp 0.35s ease both;
+}
+
+@keyframes chunkFadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* --- 圆点 --- */
+.chunk-timeline-dot {
+  position: absolute;
+  left: 0;
+  top: 18px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-color);
+  border: 2px solid var(--bg-secondary);
+  z-index: 1;
+  flex-shrink: 0;
+}
+.chunk-timeline-dot.dot-vectorized {
+  background: var(--accent-green, #3fb950);
+}
+.chunk-timeline-dot.dot-failed {
+  background: var(--accent-red, #f85149);
+}
+.chunk-timeline-dot.dot-summary {
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(245, 200, 122, 0.4);
+}
+
+/* --- 连接线 --- */
+.chunk-timeline-line {
+  position: absolute;
+  left: 4px;
+  top: 30px;
+  width: 2px;
+  height: calc(100% - 8px);
+  background: linear-gradient(to bottom, var(--border-color), transparent);
+  z-index: 0;
+}
+.chunk-timeline-node:last-child .chunk-timeline-line {
+  display: none;
+}
+
+/* --- 卡片 --- */
+.chunk-card-custom {
+  width: 100%;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  transition: all 0.2s ease;
+}
+.chunk-card-custom:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(245, 200, 122, 0.12);
+  border-color: rgba(245, 200, 122, 0.3);
+}
+.chunk-card-custom.card-failed {
+  border-left-color: var(--accent-red, #f85149);
+}
+.chunk-card-custom.card-failed:hover {
+  box-shadow: 0 4px 16px rgba(248, 81, 73, 0.12);
+}
+.chunk-card-custom.card-summary {
+  border-left-color: var(--accent);
+  background: rgba(245, 200, 122, 0.03);
+}
+
+/* --- 顶部区域 --- */
+.chunk-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px 8px;
+}
+
+/* --- 编号徽章 --- */
+.chunk-badge {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1.5px solid var(--border-color);
+  flex-shrink: 0;
+  position: relative;
+}
+.chunk-badge-num {
   font-size: 13px;
-  line-height: 1.6;
-  color: #333;
-  max-height: 200px;
-  overflow-y: auto;
-  white-space: pre-wrap;
+  font-weight: 700;
+  color: var(--text-secondary);
+  line-height: 1;
 }
-.chunk-error {
-  color: #f56c6c;
+.chunk-badge-star {
+  font-size: 8px;
+  color: var(--accent);
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  line-height: 1;
+}
+.chunk-badge.badge-summary {
+  border-color: var(--accent);
+  background: rgba(245, 200, 122, 0.1);
+}
+.chunk-badge.badge-summary .chunk-badge-num {
+  color: var(--accent);
+}
+.chunk-badge.badge-failed {
+  border-color: var(--accent-red, #f85149);
+}
+
+/* --- 卡片信息区 --- */
+.chunk-card-info {
+  flex: 1;
+  min-width: 0;
+}
+.chunk-card-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.chunk-card-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* --- 状态芯片 --- */
+.chunk-status-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+.chip-icon {
+  font-size: 10px;
+}
+.chip-vectorized {
+  background: rgba(63, 185, 80, 0.12);
+  color: var(--accent-green, #3fb950);
+}
+.chip-failed {
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--accent-red, #f85149);
+}
+.chip-pending, .chip-processing {
+  background: rgba(210, 153, 34, 0.12);
+  color: var(--accent-yellow, #d29922);
+}
+
+/* --- 卡片元数据行 --- */
+.chunk-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.chunk-meta-tokens {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+}
+.chunk-meta-length {
+  font-size: 11px;
+}
+
+/* --- 内容区 --- */
+.chunk-card-body {
+  position: relative;
+  margin: 0 14px 10px;
+}
+.chunk-body-scroll {
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
   font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.chunk-card-body::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.2));
+  pointer-events: none;
+  border-radius: 0 0 6px 6px;
+}
+
+/* --- 错误信息 --- */
+.chunk-error-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: rgba(248, 81, 73, 0.08);
+  border-top: 1px solid rgba(248, 81, 73, 0.15);
+  font-size: 12px;
+  color: var(--accent-red, #f85149);
+}
+.chunk-error-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.chunk-error-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============ 语义搜索 ============ */
+.semantic-result-card {
+  cursor: pointer;
+  border-left: 3px solid #409eff;
+}
+.semantic-result-card:hover {
+  border-color: #66b1ff;
+  background: #f0f9ff;
+}
+.score-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.score-high { background: #e1f3d8; color: #2b7a2b; }
+.score-mid  { background: #fef0db; color: #b8821a; }
+.score-low  { background: #fde2e2; color: #c0392b; }
+.summary-badge {
+  display: inline-block;
+  font-size: 10px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #ecf5ff;
+  color: #409eff;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.semantic-snippet {
+  font-size: 12px;
+  color: #666;
   margin-top: 4px;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.search-highlight {
+  background: #fff3b0;
+  color: #333;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.btn-sm {
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: 4px;
+}
+.btn-outline {
+  background: transparent;
+  border: 1px solid #dcdfe6;
+  color: #606266;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-outline:hover { color: #409eff; border-color: #c6e2ff; background: #ecf5ff; }
+.btn-outline.active { color: #fff; background: #409eff; border-color: #409eff; }
+</style>
+
+<!-- 非 scoped：抽屉容器被 teleport 到 body，scoped CSS 无法覆盖 -->
+<style>
+.chunk-drawer.el-drawer {
+  background: var(--bg-secondary) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+.chunk-drawer .el-drawer__header {
+  padding: 16px 20px 12px;
+  margin-bottom: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+.chunk-drawer .el-drawer__title {
+  display: none;
+}
+.chunk-drawer .el-drawer__body {
+  padding: 16px 20px 24px;
+  overflow-y: auto;
 }
 </style>
