@@ -1803,6 +1803,7 @@ async function handleDelete(item: KnowledgeItem) {
       closePreview()
     }
     loadData()
+    categoryTreeRef.value?.loadTree()
   } catch (e: any) {
     if (e !== 'cancel') {
       console.error('删除失败', e)
@@ -1838,6 +1839,7 @@ async function batchDelete() {
     ElMessage.success('删除成功')
     clearSelection()
     loadData()
+    categoryTreeRef.value?.loadTree()
   } catch (e: any) {
     if (e !== 'cancel') {
       ElMessage.error('删除失败')
