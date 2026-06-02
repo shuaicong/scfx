@@ -244,6 +244,10 @@
           <div class="card-meta">
             <span class="source-name">{{ getSourceDisplayName(item) }}</span><span class="ds-name" v-if="item.sourceName && item.sourceName !== item.sourceType">&nbsp;({{ item.sourceName }})</span>
             <span>发布于 {{ formatTime(item.publishTime || item.createdAt) }}</span>
+            <span class="card-extra" v-if="item.collectionVariety || item.collectionReportType">{{ item.collectionVariety || '' }}{{ item.collectionReportType ? ' ' + item.collectionReportType : '' }}</span>
+          </div>
+          <div class="card-footer" v-if="item.chunkCount !== undefined">
+            <span class="chunk-badge">{{ item.chunkCount }} 切片</span>
           </div>
         </div>
         <div v-if="filteredList.length === 0 && !loading" class="empty-state">
@@ -311,6 +315,8 @@
               </th>
               <th>标题</th>
               <th>来源</th>
+              <th>分类</th>
+              <th>品种</th>
               <th>状态</th>
               <th>发布日期</th>
 			  <th>采集时间</th>
@@ -329,6 +335,8 @@
                 </div>
               </td>
               <td><span class="source-name">{{ getSourceDisplayName(item) }}</span><br><span class="ds-name" v-if="item.sourceName && item.sourceName !== item.sourceType">{{ item.sourceName }}</span></td>
+              <td><span class="category-tag">{{ item.categoryName || "未分类" }}</span></td>
+              <td>{{ item.collectionVariety || "-" }}{{ item.collectionReportType ? " " + item.collectionReportType : "" }}</td>
               <td>
                 <span class="status-badge" :class="item.vectorStatus">
                   {{ getStatusText(item.vectorStatus) }}
