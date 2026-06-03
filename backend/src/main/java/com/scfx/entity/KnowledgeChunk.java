@@ -18,7 +18,8 @@ public class KnowledgeChunk {
     private Integer endOffset;         // 在原文中的结束字符偏移
     private Integer isSummary;         // 1=首切片（代表全文语义）, 0=普通切片
     private Integer tokenCount;
-    private byte[] vectorBgeM3;        // BGE-M3 768维检索向量（serialized float[]）
+    @TableField(typeHandler = com.scfx.handler.FloatArrayTypeHandler.class)
+    private float[] vectorBgeM3;       // BGE-M3 768维检索向量
     private String vectorStatus;       // pending / processing / vectorized / failed
     private String vectorId;
     private String errorMessage;
