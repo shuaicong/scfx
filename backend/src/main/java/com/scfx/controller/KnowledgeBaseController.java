@@ -21,6 +21,8 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import org.apache.commons.codec.digest.DigestUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -129,8 +131,35 @@ public class KnowledgeBaseController {
     }
 
     @PostMapping("/upload")
-    public Result<Map<?, ?>> upload(@RequestBody Map<String, Object> payload) {
-        return Result.success(Map.of("status", "ok"));
+    public Result<Map<String, Object>> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "categoryId", required = false) Long categoryId,
+            @RequestParam(value = "title", required = false) String title) {
+        try {
+            String fileName = file.getOriginalFilename();
+            if (title == null || title.isEmpty()) {
+                title = fileName != null ? fileName.replaceFirst("\\.[^.]+$", "") : "未命名文档";
+            }
+            String content = new String(file.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
+
+            KnowledgeBase kb = new KnowledgeBase();
+            kb.setTitle(title);
+            kb.setContent(content);
+            kb.setSourceType("upload");
+            kb.setSourceName("人工录入");
+            kb.setCategoryId(categoryId);
+            kb.setFilePath(fileName);
+            kb.setFileType(fileName != null && fileName.endsWith(".docx") ? "docx" : "txt");
+            kb.setVectorStatus("pending");
+            kb.setContentHash(DigestUtils.md5Hex(content));
+            knowledgeBaseService.save(kb);
+
+            log.info("上传文档成功: knowledgeId={}, title={}", kb.getId(), title);
+            return Result.success(Map.of("knowledgeId", kb.getId(), "title", title));
+        } catch (Exception e) {
+            log.error("上传失败: {}", e.getMessage(), e);
+            return Result.error("上传失败: " + e.getMessage());
+        }
     }
 
     /**
