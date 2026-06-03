@@ -7,6 +7,7 @@ import com.scfx.entity.KnowledgeBase;
 import com.scfx.entity.TaskExecution;
 import com.scfx.mapper.ExecutionItemMapper;
 import com.scfx.mapper.KnowledgeCategoryMapper;
+import com.scfx.mapper.DataSourceMapper;
 import com.scfx.service.CollectionScriptService;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.TaskExecutionService;
@@ -36,6 +37,7 @@ public class CollectorController {
     private final VectorTaskService vectorTaskService;
     private final CollectionScriptService scriptService;
     private final KnowledgeCategoryMapper knowledgeCategoryMapper;
+    private final DataSourceMapper dataSourceMapper;
 
     /**
      * 启动采集任务

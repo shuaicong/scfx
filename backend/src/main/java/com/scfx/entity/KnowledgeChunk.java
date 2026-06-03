@@ -12,8 +12,13 @@ public class KnowledgeChunk {
     private Long knowledgeId;
     private Long categoryId;
     private Integer chunkIndex;
+    private Integer chunkTotal;        // 所属文档总切片数
     private String content;
+    private Integer startOffset;       // 在原文中的起始字符偏移
+    private Integer endOffset;         // 在原文中的结束字符偏移
+    private Integer isSummary;         // 1=首切片（代表全文语义）, 0=普通切片
     private Integer tokenCount;
+    private byte[] vectorBgeM3;        // BGE-M3 768维检索向量（serialized float[]）
     private String vectorStatus;       // pending / processing / vectorized / failed
     private String vectorId;
     private String errorMessage;

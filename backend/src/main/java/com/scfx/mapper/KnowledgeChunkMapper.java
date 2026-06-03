@@ -13,4 +13,6 @@ public interface KnowledgeChunkMapper extends BaseMapper<KnowledgeChunk> {
     List<KnowledgeChunk> selectByKnowledgeIdAndIsActive(
         @Param("knowledgeId") Long knowledgeId,
         @Param("isActive") Integer isActive);
+
+    List<KnowledgeChunk> selectVectorizedByCategoryId(@Param("categoryId") Long categoryId);
 }
