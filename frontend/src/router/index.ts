@@ -77,6 +77,12 @@ const routes = [
         meta: { title: '向量可视化' }
       },
       {
+        path: 'knowledge/:id',
+        name: 'KnowledgeDetail',
+        component: () => import('../views/knowledge/KnowledgeDetail.vue'),
+        meta: { title: '知识详情', hideSidebar: true }
+      },
+      {
         path: 'system/datasource',
         name: 'DataSource',
         component: () => import('../views/system/DataSource.vue'),

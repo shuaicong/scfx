@@ -201,14 +201,16 @@ CREATE TABLE IF NOT EXISTS t_knowledge_base (
     original_url VARCHAR(1000),
     author VARCHAR(100),
     publish_time DATETIME,
-    content TEXT NOT NULL,
-    content_html TEXT COMMENT 'HTML格式内容（保留图片标签等）',
+    content MEDIUMTEXT NOT NULL,
+    content_html MEDIUMTEXT COMMENT 'HTML格式内容（保留图片标签等）',
+    table_meta TEXT COMMENT '结构化表格数据 JSON 数组',
     content_hash VARCHAR(64),
     file_path VARCHAR(500),
     file_type VARCHAR(20),
     chunk_count INT DEFAULT 0,
     vector_status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/processing/completed/failed',
     vector_ids VARCHAR(500),
+    retrieval_vector BLOB DEFAULT NULL COMMENT 'BGE-M3 检索向量（serialized float[]，非切片文档用）',
     execution_id VARCHAR(50),
     category_id BIGINT DEFAULT NULL COMMENT '所属分类ID',
     collection_source VARCHAR(50) DEFAULT NULL COMMENT '采集来源',
@@ -484,10 +486,15 @@ CREATE TABLE IF NOT EXISTS t_knowledge_chunk (
     knowledge_id BIGINT NOT NULL COMMENT '所属知识ID',
     category_id BIGINT COMMENT '分类ID',
     chunk_index INT NOT NULL COMMENT '切片序号（从0开始）',
-    content TEXT NOT NULL COMMENT '切片文本内容',
+    chunk_total INT DEFAULT 0 COMMENT '所属文档总切片数',
+    content MEDIUMTEXT NOT NULL COMMENT '切片文本内容',
+    start_offset INT DEFAULT 0 COMMENT '在原文中的起始字符偏移',
+    end_offset INT DEFAULT 0 COMMENT '在原文中的结束字符偏移',
+    is_summary TINYINT DEFAULT 0 COMMENT '1=首切片（代表全文语义）, 0=普通切片',
     token_count INT DEFAULT NULL COMMENT 'token数',
     vector_status VARCHAR(20) DEFAULT 'pending' COMMENT '向量化状态: pending/processing/vectorized/failed',
     vector_id VARCHAR(100) DEFAULT NULL COMMENT '向量ID（DashScope返回）',
+    vector_bge_m3 BLOB DEFAULT NULL COMMENT 'BGE-M3 768维检索向量（serialized float[]）',
     error_message VARCHAR(500) DEFAULT NULL COMMENT '向量化失败信息',
     is_active INT DEFAULT 1 COMMENT '1=正常 0=已删除',
     content_terms VARCHAR(2000) DEFAULT NULL COMMENT '保留字段：全文检索用',
@@ -497,24 +504,44 @@ CREATE TABLE IF NOT EXISTS t_knowledge_chunk (
     INDEX idx_knowledge_active (knowledge_id, is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识切片表';
 
--- 降维坐标表（UPSERT 覆盖，无历史版本堆积）
+-- 采集器注册信息表
+CREATE TABLE IF NOT EXISTS t_collector_info (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    collector_name VARCHAR(100) NOT NULL COMMENT '采集器名称',
+    sdk_version VARCHAR(20) DEFAULT NULL COMMENT 'SDK版本',
+    source VARCHAR(50) DEFAULT NULL COMMENT '采集来源',
+    subject VARCHAR(50) DEFAULT NULL COMMENT '采集主体',
+    coll_type VARCHAR(50) DEFAULT NULL COMMENT '采集类型',
+    coll_object VARCHAR(50) DEFAULT NULL COMMENT '采集对象',
+    description VARCHAR(500) DEFAULT NULL COMMENT '描述',
+    status VARCHAR(20) DEFAULT 'online' COMMENT '状态: online/offline',
+    last_heartbeat TIMESTAMP DEFAULT NULL COMMENT '最后心跳时间',
+    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
+    instance_count INT DEFAULT 1 COMMENT '实例数量',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='采集器注册信息表';
+
+-- 降维坐标存储表（支持多算法：PCA/MDS）
 CREATE TABLE IF NOT EXISTS t_knowledge_dr_coords (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    knowledge_id BIGINT NOT NULL,
-    category_id BIGINT NOT NULL,
-    algorithm VARCHAR(20) NOT NULL,
-    version INT NOT NULL,
-    x DOUBLE, y DOUBLE, z DOUBLE,
+    knowledge_id BIGINT NOT NULL COMMENT '知识ID',
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    algorithm VARCHAR(20) NOT NULL COMMENT '降维算法: pca/mds',
+    version INT NOT NULL COMMENT '版本号（按分类+算法递增）',
+    x DOUBLE DEFAULT NULL COMMENT 'X坐标',
+    y DOUBLE DEFAULT NULL COMMENT 'Y坐标',
+    z DOUBLE DEFAULT NULL COMMENT 'Z坐标(3D预留)',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_knowledge_algorithm (knowledge_id, algorithm),
-    INDEX idx_cat_alg (category_id, algorithm, version DESC)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维坐标表';
+    UNIQUE INDEX uk_knowledge_algorithm (knowledge_id, algorithm),
+    INDEX idx_cat_alg_ver (category_id, algorithm, version DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维坐标存储表（PCA/MDS多算法）';
 
 -- 降维版本号表
 CREATE TABLE IF NOT EXISTS t_dr_version (
-    category_id BIGINT NOT NULL,
-    algorithm VARCHAR(20) NOT NULL,
-    current_version INT NOT NULL DEFAULT 1,
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    algorithm VARCHAR(20) NOT NULL COMMENT '降维算法',
+    current_version INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (category_id, algorithm)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维版本号表';

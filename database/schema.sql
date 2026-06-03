@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS t_alert_record (
     alert_type VARCHAR(50) NOT NULL,
     alert_level VARCHAR(20) NOT NULL,
     alert_title VARCHAR(200) NOT NULL,
-    alert_content TEXT NOT NULL,
+    alert_content MEDIUMTEXT NOT NULL,
     target_id VARCHAR(50),
     status VARCHAR(20) DEFAULT 'pending',
     notified_channels JSON,
@@ -116,6 +116,44 @@ CREATE TABLE IF NOT EXISTS t_alert_record (
     INDEX idx_status (status),
     INDEX idx_created_time (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 知识库表
+CREATE TABLE IF NOT EXISTS t_knowledge_base (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    title VARCHAR(500) NOT NULL,
+    source_type VARCHAR(20) NOT NULL COMMENT 'collection/upload/manual',
+    source_name VARCHAR(100),
+    original_url VARCHAR(1000),
+    author VARCHAR(100),
+    publish_time DATETIME,
+    content MEDIUMTEXT NOT NULL,
+    content_html MEDIUMTEXT COMMENT 'HTML格式内容（保留图片标签等）',
+    table_meta TEXT COMMENT '结构化表格数据 JSON 数组',
+    content_hash VARCHAR(64),
+    file_path VARCHAR(500),
+    file_type VARCHAR(20),
+    chunk_count INT DEFAULT 0,
+    vector_status VARCHAR(20) DEFAULT 'pending' COMMENT 'pending/processing/completed/failed',
+    vector_ids VARCHAR(500),
+    retrieval_vector BLOB DEFAULT NULL COMMENT 'BGE-M3 检索向量（serialized float[]，非切片文档用）',
+    execution_id VARCHAR(50),
+    category_id BIGINT DEFAULT NULL COMMENT '所属分类ID',
+    collection_source VARCHAR(50) DEFAULT NULL COMMENT '采集来源',
+    collection_variety VARCHAR(50) DEFAULT NULL COMMENT '采集品种',
+    collection_report_type VARCHAR(50) DEFAULT NULL COMMENT '报告类型',
+    viz_x DOUBLE DEFAULT NULL COMMENT 'PCA降维X坐标（可视化用）',
+    viz_y DOUBLE DEFAULT NULL COMMENT 'PCA降维Y坐标（可视化用）',
+    viz_z DOUBLE DEFAULT NULL COMMENT 'PCA降维Z坐标（3D预留）',
+    created_by VARCHAR(50),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted INT DEFAULT 0,
+    INDEX idx_source_type (source_type),
+    INDEX idx_source_name (source_name),
+    INDEX idx_vector_status (vector_status),
+    INDEX idx_content_hash (content_hash),
+    INDEX idx_publish_time (publish_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识库表';
 
 -- 初始化粮信网采集任务
 INSERT INTO t_collection_task (task_name, task_type, source_name, source_url, status) VALUES

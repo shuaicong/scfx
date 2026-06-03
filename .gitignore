@@ -87,3 +87,15 @@ __pycache__/
 
 # Superpowers 工作区
 .superpowers/
+
+# 前端构建缓存和测试产物
+frontend/.vite/
+frontend/test-results/
+
+# 本地 MCP 配置
+.mcp.json
+.playwright-mcp/
+
+# AI 模型缓存（符号链接到本地 HuggingFace 缓存）
+ai-qa-service/models/*
+!ai-qa-service/models/.gitkeep

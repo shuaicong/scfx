@@ -18,12 +18,15 @@ public class KnowledgeBase {
     private LocalDateTime publishTime;
     private String content;
     private String contentHtml;              // HTML格式内容（保留图片标签等）
+    private String tableMeta;                // 结构化表格数据 JSON
     private String contentHash;
     private String filePath;
     private String fileType;
     private Integer chunkCount;
     private String vectorStatus;
     private String vectorIds;
+    @TableField(typeHandler = com.scfx.handler.FloatArrayTypeHandler.class)
+    private float[] retrievalVector;       // BGE-M3 检索向量（非切片文档用）
     private String executionId;
     private String createdBy;
 

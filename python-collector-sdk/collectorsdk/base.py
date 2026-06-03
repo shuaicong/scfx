@@ -281,6 +281,7 @@ class BaseCollector(ABC):
         content: str = "",
         content_html: str = "",
         publish_time: str = "",
+        table_meta: str = "",
     ):
         """
         快捷方法：提交报告数据
@@ -294,6 +295,7 @@ class BaseCollector(ABC):
             content: 正文内容
             content_html: 正文HTML（保留格式）
             publish_time: 发布时间
+            table_meta: 结构化表格数据 JSON 字符串（由采集器在提取 HTML 时生成）
         """
         if not content or not content.strip():
             logger.warning(f"报告内容为空，跳过提交: {title}")
@@ -308,6 +310,7 @@ class BaseCollector(ABC):
             content=content,
             content_html=content_html,
             publish_time=publish_time,
+            table_meta=table_meta,
         )
 
     def get_execution_id(self) -> Optional[str]:

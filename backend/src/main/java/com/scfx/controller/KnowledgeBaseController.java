@@ -5,19 +5,28 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
 import com.scfx.entity.DrCoord;
 import com.scfx.entity.KnowledgeBase;
+import com.scfx.entity.KnowledgeChunk;
 import com.scfx.entity.KnowledgeViz;
 import com.scfx.mapper.DrCoordMapper;
 import com.scfx.mapper.DrVersionMapper;
+import com.scfx.mapper.KnowledgeChunkMapper;
 import com.scfx.mapper.KnowledgeBaseMapper;
 import com.scfx.mapper.KnowledgeVizMapper;
+import com.scfx.service.FileStorageService;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.VectorStore;
 import com.scfx.service.VectorTaskService;
+import com.scfx.service.impl.KnowledgeSearchService;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.multipart.MultipartFile;
+import org.apache.commons.codec.digest.DigestUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,6 +45,9 @@ public class KnowledgeBaseController {
     private final KnowledgeVizMapper knowledgeVizMapper;
     private final DrCoordMapper drCoordMapper;
     private final DrVersionMapper drVersionMapper;
+    private final KnowledgeChunkMapper knowledgeChunkMapper;
+    private final KnowledgeSearchService knowledgeSearchService;
+    private final FileStorageService fileStorageService;
 
     /** 重算锁：key=(categoryId,algorithm)，防重复点击 */
     private final ConcurrentHashMap<String, Boolean> recomputeLocks = new ConcurrentHashMap<>();
@@ -94,11 +106,23 @@ public class KnowledgeBaseController {
     public Result<KnowledgeBase> update(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
         KnowledgeBase kb = knowledgeBaseService.getById(id);
         if (kb == null) return Result.error("Not found");
+        boolean contentChanged = false;
         if (payload.containsKey("title")) kb.setTitle((String) payload.get("title"));
-        if (payload.containsKey("content")) kb.setContent((String) payload.get("content"));
+        if (payload.containsKey("content")) {
+            kb.setContent((String) payload.get("content"));
+            kb.setTableMeta(null);  // 清除旧 table_meta，前端降级为 marked 渲染
+            contentChanged = true;
+        }
         if (payload.containsKey("sourceType")) kb.setSourceType((String) payload.get("sourceType"));
         if (payload.containsKey("author")) kb.setAuthor((String) payload.get("author"));
+        if (payload.containsKey("categoryId")) {
+            kb.setCategoryId(((Number) payload.get("categoryId")).longValue());
+        }
         knowledgeBaseService.updateById(kb);
+        // 内容变更 → 异步触发重新切片+向量化
+        if (contentChanged && kb.getCategoryId() != null) {
+            vectorTaskService.processSingle(kb.getId());
+        }
         return Result.success(kb);
     }
 
@@ -112,8 +136,118 @@ public class KnowledgeBaseController {
     }
 
     @PostMapping("/upload")
-    public Result<Map<?, ?>> upload(@RequestBody Map<String, Object> payload) {
-        return Result.success(Map.of("status", "ok"));
+    public Result<Map<String, Object>> upload(
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "categoryId", required = false) Long categoryId,
+            @RequestParam(value = "title", required = false) String title) {
+        try {
+            String fileName = file.getOriginalFilename();
+            if (title == null || title.isEmpty()) {
+                title = fileName != null ? fileName.replaceFirst("\\.[^.]+$", "") : "未命名文档";
+            }
+            // 文件大小限制 10MB
+            if (file.getSize() > 10 * 1024 * 1024) {
+                return Result.error("文件不能超过 10MB");
+            }
+            String content = new String(file.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            // 内容截断保护（MEDIUMTEXT 上限 16MB，10MB 安全线）
+            if (content.length() > 10 * 1024 * 1024) {
+                content = content.substring(0, 10 * 1024 * 1024);
+            }
+
+            KnowledgeBase kb = new KnowledgeBase();
+            kb.setTitle(title);
+            kb.setContent(content);
+            kb.setSourceType("upload");
+            kb.setSourceName("人工录入");
+            kb.setCategoryId(categoryId);
+            boolean isDocx = fileName != null && fileName.endsWith(".docx");
+            kb.setFileType(isDocx ? "docx" : "txt");
+            kb.setVectorStatus("pending");
+            kb.setContentHash(DigestUtils.md5Hex(content));
+            // 先入库获取 ID
+            knowledgeBaseService.save(kb);
+            // .docx 文件保存原始文件供预览
+            if (isDocx) {
+                try {
+                    String storedPath = fileStorageService.store(file, categoryId, kb.getId());
+                    kb.setFilePath(storedPath);
+                    knowledgeBaseService.updateById(kb);
+                } catch (Exception e) {
+                    log.warn("保存docx文件失败(不影响入库): {}", e.getMessage());
+                }
+            }
+
+            log.info("上传文档成功: knowledgeId={}, title={}", kb.getId(), title);
+            return Result.success(Map.of("knowledgeId", kb.getId(), "title", title));
+        } catch (Exception e) {
+            log.error("上传失败: {}", e.getMessage(), e);
+            return Result.error("上传失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 语义搜索：对指定分类执行向量检索，返回 Top-K 文档。
+     * <p>
+     * 请求体：
+     *   { "query": "山东玉米价格", "categoryId": 1, "topK": 10 }
+     * <p>
+     * 搜索覆盖：
+     * - 已切片文档（≥500 字）：搜切片向量，按 doc_id 聚合取 MAX score
+     * - 未切片文档（&lt;500 字）：搜 DashScope 可视化向量
+     * - summary 切片权重 ×1.1
+     */
+    @PostMapping("/search")
+    public Result<List<KnowledgeSearchService.SearchResult>> search(
+            @RequestBody Map<String, Object> payload) {
+        String query = (String) payload.get("query");
+        Number catId = (Number) payload.get("categoryId");
+        int topK = payload.containsKey("topK") ? ((Number) payload.get("topK")).intValue() : 10;
+
+        if (query == null || query.isBlank()) {
+            return Result.error(400, "查询词不能为空", "EMPTY_QUERY");
+        }
+        if (catId == null) {
+            return Result.error(400, "分类 ID 不能为空", "NO_CATEGORY");
+        }
+
+        List<KnowledgeSearchService.SearchResult> results =
+            knowledgeSearchService.search(query, catId.longValue(), topK);
+        return Result.success(results);
+    }
+
+    /**
+     * 获取指定知识的切片列表
+     */
+    @GetMapping("/{knowledgeId}/chunks")
+    public Result<List<KnowledgeChunk>> getChunks(@PathVariable Long knowledgeId) {
+        List<KnowledgeChunk> chunks = knowledgeChunkMapper.selectByKnowledgeIdAndIsActive(knowledgeId, 1);
+        return Result.success(chunks);
+    }
+
+    @GetMapping("/{id}/file")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable Long id) {
+        KnowledgeBase kb = knowledgeBaseService.getById(id);
+        if (kb == null || kb.getFilePath() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            java.nio.file.Path filePath = java.nio.file.Path.of(kb.getFilePath());
+            if (!java.nio.file.Files.exists(filePath)) {
+                return ResponseEntity.notFound().build();
+            }
+            byte[] data = java.nio.file.Files.readAllBytes(filePath);
+            String contentType = "application/octet-stream";
+            if (kb.getFilePath().endsWith(".docx")) {
+                contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            }
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + kb.getTitle() + "\"")
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(data);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @PostMapping("/manual")
@@ -122,6 +256,9 @@ public class KnowledgeBaseController {
         kb.setTitle((String) payload.get("title"));
         kb.setContent((String) payload.get("content"));
         kb.setSourceType((String) payload.get("source"));
+        if (payload.containsKey("categoryId")) {
+            kb.setCategoryId(((Number) payload.get("categoryId")).longValue());
+        }
         knowledgeBaseService.save(kb);
         return Result.success(kb);
     }

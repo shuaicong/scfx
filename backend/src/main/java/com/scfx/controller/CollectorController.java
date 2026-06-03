@@ -108,15 +108,19 @@ public class CollectorController {
         log.info("submitData: executionId={}, title={}, source={}, contentLength={}",
             executionId, title, source, contentLen);
 
-        // 0. 查询脚本配置（用于知识库同步和分类归属）
+        // 0. 查询脚本配置（用于知识库同步、分类归属和数据源名称）
         boolean syncToKnowledgeBase = true;
         CollectionScript script = null;
+        com.scfx.entity.DataSource ds = null;
         try {
             TaskExecution exec = executionService.findByExecutionId(executionId);
             if (exec != null) {
                 script = scriptService.getById(exec.getScriptId());
-                if (script != null && Boolean.FALSE.equals(script.getSyncToKnowledgeBase())) {
-                    syncToKnowledgeBase = false;
+                if (script != null) {
+                    if (Boolean.FALSE.equals(script.getSyncToKnowledgeBase())) {
+                        syncToKnowledgeBase = false;
+                    }
+                    ds = dataSourceMapper.findByCode(script.getSource());
                 }
             }
         } catch (Exception e) {
@@ -139,10 +143,13 @@ public class CollectorController {
             KnowledgeBase kb = new KnowledgeBase();
             kb.setTitle(title);
             kb.setSourceType(getSourceTypeCode(source));
-            kb.setSourceName(getSourceName(source));
+            // 优先使用真实数据源名称（如"粮信网玉米晨报"），兜底映射
+            String dsName = (ds != null) ? ds.getName() : null;
+            kb.setSourceName(dsName != null ? dsName : getSourceName(source));
             kb.setOriginalUrl(originalUrl);
             kb.setContent(content);
             kb.setContentHtml((String) request.get("contentHtml"));
+            kb.setTableMeta((String) request.get("tableMeta"));
             kb.setPublishTime(publishTime);
             kb.setExecutionId(executionId);
             kb.setCollectionSource(source);
@@ -222,6 +229,7 @@ public class CollectorController {
     private String getSourceName(String source) {
         Map<String, String> map = Map.of(
             "liangxinwang", "粮信网",
+            "liangxin", "粮信网",
             "mysteel", "我的钢铁网",
             "china_grain", "中华粮网"
         );
@@ -234,6 +242,7 @@ public class CollectorController {
     private String getSourceTypeCode(String source) {
         Map<String, String> map = Map.of(
             "liangxinwang", "liangxin",
+            "liangxin", "liangxin",
             "mysteel", "mysteel",
             "china_grain", "chinagrain"
         );
