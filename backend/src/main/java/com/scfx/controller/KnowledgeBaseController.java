@@ -140,7 +140,15 @@ public class KnowledgeBaseController {
             if (title == null || title.isEmpty()) {
                 title = fileName != null ? fileName.replaceFirst("\\.[^.]+$", "") : "未命名文档";
             }
+            // 文件大小限制 10MB
+            if (file.getSize() > 10 * 1024 * 1024) {
+                return Result.error("文件不能超过 10MB");
+            }
             String content = new String(file.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            // 内容截断保护（MEDIUMTEXT 上限 16MB，10MB 安全线）
+            if (content.length() > 10 * 1024 * 1024) {
+                content = content.substring(0, 10 * 1024 * 1024);
+            }
 
             KnowledgeBase kb = new KnowledgeBase();
             kb.setTitle(title);
