@@ -40,7 +40,7 @@
             <path d="M7 1C3.69 1 1 3.69 1 7C1 10.31 3.69 13 7 13C10.31 13 13 10.31 13 7C13 3.69 10.31 1 7 1Z" stroke="currentColor" stroke-width="1.5"/>
             <path d="M7 4V7L9 9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
-          {{ { liangxin: '粮信网', mysteel: '我的钢铁网', chinagrain: '中华粮网', usda: 'USDA' }[knowledge.sourceType] || knowledge.sourceType }}
+          {{ { liangxin: '粮信网', mysteel: '我的钢铁网', chinagrain: '中华粮网', usda: 'USDA', upload: '人工录入' }[knowledge.sourceType] || knowledge.sourceType }}
         </span>
         <!-- 数据源（采集任务来源） -->
         <span class="meta-item" v-if="knowledge.sourceName && knowledge.sourceName !== knowledge.sourceType">
