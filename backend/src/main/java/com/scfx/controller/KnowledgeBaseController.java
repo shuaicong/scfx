@@ -12,6 +12,7 @@ import com.scfx.mapper.DrVersionMapper;
 import com.scfx.mapper.KnowledgeChunkMapper;
 import com.scfx.mapper.KnowledgeBaseMapper;
 import com.scfx.mapper.KnowledgeVizMapper;
+import com.scfx.service.FileStorageService;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.VectorStore;
 import com.scfx.service.VectorTaskService;
@@ -21,6 +22,9 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MultipartFile;
 import org.apache.commons.codec.digest.DigestUtils;
 
@@ -43,6 +47,7 @@ public class KnowledgeBaseController {
     private final DrVersionMapper drVersionMapper;
     private final KnowledgeChunkMapper knowledgeChunkMapper;
     private final KnowledgeSearchService knowledgeSearchService;
+    private final FileStorageService fileStorageService;
 
     /** 重算锁：key=(categoryId,algorithm)，防重复点击 */
     private final ConcurrentHashMap<String, Boolean> recomputeLocks = new ConcurrentHashMap<>();
@@ -156,8 +161,18 @@ public class KnowledgeBaseController {
             kb.setSourceType("upload");
             kb.setSourceName("人工录入");
             kb.setCategoryId(categoryId);
+            boolean isDocx = fileName != null && fileName.endsWith(".docx");
             kb.setFilePath(fileName);
-            kb.setFileType(fileName != null && fileName.endsWith(".docx") ? "docx" : "txt");
+            kb.setFileType(isDocx ? "docx" : "txt");
+            // .docx 文件保存原始文件供预览
+            if (isDocx) {
+                try {
+                    String storedPath = fileStorageService.store(file, categoryId, kb.getId());
+                    kb.setFilePath(storedPath);
+                } catch (Exception e) {
+                    log.warn("保存docx文件失败(不影响入库): {}", e.getMessage());
+                }
+            }
             kb.setVectorStatus("pending");
             kb.setContentHash(DigestUtils.md5Hex(content));
             knowledgeBaseService.save(kb);
@@ -207,6 +222,31 @@ public class KnowledgeBaseController {
     public Result<List<KnowledgeChunk>> getChunks(@PathVariable Long knowledgeId) {
         List<KnowledgeChunk> chunks = knowledgeChunkMapper.selectByKnowledgeIdAndIsActive(knowledgeId, 1);
         return Result.success(chunks);
+    }
+
+    @GetMapping("/{id}/file")
+    public ResponseEntity<byte[]> downloadFile(@PathVariable Long id) {
+        KnowledgeBase kb = knowledgeBaseService.getById(id);
+        if (kb == null || kb.getFilePath() == null) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            java.nio.file.Path filePath = java.nio.file.Path.of(kb.getFilePath());
+            if (!java.nio.file.Files.exists(filePath)) {
+                return ResponseEntity.notFound().build();
+            }
+            byte[] data = java.nio.file.Files.readAllBytes(filePath);
+            String contentType = "application/octet-stream";
+            if (kb.getFilePath().endsWith(".docx")) {
+                contentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            }
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + kb.getTitle() + "\"")
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .body(data);
+        } catch (Exception e) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @PostMapping("/manual")
