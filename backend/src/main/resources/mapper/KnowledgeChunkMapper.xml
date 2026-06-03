@@ -4,11 +4,25 @@
 <mapper namespace="com.scfx.mapper.KnowledgeChunkMapper">
 
     <select id="selectByKnowledgeIdAndIsActive" resultType="com.scfx.entity.KnowledgeChunk">
-        SELECT id, knowledge_id, category_id, chunk_index, content, token_count,
+        SELECT id, knowledge_id, category_id, chunk_index, chunk_total, content,
+               start_offset, end_offset, is_summary, token_count, vector_bge_m3,
                vector_status, error_message, is_active, created_at, updated_at
         FROM t_knowledge_chunk
         WHERE knowledge_id = #{knowledgeId} AND is_active = #{isActive}
         ORDER BY chunk_index ASC
+    </select>
+
+    <select id="selectVectorizedByCategoryId" resultType="com.scfx.entity.KnowledgeChunk">
+        SELECT c.id, c.knowledge_id, c.category_id, c.chunk_index, c.chunk_total, c.content,
+               c.start_offset, c.end_offset, c.is_summary, c.token_count, c.vector_bge_m3,
+               c.vector_status, c.error_message, c.is_active, c.created_at, c.updated_at
+        FROM t_knowledge_chunk c
+        INNER JOIN t_knowledge_base kb ON kb.id = c.knowledge_id
+        WHERE c.category_id = #{categoryId}
+          AND c.is_active = 1
+          AND kb.deleted = 0
+          AND c.vector_bge_m3 IS NOT NULL
+        ORDER BY c.knowledge_id, c.chunk_index
     </select>
 
 </mapper>
