@@ -503,3 +503,45 @@ CREATE TABLE IF NOT EXISTS t_knowledge_chunk (
     INDEX idx_knowledge_id (knowledge_id),
     INDEX idx_knowledge_active (knowledge_id, is_active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='知识切片表';
+
+-- 采集器注册信息表
+CREATE TABLE IF NOT EXISTS t_collector_info (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    collector_name VARCHAR(100) NOT NULL COMMENT '采集器名称',
+    sdk_version VARCHAR(20) DEFAULT NULL COMMENT 'SDK版本',
+    source VARCHAR(50) DEFAULT NULL COMMENT '采集来源',
+    subject VARCHAR(50) DEFAULT NULL COMMENT '采集主体',
+    coll_type VARCHAR(50) DEFAULT NULL COMMENT '采集类型',
+    coll_object VARCHAR(50) DEFAULT NULL COMMENT '采集对象',
+    description VARCHAR(500) DEFAULT NULL COMMENT '描述',
+    status VARCHAR(20) DEFAULT 'online' COMMENT '状态: online/offline',
+    last_heartbeat TIMESTAMP DEFAULT NULL COMMENT '最后心跳时间',
+    registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '注册时间',
+    instance_count INT DEFAULT 1 COMMENT '实例数量',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='采集器注册信息表';
+
+-- 降维坐标存储表（支持多算法：PCA/MDS）
+CREATE TABLE IF NOT EXISTS t_knowledge_dr_coords (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    knowledge_id BIGINT NOT NULL COMMENT '知识ID',
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    algorithm VARCHAR(20) NOT NULL COMMENT '降维算法: pca/mds',
+    version INT NOT NULL COMMENT '版本号（按分类+算法递增）',
+    x DOUBLE DEFAULT NULL COMMENT 'X坐标',
+    y DOUBLE DEFAULT NULL COMMENT 'Y坐标',
+    z DOUBLE DEFAULT NULL COMMENT 'Z坐标(3D预留)',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE INDEX uk_knowledge_algorithm (knowledge_id, algorithm),
+    INDEX idx_cat_alg_ver (category_id, algorithm, version DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维坐标存储表（PCA/MDS多算法）';
+
+-- 降维版本号表
+CREATE TABLE IF NOT EXISTS t_dr_version (
+    category_id BIGINT NOT NULL COMMENT '分类ID',
+    algorithm VARCHAR(20) NOT NULL COMMENT '降维算法',
+    current_version INT NOT NULL DEFAULT 1 COMMENT '当前版本号',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (category_id, algorithm)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='降维版本号表';
