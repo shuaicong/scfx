@@ -162,20 +162,21 @@ public class KnowledgeBaseController {
             kb.setSourceName("人工录入");
             kb.setCategoryId(categoryId);
             boolean isDocx = fileName != null && fileName.endsWith(".docx");
-            kb.setFilePath(fileName);
             kb.setFileType(isDocx ? "docx" : "txt");
+            kb.setVectorStatus("pending");
+            kb.setContentHash(DigestUtils.md5Hex(content));
+            // 先入库获取 ID
+            knowledgeBaseService.save(kb);
             // .docx 文件保存原始文件供预览
             if (isDocx) {
                 try {
                     String storedPath = fileStorageService.store(file, categoryId, kb.getId());
                     kb.setFilePath(storedPath);
+                    knowledgeBaseService.updateById(kb);
                 } catch (Exception e) {
                     log.warn("保存docx文件失败(不影响入库): {}", e.getMessage());
                 }
             }
-            kb.setVectorStatus("pending");
-            kb.setContentHash(DigestUtils.md5Hex(content));
-            knowledgeBaseService.save(kb);
 
             log.info("上传文档成功: knowledgeId={}, title={}", kb.getId(), title);
             return Result.success(Map.of("knowledgeId", kb.getId(), "title", title));
