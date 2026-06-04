@@ -29,4 +29,19 @@
         ORDER BY c.knowledge_id, c.chunk_index
     </select>
 
+    <insert id="insertBatch" parameterType="list">
+        INSERT INTO t_knowledge_chunk (knowledge_id, category_id, chunk_index, chunk_total, content,
+            start_offset, end_offset, is_summary, token_count, vector_status, is_active)
+        VALUES
+        <foreach collection="list" item="c" separator=",">
+            (#{c.knowledgeId}, #{c.categoryId}, #{c.chunkIndex}, #{c.chunkTotal}, #{c.content},
+             #{c.startOffset}, #{c.endOffset}, #{c.isSummary}, #{c.tokenCount}, #{c.vectorStatus}, #{c.isActive})
+        </foreach>
+    </insert>
+
+    <update id="updateByKnowledgeId">
+        UPDATE t_knowledge_chunk SET is_active = #{isActive}
+        WHERE knowledge_id = #{knowledgeId}
+    </update>
+
 </mapper>

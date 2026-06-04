@@ -12,6 +12,7 @@ import com.scfx.mapper.DrVersionMapper;
 import com.scfx.mapper.KnowledgeChunkMapper;
 import com.scfx.mapper.KnowledgeBaseMapper;
 import com.scfx.mapper.KnowledgeVizMapper;
+import com.scfx.service.DocumentPipeline;
 import com.scfx.service.FileStorageService;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.VectorStore;
@@ -40,6 +41,7 @@ public class KnowledgeBaseController {
 
     private final KnowledgeBaseService knowledgeBaseService;
     private final VectorTaskService vectorTaskService;
+    private final DocumentPipeline documentPipeline;
     private final VectorStore vectorStore;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeVizMapper knowledgeVizMapper;
@@ -183,7 +185,9 @@ public class KnowledgeBaseController {
                 }
             }
 
-            // 触发异步向量化（切片 + 嵌入 + 写入Qdrant）
+            // 触发异步解析管道（提取文本 → 切片入库）
+            documentPipeline.start(kb.getId());
+            // 触发异步向量化（现有流程：BGE-M3 + DashScope）
             vectorTaskService.processSingle(kb.getId());
 
             log.info("上传文档成功: knowledgeId={}, title={}", kb.getId(), title);

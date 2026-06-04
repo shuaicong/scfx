@@ -15,4 +15,10 @@ public interface KnowledgeChunkMapper extends BaseMapper<KnowledgeChunk> {
         @Param("isActive") Integer isActive);
 
     List<KnowledgeChunk> selectVectorizedByCategoryId(@Param("categoryId") Long categoryId);
+
+    /** 批量插入切片 */
+    int insertBatch(List<KnowledgeChunk> chunks);
+
+    /** 按 knowledge_id 软删除切片 */
+    int updateByKnowledgeId(@Param("knowledgeId") Long knowledgeId, @Param("isActive") Integer isActive);
 }
