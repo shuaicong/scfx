@@ -52,13 +52,15 @@ def search_vectors(query: str, top_k: int = 5, source_filter: str = None) -> lis
 
     return [
         {
-            "kb_id": r.payload["kb_id"],
+            "kb_id": r.payload.get("knowledge_id") or r.payload.get("kb_id"),
             "title": r.payload["title"],
             "content": r.payload["content"],
             "source": r.payload["source"],
             "publish_time": r.payload.get("publish_time"),
             "similarity": r.score,
-            "chunk_index": r.payload["chunk_index"]
+            "chunk_index": r.payload.get("chunk_index"),
+            "chunk_type": r.payload.get("chunk_type"),
+            "point_id": r.id,
         }
         for r in results
     ]

@@ -4,15 +4,20 @@ import os
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
+QDRANT_LOCAL_PATH = os.getenv("QDRANT_LOCAL_PATH", "")
 COLLECTION_NAME = "grain_knowledge"
-VECTOR_SIZE = 384
+VECTOR_SIZE = 1024
 
 _client = None
 
 def get_client():
     global _client
     if _client is None:
-        _client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
+        if QDRANT_LOCAL_PATH:
+            # 持久化本地模式（无需独立 Qdrant 服务器）
+            _client = QdrantClient(path=QDRANT_LOCAL_PATH)
+        else:
+            _client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
     return _client
 
 def ensure_collection():
