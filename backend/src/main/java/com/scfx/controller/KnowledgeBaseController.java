@@ -149,22 +149,27 @@ public class KnowledgeBaseController {
             if (file.getSize() > 10 * 1024 * 1024) {
                 return Result.error("文件不能超过 10MB");
             }
-            String content = new String(file.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
-            // 内容截断保护（MEDIUMTEXT 上限 16MB，10MB 安全线）
-            if (content.length() > 10 * 1024 * 1024) {
-                content = content.substring(0, 10 * 1024 * 1024);
-            }
+            boolean isDocx = fileName != null && fileName.endsWith(".docx");
 
             KnowledgeBase kb = new KnowledgeBase();
             kb.setTitle(title);
-            kb.setContent(content);
+            // .docx 是二进制格式，不能按 UTF-8 读取；后续由解析管道异步提取纯文本
+            if (isDocx) {
+                kb.setContent("");
+                kb.setContentHash(DigestUtils.md5Hex(Long.toString(file.getSize())));
+            } else {
+                String content = new String(file.getBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                if (content.length() > 10 * 1024 * 1024) {
+                    content = content.substring(0, 10 * 1024 * 1024);
+                }
+                kb.setContent(content);
+                kb.setContentHash(DigestUtils.md5Hex(content));
+            }
             kb.setSourceType("upload");
             kb.setSourceName("人工录入");
             kb.setCategoryId(categoryId);
-            boolean isDocx = fileName != null && fileName.endsWith(".docx");
             kb.setFileType(isDocx ? "docx" : "txt");
             kb.setVectorStatus("pending");
-            kb.setContentHash(DigestUtils.md5Hex(content));
             // 先入库获取 ID
             knowledgeBaseService.save(kb);
             // .docx 文件保存原始文件供预览
@@ -177,6 +182,9 @@ public class KnowledgeBaseController {
                     log.warn("保存docx文件失败(不影响入库): {}", e.getMessage());
                 }
             }
+
+            // 触发异步向量化（切片 + 嵌入 + 写入Qdrant）
+            vectorTaskService.processSingle(kb.getId());
 
             log.info("上传文档成功: knowledgeId={}, title={}", kb.getId(), title);
             return Result.success(Map.of("knowledgeId", kb.getId(), "title", title));
@@ -260,6 +268,8 @@ public class KnowledgeBaseController {
             kb.setCategoryId(((Number) payload.get("categoryId")).longValue());
         }
         knowledgeBaseService.save(kb);
+        // 触发异步向量化
+        vectorTaskService.processSingle(kb.getId());
         return Result.success(kb);
     }
 
