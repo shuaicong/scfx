@@ -149,22 +149,22 @@ public class KnowledgeSearchService {
     }
 
     /**
-     * 处理非切片文档：从 t_knowledge_base.retrieval_vector 读取 BGE-M3 检索向量。
-     * 所有文档（无论是否切片）在向量化阶段都存了 BGE-M3 向量，
-     * 切片文档存 chunk.vector_bge_m3，非切片文档存 kb.retrieval_vector。
+     * 回退搜索：从 t_knowledge_base.retrieval_vector 读取 BGE-M3 检索向量。
+     * <p>
+     * 对所有有 retrieval_vector 的文档进行搜索（不排除 chunked 文档），
+     * 后续 step 5 的 MAX score 聚合会按 knowledge_id 去重。
+     * 当 chunk 向量不可用时（vector_bge_m3 为空），此路径作为兜底。
      */
     private void handleNonChunkedDocs(float[] queryVec, Long categoryId,
                                        Set<Long> chunkedDocIds, List<ScoredItem> scoredItems) {
-        // 加载非切片文档的检索向量（BGE-M3，与 queryVec 同维度）
         LambdaQueryWrapper<KnowledgeBase> wrapper = new LambdaQueryWrapper<KnowledgeBase>()
             .eq(KnowledgeBase::getDeleted, 0)
             .eq(KnowledgeBase::getCategoryId, categoryId)
             .isNotNull(KnowledgeBase::getRetrievalVector);
-        if (!chunkedDocIds.isEmpty()) {
-            wrapper.notIn(KnowledgeBase::getId, chunkedDocIds);
-        }
-        List<KnowledgeBase> nonChunked = knowledgeMapper.selectList(wrapper);
-        for (KnowledgeBase kb : nonChunked) {
+        // 不排除 chunkedDocIds — chunked 文档也通过 retrieval_vector 参与搜索，
+        // 后续 chunk 级别的 vector_bge_m3 可用后可改为仅回退非切片文档
+        List<KnowledgeBase> docs = knowledgeMapper.selectList(wrapper);
+        for (KnowledgeBase kb : docs) {
             if (kb.getRetrievalVector() == null) continue;
             double sim = cosineSimilarity(queryVec, kb.getRetrievalVector());
             scoredItems.add(new ScoredItem(kb.getId(), sim, null));

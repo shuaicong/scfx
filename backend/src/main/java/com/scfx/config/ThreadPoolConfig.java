@@ -2,6 +2,7 @@ package com.scfx.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Primary;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
@@ -10,14 +11,29 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
 
 /**
- * 异步任务线程池配置
+ * 命名线程池配置。
  * <p>
- * 文档解析 → 切片 → 向量化，各阶段物理隔离互不阻塞
+ * 默认异步执行器由 AsyncConfig（AsyncConfigurer）提供。
+ * 此处仅定义需要显式指定的命名执行器，供 @Async("name") 使用。
  */
 @Configuration
 @EnableAsync
 @EnableScheduling
 public class ThreadPoolConfig {
+
+    /** 默认异步执行器（供 @Async 无 qualifier 使用） */
+    @Bean
+    @Primary
+    public Executor defaultAsyncExecutor() {
+        ThreadPoolTaskExecutor e = new ThreadPoolTaskExecutor();
+        e.setCorePoolSize(4);
+        e.setMaxPoolSize(8);
+        e.setQueueCapacity(200);
+        e.setThreadNamePrefix("async-");
+        e.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        e.initialize();
+        return e;
+    }
 
     /** 文档解析线程池（IO + CPU 混合） */
     @Bean("uploadParseExecutor")

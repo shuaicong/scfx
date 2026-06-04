@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.AsyncConfigurer;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.util.concurrent.Executor;
@@ -12,7 +11,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 @Slf4j
 @Configuration
-public class AsyncConfig implements AsyncConfigurer {
+public class AsyncConfig {
 
     @Value("${async.pool.core-size:2}")
     private int corePoolSize;
@@ -23,11 +22,7 @@ public class AsyncConfig implements AsyncConfigurer {
     @Value("${async.pool.queue-capacity:50}")
     private int queueCapacity;
 
-    @Override
-    public Executor getAsyncExecutor() {
-        return createExecutor("async-");
-    }
-
+    /** Visualization (DashScope) 异步执行器，与检索隔离 */
     @Bean(name = "vizExecutor")
     public Executor vizExecutor() {
         return createExecutor("viz-exec-");

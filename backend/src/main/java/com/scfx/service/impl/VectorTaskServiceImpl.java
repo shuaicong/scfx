@@ -88,7 +88,7 @@ public class VectorTaskServiceImpl implements VectorTaskService {
     // ======================== 单条处理（含脏数据追踪） ========================
 
     @Override
-    @Async
+    @Async("vectorEmbedExecutor")
     public void processSingle(Long knowledgeId) {
         KnowledgeBase kb = knowledgeMapper.selectById(knowledgeId);
         if (kb == null) {
@@ -133,7 +133,7 @@ public class VectorTaskServiceImpl implements VectorTaskService {
     // ======================== 批量处理（并行 DashScope + 补偿重试） ========================
 
     @Override
-    @Async
+    @Async("vectorEmbedExecutor")
     public void triggerCategory(Long categoryId, String triggerType) {
         // -- Phase 0: 收集待处理条目（pending + rate_limited） --
 
@@ -266,12 +266,16 @@ public class VectorTaskServiceImpl implements VectorTaskService {
                 long startTime = System.currentTimeMillis();
 
                 VectorClient.VectorResult retrievalResult = vectorClient.embed(
-                    kb.getContent(), kb.getContentHtml(), kb.getId());
+                    kb.getContent());
 
                 long retrievalTime = System.currentTimeMillis() - startTime;
 
                 kb.setVectorStatus("vectorized");
                 kb.setVectorIds(retrievalResult.getVectorId());
+                // 保存 BGE-M3 向量数据到 retrieval_vector（供语义搜索使用）
+                if (retrievalResult.getVector() != null && retrievalResult.getVector().length > 0) {
+                    kb.setRetrievalVector(retrievalResult.getVector());
+                }
                 knowledgeMapper.updateById(kb);
 
                 updateLog(kb.getId(), "success", retrievalResult.getVectorId(), (int) retrievalTime, taskId);

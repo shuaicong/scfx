@@ -10,25 +10,22 @@ import java.nio.ByteBuffer;
 import java.sql.*;
 
 /**
- * float[] ↔ VARBINARY(3072) TypeHandler
- * 固定 768 维 float，每维 4 字节，共 3072 字节
+ * float[] ↔ BINARY TypeHandler，支持动态维度。
+ * <p>
+ * DashScope 可视化向量：768 维 × 4 字节 = 3072 字节<br>
+ * BGE-M3 检索向量：1024 维 × 4 字节 = 4096 字节<br>
+ * 维度由实际数组长度决定，不硬编码固定值。
  */
 @Slf4j
 @MappedTypes(float[].class)
 @MappedJdbcTypes(JdbcType.BINARY)
 public class FloatArrayTypeHandler extends BaseTypeHandler<float[]> {
 
-    private static final int EXPECTED_DIMS = 768;
-    private static final int EXPECTED_BYTES = EXPECTED_DIMS * 4;
-
     @Override
     public void setNonNullParameter(PreparedStatement ps, int i, float[] parameter, JdbcType jdbcType) throws SQLException {
-        if (parameter.length != EXPECTED_DIMS) {
-            log.warn("向量维度异常: 期望 {} 维, 实际 {} 维", EXPECTED_DIMS, parameter.length);
-        }
-        ByteBuffer bb = ByteBuffer.allocate(EXPECTED_BYTES);
-        for (int j = 0; j < EXPECTED_DIMS; j++) {
-            bb.putFloat(j < parameter.length ? parameter[j] : 0f);
+        ByteBuffer bb = ByteBuffer.allocate(parameter.length * 4);
+        for (float v : parameter) {
+            bb.putFloat(v);
         }
         ps.setBytes(i, bb.array());
     }
@@ -53,11 +50,11 @@ public class FloatArrayTypeHandler extends BaseTypeHandler<float[]> {
 
     private float[] toFloatArray(byte[] bytes) {
         if (bytes == null) return null;
-        if (bytes.length != EXPECTED_BYTES) {
-            log.warn("向量数据长度异常: 期望 {} 字节, 实际 {} 字节", EXPECTED_BYTES, bytes.length);
+        int dims = bytes.length / 4;
+        if (bytes.length % 4 != 0) {
+            log.warn("向量数据长度不是 4 的倍数: {} 字节", bytes.length);
         }
         ByteBuffer bb = ByteBuffer.wrap(bytes);
-        int dims = bytes.length / 4;
         float[] result = new float[dims];
         for (int i = 0; i < dims; i++) {
             result[i] = bb.getFloat();

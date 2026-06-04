@@ -16,6 +16,7 @@ import com.scfx.service.DocumentPipeline;
 import com.scfx.service.FileStorageService;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.VectorStore;
+import com.scfx.service.VectorClient;
 import com.scfx.service.VectorTaskService;
 import com.scfx.service.impl.KnowledgeSearchService;
 import lombok.AllArgsConstructor;
@@ -42,6 +43,7 @@ public class KnowledgeBaseController {
     private final KnowledgeBaseService knowledgeBaseService;
     private final VectorTaskService vectorTaskService;
     private final DocumentPipeline documentPipeline;
+    private final VectorClient vectorClient;
     private final VectorStore vectorStore;
     private final KnowledgeBaseMapper knowledgeBaseMapper;
     private final KnowledgeVizMapper knowledgeVizMapper;
@@ -132,8 +134,23 @@ public class KnowledgeBaseController {
     public Result<Void> revectorize(@PathVariable Long id) {
         KnowledgeBase kb = knowledgeBaseService.getById(id);
         if (kb == null) return Result.error("知识不存在");
-        // 单条重新向量化（双向量计算，但不触发全局 PCA 重算）
-        vectorTaskService.processSingle(kb.getId());
+        // 同步执行 BGE-M3 向量化（@Async 配置待修复）
+        try {
+            kb.setVectorStatus("processing");
+            knowledgeBaseMapper.updateById(kb);
+            VectorClient.VectorResult result = vectorClient.embed(kb.getContent());
+            if (result.getVector() != null && result.getVector().length > 0) {
+                kb.setRetrievalVector(result.getVector());
+                kb.setVectorStatus("vectorized");
+                kb.setVectorIds(result.getVectorId());
+                knowledgeBaseMapper.updateById(kb);
+                log.info("revectorize 同步成功: knowledgeId={}, dims={}", id, result.getVector().length);
+            }
+        } catch (Exception e) {
+            log.error("revectorize 失败: knowledgeId={}", id, e);
+            kb.setVectorStatus("failed");
+            knowledgeBaseMapper.updateById(kb);
+        }
         return Result.success(null);
     }
 

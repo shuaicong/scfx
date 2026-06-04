@@ -43,7 +43,7 @@ public class DocumentPipeline {
      * 启动知识处理管道（异步）
      * 解析文件提取文本 → 合规检查 → 切片入库
      */
-    @Async
+    @Async("chunkExecutor")
     public void start(Long knowledgeId) {
         KnowledgeBase kb = knowledgeBaseMapper.selectById(knowledgeId);
         if (kb == null) {
