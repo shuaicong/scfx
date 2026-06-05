@@ -31,11 +31,11 @@
 
     <insert id="insertBatch" parameterType="list">
         INSERT INTO t_knowledge_chunk (knowledge_id, category_id, chunk_index, chunk_total, content,
-            start_offset, end_offset, is_summary, token_count, vector_status, is_active)
+            start_offset, end_offset, is_summary, token_count, vector_status, is_active, chunk_type)
         VALUES
         <foreach collection="list" item="c" separator=",">
             (#{c.knowledgeId}, #{c.categoryId}, #{c.chunkIndex}, #{c.chunkTotal}, #{c.content},
-             #{c.startOffset}, #{c.endOffset}, #{c.isSummary}, #{c.tokenCount}, #{c.vectorStatus}, #{c.isActive})
+             #{c.startOffset}, #{c.endOffset}, #{c.isSummary}, #{c.tokenCount}, #{c.vectorStatus}, #{c.isActive}, #{c.chunkType})
         </foreach>
     </insert>
 

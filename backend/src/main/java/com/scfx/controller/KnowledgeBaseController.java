@@ -118,7 +118,9 @@ public class KnowledgeBaseController {
         if (payload.containsKey("sourceType")) kb.setSourceType((String) payload.get("sourceType"));
         if (payload.containsKey("author")) kb.setAuthor((String) payload.get("author"));
         if (payload.containsKey("categoryId")) {
-            kb.setCategoryId(((Number) payload.get("categoryId")).longValue());
+            Number newCatId = ((Number) payload.get("categoryId"));
+            kb.setCategoryId(newCatId.longValue());
+            knowledgeBaseService.updateCategory(id, newCatId.longValue());
         }
         knowledgeBaseService.updateById(kb);
         // 内容变更 → 异步触发重新切片+向量化
@@ -132,8 +134,8 @@ public class KnowledgeBaseController {
     public Result<Void> revectorize(@PathVariable Long id) {
         KnowledgeBase kb = knowledgeBaseService.getById(id);
         if (kb == null) return Result.error("知识不存在");
-        // 由 @Async("vectorEmbedExecutor") 异步执行
-        vectorTaskService.processSingle(kb.getId());
+        // 由 DocumentPipeline 统一串联：切片 → 向量化 → Qdrant 同步
+        documentPipeline.start(kb.getId());
         return Result.success(null);
     }
 
@@ -174,6 +176,10 @@ public class KnowledgeBaseController {
             kb.setVectorStatus("pending");
             // 先入库获取 ID
             knowledgeBaseService.save(kb);
+            // 同步分类关联表
+            if (categoryId != null) {
+                knowledgeBaseService.updateCategory(kb.getId(), categoryId);
+            }
             // .docx 文件保存原始文件供预览
             if (isDocx) {
                 try {
@@ -185,10 +191,8 @@ public class KnowledgeBaseController {
                 }
             }
 
-            // 触发异步解析管道（提取文本 → 切片入库）
+            // 由 DocumentPipeline 统一串联：切片 → 向量化 → Qdrant 同步
             documentPipeline.start(kb.getId());
-            // 触发异步向量化（现有流程：BGE-M3 + DashScope）
-            vectorTaskService.processSingle(kb.getId());
 
             log.info("上传文档成功: knowledgeId={}, title={}", kb.getId(), title);
             return Result.success(Map.of("knowledgeId", kb.getId(), "title", title));
@@ -268,12 +272,18 @@ public class KnowledgeBaseController {
         kb.setTitle((String) payload.get("title"));
         kb.setContent((String) payload.get("content"));
         kb.setSourceType((String) payload.get("source"));
+        Long categoryId = null;
         if (payload.containsKey("categoryId")) {
-            kb.setCategoryId(((Number) payload.get("categoryId")).longValue());
+            categoryId = ((Number) payload.get("categoryId")).longValue();
+            kb.setCategoryId(categoryId);
         }
         knowledgeBaseService.save(kb);
-        // 触发异步向量化
-        vectorTaskService.processSingle(kb.getId());
+        // 同步分类关联表
+        if (categoryId != null) {
+            knowledgeBaseService.updateCategory(kb.getId(), categoryId);
+        }
+        // 由 DocumentPipeline 统一串联：切片 → 向量化 → Qdrant 同步
+        documentPipeline.start(kb.getId());
         return Result.success(kb);
     }
 

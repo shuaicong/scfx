@@ -24,6 +24,7 @@ public class KnowledgeChunk {
     private String vectorId;
     private String errorMessage;
     private Integer isActive;          // 1=正常, 0=已删除
+    private String chunkType;           // "text" | "table"（默认 "text"）
     private String contentTerms;
 
     @TableField(fill = FieldFill.INSERT)

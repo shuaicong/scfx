@@ -9,6 +9,7 @@ import com.scfx.mapper.ExecutionItemMapper;
 import com.scfx.mapper.KnowledgeCategoryMapper;
 import com.scfx.mapper.DataSourceMapper;
 import com.scfx.service.CollectionScriptService;
+import com.scfx.service.DocumentPipeline;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.TaskExecutionService;
 import com.scfx.service.VectorTaskService;
@@ -33,6 +34,7 @@ public class CollectorController {
 
     private final TaskExecutionService executionService;
     private final KnowledgeBaseService knowledgeBaseService;
+    private final DocumentPipeline documentPipeline;
     private final ExecutionItemMapper executionItemMapper;
     private final VectorTaskService vectorTaskService;
     private final CollectionScriptService scriptService;
@@ -198,12 +200,17 @@ public class CollectorController {
                 }
             }
 
-            // 6. 实时触发向量化（@Async 异步执行，不阻塞响应）
+            // 6. 触发切片管道（@Async 异步执行，不阻塞 HTTP 响应）
+            if (kb.getId() != null) {
+                documentPipeline.start(kb.getId());
+            }
+
+            // 7. 实时触发向量化（@Async 异步执行，不阻塞响应）
             if (kb.getCategoryId() != null && kb.getId() != null) {
                 vectorTaskService.triggerCategory(kb.getCategoryId(), "collection");
             }
 
-            // 7. 记录采集数据项
+            // 8. 记录采集数据项
             writeItem(executionId, kb.getId(), title, originalUrl, "created", null);
 
             return Result.success(Map.of("knowledgeId", kb.getId()));

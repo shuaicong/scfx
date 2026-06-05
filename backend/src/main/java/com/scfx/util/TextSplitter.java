@@ -4,7 +4,11 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * 中文文本分层分割器。
@@ -50,7 +54,6 @@ public class TextSplitter {
      * 切片结果
      */
     @Getter
-    @RequiredArgsConstructor
     public static class Chunk {
         private final String text;
         private final int index;
@@ -58,8 +61,37 @@ public class TextSplitter {
         private final int endOffset;
         private final boolean summary;  // true = 首切片，代表全文语义
         private final int estimatedTokens;
+        private final String chunkType; // "text" | "table"
+
+        public Chunk(String text, int index, int startOffset, int endOffset,
+                     boolean summary, int estimatedTokens) {
+            this(text, index, startOffset, endOffset, summary, estimatedTokens, "text");
+        }
+
+        public Chunk(String text, int index, int startOffset, int endOffset,
+                     boolean summary, int estimatedTokens, String chunkType) {
+            this.text = text;
+            this.index = index;
+            this.startOffset = startOffset;
+            this.endOffset = endOffset;
+            this.summary = summary;
+            this.estimatedTokens = estimatedTokens;
+            this.chunkType = chunkType;
+        }
 
         public boolean isSummary() { return summary; }
+    }
+
+    /**
+     * 文本段 / 表格段，用于 splitSegments 的中间结果。
+     */
+    @Getter
+    @RequiredArgsConstructor
+    public static class Segment {
+        private final String type;    // "text" | "table"
+        private final String content; // 段原文
+        private final int startOffset;
+        private final int endOffset;
     }
 
     /**
@@ -74,6 +106,9 @@ public class TextSplitter {
 
     /**
      * 将内容分割为切片列表。
+     * <p>
+     * 优先检测表格标记（&lt;!--TABLE_MARKER_N--&gt;），表格作为原子块永不拆分。
+     * 无标记时降级为纯文本分割（段落→句子→短语四级兜底）。
      *
      * @param content 原始文本
      * @return 切片列表（&lt;500 字或空文本返回空列表）
@@ -82,32 +117,47 @@ public class TextSplitter {
         if (content == null || content.isEmpty()) return List.of();
         if (!shouldSplit(content)) return List.of();
 
-        // 1. 按双换行切分段（结构化文本优先）
-        List<String> paragraphs = splitByParagraph(content);
+        // 1. 分离文本段和表格段
+        List<Segment> segments = splitSegments(content);
+        List<Chunk> allChunks = new ArrayList<>();
 
-        // 2. 将段落合并/拆分为符合 chunkSize 的片段
-        List<Chunk> chunks = buildChunks(paragraphs, content);
+        // 2. 逐段处理
+        int lastOffset = 0;
+        for (Segment seg : segments) {
+            if ("table".equals(seg.getType())) {
+                // 表格作为原子块，永不拆分
+                String rewritten = rewriteTable(seg.getContent());
+                int estTokens = charsToTokens(rewritten.length());
+                allChunks.add(new Chunk(
+                    rewritten, 0,
+                    seg.getStartOffset(), seg.getEndOffset(),
+                    false, estTokens, "table"
+                ));
+            } else {
+                // 文本段走现有分层分割逻辑
+                allChunks.addAll(splitTextContent(seg.getContent(), content));
+            }
+            lastOffset = seg.getEndOffset();
+        }
 
-        // 3. 合并所有不足 minChunk 的碎片（尾片 + 中间碎片统一向前合并）
-        chunks = mergeSmallChunks(chunks);
+        // 3. 合并所有不足 minChunk 的碎片
+        allChunks = mergeSmallChunks(allChunks);
 
         // 4. 强制上限
-        chunks = enforceMaxChunks(chunks);
+        allChunks = enforceMaxChunks(allChunks);
 
         // 5. 重新计算 index 和 summary 标记
-        for (int i = 0; i < chunks.size(); i++) {
-            Chunk original = chunks.get(i);
-            chunks.set(i, new Chunk(
-                original.getText(),
-                i,
-                original.getStartOffset(),
-                original.getEndOffset(),
-                i == 0,
-                original.getEstimatedTokens()
+        for (int i = 0; i < allChunks.size(); i++) {
+            Chunk original = allChunks.get(i);
+            allChunks.set(i, new Chunk(
+                original.getText(), i,
+                original.getStartOffset(), original.getEndOffset(),
+                i == 0, original.getEstimatedTokens(),
+                original.getChunkType()
             ));
         }
 
-        return chunks;
+        return allChunks;
     }
 
     /**
@@ -122,6 +172,256 @@ public class TextSplitter {
      */
     public static int charsToTokens(int chars) {
         return (int) (chars / 1.5);
+    }
+
+    // ======================== 表格检测 & 语义改写 ========================
+
+    /**
+     * 分离文本段和表格段（表格为原子块，永不拆分）。
+     * <p>
+     * 优先通过 &lt;!--TABLE_MARKER_N--&gt; 标记识别表格（确定性匹配），
+     * 无标记时降级为启发式 pipe 行检测（兼容旧数据）。
+     *
+     * @param content 原始文本
+     * @return 段列表，每段为 "text" 或 "table"
+     */
+    public static List<Segment> splitSegments(String content) {
+        if (content == null || content.isEmpty()) return List.of();
+        if (content.contains("<!--TABLE_MARKER_")) {
+            return splitByMarkers(content);
+        }
+        return splitByHeuristic(content);
+    }
+
+    /**
+     * 通过 &lt;!--TABLE_MARKER_N--&gt; 标记精确识别表格边界。
+     */
+    private static List<Segment> splitByMarkers(String content) {
+        List<Segment> segments = new ArrayList<>();
+        StringBuilder currentText = new StringBuilder();
+        int textStart = 0;
+        int pos = 0;
+
+        while (pos < content.length()) {
+            int markerIdx = content.indexOf("<!--TABLE_MARKER_", pos);
+            if (markerIdx < 0) {
+                currentText.append(content.substring(pos));
+                if (currentText.length() > 0) {
+                    segments.add(new Segment("text", currentText.toString(), textStart, content.length()));
+                }
+                break;
+            }
+
+            // 标记前的文本
+            if (markerIdx > pos) {
+                currentText.append(content.substring(pos, markerIdx));
+            }
+            if (currentText.length() > 0) {
+                segments.add(new Segment("text", currentText.toString(), textStart, markerIdx));
+                currentText = new StringBuilder();
+            }
+
+            // 查找结束标记 <!--TABLE_MARKER_END_N-->
+            int endIdx = content.indexOf("<!--TABLE_MARKER_END_", markerIdx);
+            if (endIdx < 0) {
+                // 未闭合标记，剩余内容作为表格
+                segments.add(new Segment("table", content.substring(markerIdx), markerIdx, content.length()));
+                break;
+            }
+
+            // 定位 --> 结尾
+            int endMarkerEnd = content.indexOf("-->", endIdx);
+            endMarkerEnd = (endMarkerEnd >= 0) ? endMarkerEnd + 3 : endIdx;
+
+            segments.add(new Segment("table", content.substring(markerIdx, endMarkerEnd), markerIdx, endMarkerEnd));
+            pos = endMarkerEnd;
+            textStart = pos;
+        }
+
+        return segments;
+    }
+
+    /**
+     * 启发式检测：扫描 pipe 行（|）连续模式识别表格（兼容旧数据无 marker）。
+     * 连续 >=3 行 pipe 行视为表格，否则作为普通文本。
+     */
+    private static List<Segment> splitByHeuristic(String content) {
+        List<Segment> segments = new ArrayList<>();
+        String[] lines = content.split("\n", -1);
+        StringBuilder currentText = new StringBuilder();
+        int textStart = 0;
+        int cursor = 0; // 当前字符偏移（按行走）
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String trimmed = line.trim();
+            int lineStart = findOffset(content, line, cursor);
+            int lineEnd = lineStart + line.length();
+
+            if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+                // 提交之前的文本段
+                if (currentText.length() > 0) {
+                    int segStart = findOffset(content, currentText.toString().replaceAll("\n$", ""), textStart);
+                    segments.add(new Segment("text",
+                        currentText.toString().replaceAll("\n$", ""),
+                        segStart, segStart + currentText.toString().replaceAll("\n$", "").length()));
+                    currentText = new StringBuilder();
+                }
+
+                // 收集连续 pipe/空行
+                StringBuilder pipeBuf = new StringBuilder();
+                int pipeStart = lineStart;
+                while (i < lines.length) {
+                    String t = lines[i].trim();
+                    if ((t.startsWith("|") && t.endsWith("|")) || t.isEmpty()) {
+                        pipeBuf.append(lines[i]).append("\n");
+                        cursor = findOffset(content, lines[i], cursor) + lines[i].length() + 1;
+                        i++;
+                    } else {
+                        break;
+                    }
+                }
+                // 调整过度 i++
+                i--;
+                String pipeStr = pipeBuf.toString().replaceAll("\n+$", "");
+                String[] pipeLines = pipeStr.split("\n");
+
+                if (pipeLines.length >= 3) {
+                    segments.add(new Segment("table", pipeStr, pipeStart, pipeStart + pipeStr.length()));
+                } else {
+                    currentText.append(pipeStr);
+                    textStart = pipeStart;
+                }
+            } else {
+                if (currentText.length() == 0) textStart = lineStart;
+                currentText.append(line).append("\n");
+                cursor = lineEnd + 1; // +1 for \n
+            }
+        }
+
+        // 最后一段文本
+        if (currentText.length() > 0) {
+            String text = currentText.toString().replaceAll("\n$", "");
+            segments.add(new Segment("text", text, textStart, textStart + text.length()));
+        }
+
+        return segments;
+    }
+
+    /**
+     * 将 pipe 表格改写为语义化自然语言描述（与 Python semantic_rewrite_table 逻辑一致）。
+     * <p>
+     * &le;20 行：全量展开，前缀【表格数据】
+     * &gt;20 行：前 15 行详细 + 数值列统计摘要
+     *
+     * @param tableText pipe 表格文本（含 | 行）
+     * @return 语义化改写后的自然语言文本
+     */
+    public static String rewriteTable(String tableText) {
+        // 过滤出 pipe 行
+        String[] lines = tableText.split("\n");
+        List<String> pipeLines = new ArrayList<>();
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("|")) {
+                pipeLines.add(trimmed);
+            }
+        }
+        if (pipeLines.size() < 3) return tableText;
+
+        // 解析表头
+        String headerLine = pipeLines.get(0);
+        String[] headers = headerLine.substring(1, headerLine.length() - 1).split("\\|");
+        for (int i = 0; i < headers.length; i++) {
+            headers[i] = headers[i].trim();
+        }
+
+        // 解析数据行（跳过分隔行 index=1）
+        List<String> parts = new ArrayList<>();
+        for (int i = 2; i < pipeLines.size(); i++) {
+            String line = pipeLines.get(i);
+            String[] cells = line.substring(1, line.length() - 1).split("\\|");
+            StringBuilder row = new StringBuilder();
+            for (int j = 0; j < Math.min(cells.length, headers.length); j++) {
+                String cell = cells[j].trim();
+                if (!cell.isEmpty()) {
+                    if (row.length() > 0) row.append("；");
+                    row.append(headers[j]).append("：").append(cell);
+                }
+            }
+            if (row.length() > 0) parts.add(row.toString());
+        }
+
+        if (parts.isEmpty()) return tableText;
+
+        int MAX_FULL_ROWS = 20;
+        if (parts.size() <= MAX_FULL_ROWS) {
+            return "【表格数据】" + String.join("；", parts);
+        }
+
+        // 超大表格：前 15 行详细 + 统计摘要
+        String detail = String.join("；", parts.subList(0, Math.min(15, parts.size())));
+
+        // 数值列统计
+        StringBuilder stats = new StringBuilder();
+        for (int colIdx = 0; colIdx < headers.length; colIdx++) {
+            List<String> colVals = new ArrayList<>();
+            for (int i = 2; i < pipeLines.size(); i++) {
+                String line = pipeLines.get(i);
+                String[] cells = line.substring(1, line.length() - 1).split("\\|");
+                if (cells.length > colIdx && !cells[colIdx].trim().isEmpty()) {
+                    colVals.add(cells[colIdx].trim());
+                }
+            }
+            if (colVals.size() < 2) continue;
+
+            List<Double> allNums = new ArrayList<>();
+            for (String v : colVals) {
+                allNums.addAll(parseNums(v));
+            }
+            if (allNums.size() >= 4) {
+                double min = Collections.min(allNums);
+                double max = Collections.max(allNums);
+                if (stats.length() > 0) stats.append("；");
+                stats.append(headers[colIdx]).append("：")
+                     .append(formatNum(min)).append("~").append(formatNum(max));
+            }
+        }
+
+        return "【表格数据/共" + parts.size() + "行】" + detail + "；...\n【统计摘要】" + stats;
+    }
+
+    /**
+     * 解析单元格中的数值，支持整数、小数、逗号分隔数字。
+     */
+    private static List<Double> parseNums(String val) {
+        List<Double> nums = new ArrayList<>();
+        Matcher m = Pattern.compile("\\d+\\.?\\d*").matcher(val.replace(",", ""));
+        while (m.find()) {
+            nums.add(Double.parseDouble(m.group()));
+        }
+        return nums;
+    }
+
+    /**
+     * 数值格式化：整数无小数，小数保留两位。
+     */
+    private static String formatNum(double val) {
+        if (val == Math.floor(val) && !Double.isInfinite(val)) {
+            return String.valueOf((long) val);
+        }
+        return String.format("%.2f", val);
+    }
+
+    // ======================== 文本分段逻辑 ========================
+
+    /**
+     * 对纯文本段（不含表格）执行分层分割。
+     * 复用现有的段落→句子→短语四级分割逻辑。
+     */
+    private static List<Chunk> splitTextContent(String text, String fullContent) {
+        List<String> paragraphs = splitByParagraph(text);
+        return buildChunks(paragraphs, fullContent);
     }
 
     // ======================== 私有方法 ========================

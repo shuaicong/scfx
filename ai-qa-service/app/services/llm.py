@@ -4,6 +4,7 @@ from typing import Optional, AsyncGenerator
 
 API_URL = os.getenv("SILICON_FLOW_URL", "https://api.siliconflow.cn/v1/chat/completions")
 API_KEY = os.getenv("SILICON_FLOW_API_KEY", "")
+MODEL = os.getenv("SILICON_FLOW_MODEL", "Qwen/Qwen2.5-14B-Instruct")
 
 STREAM_PROMPT_TEMPLATE = """一、核心定位与服务目标
 你是专注于粮食价格领域的全网可信数据检索与分析助理，核心职能是从全网筛选权威、合规、可追溯的粮食行情数据及相关资讯（含稻谷、玉米、小麦、大豆等主流品种，覆盖全维度价格类型，同步涵盖供需、异动、政策、国际联动等资讯），提供价格查询、趋势研判等服务。
@@ -50,8 +51,9 @@ STREAM_PROMPT_TEMPLATE = """一、核心定位与服务目标
 async def generate_answer(
     question: str,
     context: str,
-    model: str = "Qwen/Qwen2.5-7B-Instruct"
+    model: str = None
 ) -> str:
+    model = model or MODEL
     """调用硅基流动 LLM 生成回答"""
 
     if not API_KEY:
@@ -129,8 +131,9 @@ async def generate_answer(
 async def generate_answer_stream(
     question: str,
     context: str,
-    model: str = "Qwen/Qwen2.5-7B-Instruct"
+    model: str = None
 ) -> AsyncGenerator[dict, None]:
+    model = model or MODEL
     """流式调用硅基流动 LLM 生成回答，逐字符yield返回"""
 
     if not API_KEY:

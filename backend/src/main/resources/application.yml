@@ -100,6 +100,12 @@ async:
     max-size: 5
     queue-capacity: 50
 
+# Qdrant 向量库（ai-qa-service 语义搜索用）
+qdrant:
+  host: 127.0.0.1
+  port: 6333
+  collection: grain_knowledge
+
 # 向量库配置
 vector:
   enabled: true   # true: 使用真实向量库, false: 使用 Mock

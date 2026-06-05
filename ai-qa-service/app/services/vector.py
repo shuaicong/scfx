@@ -1,9 +1,10 @@
 import uuid
+import re
 from app.db.qdrant import get_client, ensure_collection
 
 COLLECTION_NAME = "grain_knowledge"
 
-def store_vectors(kb_id: int, title: str, chunks: list, source: str, source_type: str, publish_time: str = None):
+def store_vectors(kb_id: int, title: str, chunks: list, source: str, source_type: str, publish_time: str = None, chunk_types: list = None):
     """存储向量到 Qdrant"""
     client = get_client()
     ensure_collection()
@@ -25,7 +26,8 @@ def store_vectors(kb_id: int, title: str, chunks: list, source: str, source_type
             "source": source,
             "source_type": source_type,
             "publish_time": publish_time,
-            "chunk_index": i
+            "chunk_index": i,
+            "chunk_type": chunk_types[i] if chunk_types else "text"
         }
 
         points.append({
@@ -66,9 +68,23 @@ def search_vectors(query: str, top_k: int = 5, source_filter: str = None) -> lis
     ]
 
 def delete_vectors(vector_ids: str):
-    """删除向量"""
+    """删除向量，自动跳过非 UUID 格式的 ID（如 SiliconFlow ID）"""
     if not vector_ids:
         return
     client = get_client()
     ids = vector_ids.split(",")
-    client.delete(collection_name=COLLECTION_NAME, point_ids=ids)
+    # 过滤：只保留合法 UUID 格式的 ID（Qdrant 要求 UUID 或整数）
+    uuid_pattern = re.compile(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+        re.IGNORECASE
+    )
+    valid_ids = [i for i in ids if uuid_pattern.match(i.strip())]
+    if not valid_ids:
+        return
+    from qdrant_client.http import models
+    client.delete(
+        collection_name=COLLECTION_NAME,
+        points_selector=models.PointIdsList(
+            points=valid_ids
+        )
+    )

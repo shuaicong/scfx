@@ -2,7 +2,11 @@ import re
 from typing import Dict, List
 
 def chunk_text(text: str, min_chunk_size: int = 500, max_chunk_size: int = 800, overlap: int = 50) -> list:
-    """将文本分块，每块 500-800 字，块之间保留重叠"""
+    """将文本分块，每块 500-800 字，块之间保留重叠
+
+    Deprecated: 仅作为 revectorize 降级路径保留（旧数据无 t_knowledge_chunk 时使用）。
+    新数据切片由 Java DocumentPipeline + TextSplitter 统一处理。
+    """
     paragraphs = re.split(r'\n\s*\n', text)
     paragraphs = [p.strip() for p in paragraphs if p.strip()]
 
