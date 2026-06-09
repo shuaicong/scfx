@@ -1,0 +1,8 @@
+# ai-qa-service/app/config/blacklist.yaml
+words:
+  - 评价
+  - 价位
+  - 评论
+  - 评级
+  - 级别
+  - 品质
