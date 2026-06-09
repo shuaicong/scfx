@@ -1,0 +1,6 @@
+# ai-qa-service/app/config/injection_whitelist.yaml
+whitelist:
+  - 作为参考
+  - 相当于
+  - 输出格式
+  - 按照规则
