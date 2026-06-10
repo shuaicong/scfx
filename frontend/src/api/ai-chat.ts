@@ -121,7 +121,11 @@ export const aiChatApiV2 = {
     const response = await fetch('/api/ai-chat/v2/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(params),
+      body: JSON.stringify({
+        session_id: params.sessionId,
+        client_msg_id: params.clientMsgId,
+        question: params.question,
+      }),
     })
     return response.body as ReadableStream<Uint8Array>
   },
