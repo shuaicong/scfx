@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.DefaultResponseErrorHandler;
+import org.springframework.web.client.ResponseErrorHandler;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
@@ -39,10 +39,14 @@ public class AiChatProxyController {
     private final RestTemplate restTemplate = new RestTemplate();
 
     {
-        restTemplate.setErrorHandler(new DefaultResponseErrorHandler() {
+        restTemplate.setErrorHandler(new ResponseErrorHandler() {
             @Override
-            public boolean hasError(HttpStatus statusCode) {
+            public boolean hasError(org.springframework.http.client.ClientHttpResponse response) {
                 return false; // 不抛出异常，让调用方自行处理错误状态码
+            }
+            @Override
+            public void handleError(org.springframework.http.client.ClientHttpResponse response) {
+                // no-op — hasError 始终返回 false，不会走到这里
             }
         });
     }

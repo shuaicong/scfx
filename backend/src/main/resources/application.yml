@@ -99,7 +99,7 @@ app:
   ai-qa-service:
     url: http://localhost:5002
   ai-qa:
-    gray-ratio: ${AI_QA_GRAY_RATIO:0}      # 灰度比例 0-100，0 表示不启用灰度
+    gray-ratio: ${AI_QA_GRAY_RATIO:1}      # 灰度比例 0-100，0 表示不启用灰度
   jwt:
     secret: grain-platform-secret-key-2024-hainan-reserve-group
     expiration: 86400000
