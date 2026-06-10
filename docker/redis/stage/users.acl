@@ -1,0 +1,3 @@
+# ========== 预发环境用户 ==========
+user ai_qa_stage on ><STAGE_REDIS_PASSWORD> ~chat:* ~idempotent:* ~sse_cache:* ~lock:* +zadd +zrange +zremrangebyscore +zcard +incr +expire +del +exists +set +get +ping
+user java_proxy_stage on ><STAGE_JAVA_PASSWORD> ~heartbeat:* +set +get +expire +exists +ping
