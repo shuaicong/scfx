@@ -24,7 +24,7 @@ class SSEStateMachine:
     """SSE 事件顺序状态机"""
     VALID_TRANSITIONS = {
         'INIT': {'THOUGHT', 'SOURCE', 'CONTENT', 'ERROR'},
-        'THOUGHT': {'SOURCE', 'CONTENT', 'DONE', 'ERROR'},
+        'THOUGHT': {'THOUGHT', 'SOURCE', 'CONTENT', 'DONE', 'ERROR'},
         'SOURCE': {'CONTENT', 'DONE', 'ERROR'},
         'CONTENT': {'DONE', 'ERROR'},
         'DONE': set(),
