@@ -24,8 +24,8 @@ class SSEStateMachine:
     """SSE 事件顺序状态机"""
     VALID_TRANSITIONS = {
         'INIT': {'THOUGHT', 'SOURCE', 'CONTENT', 'ERROR'},
-        'THOUGHT': {'SOURCE', 'CONTENT', 'ERROR'},
-        'SOURCE': {'CONTENT', 'ERROR'},
+        'THOUGHT': {'SOURCE', 'CONTENT', 'DONE', 'ERROR'},
+        'SOURCE': {'CONTENT', 'DONE', 'ERROR'},
         'CONTENT': {'DONE', 'ERROR'},
         'DONE': set(),
         'ERROR': set(),
@@ -99,7 +99,7 @@ class SSEResponseGenerator:
         for boundary in ['。', '！', '？', '\n']:
             if boundary in self._accumulator:
                 last_idx = self._accumulator.rfind(boundary)
-                if last_idx > 0 and len(self._accumulator[:last_idx + 1]) >= 30:
+                if last_idx > 0 and len(self._accumulator[:last_idx + 1]) >= 10:
                     return self._flush_content(up_to=last_idx + 1)
         return None
 

@@ -53,8 +53,10 @@ class TestCounterFactory:
     def teardown_method(self):
         CounterFactory.reset_instance()
 
-    def test_factory_defaults_to_local(self):
+    def test_factory_defaults_to_local(self, mocker):
         """工厂默认返回 LocalCounter（无 Redis 时）"""
+        mocker.patch('app.services.counter.is_redis_available', return_value=False)
+        CounterFactory.reset_instance()
         counter = CounterFactory.get_counter()
         from app.services.counter import LocalCounter
         assert isinstance(counter, LocalCounter)

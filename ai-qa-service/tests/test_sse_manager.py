@@ -20,6 +20,7 @@ class TestSSEStateMachine:
 
     def test_invalid_transition_raises(self):
         sm = SSEStateMachine()
+        sm.transition('CONTENT')
         sm.transition('DONE')
         with pytest.raises(SSEStateError):
             sm.transition('CONTENT')
