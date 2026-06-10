@@ -27,4 +27,15 @@ public interface KnowledgeBaseService extends IService<KnowledgeBase> {
      * @throws IOException 文件存储失败
      */
     KnowledgeBase createFromUpload(MultipartFile file, Long categoryId, String title) throws IOException;
+
+    /**
+     * 同步分类关联到 t_knowledge_category 关联表
+     * <p>
+     * 所有写 categoryId 的地方都应调用此方法，确保关联表与主表字段一致。
+     * 会先清除旧的关联记录再写入新的。
+     *
+     * @param knowledgeId 知识 ID
+     * @param categoryId  分类 ID（null 则只清除不写入）
+     */
+    void updateCategory(Long knowledgeId, Long categoryId);
 }

@@ -497,6 +497,7 @@ CREATE TABLE IF NOT EXISTS t_knowledge_chunk (
     vector_bge_m3 BLOB DEFAULT NULL COMMENT 'BGE-M3 768维检索向量（serialized float[]）',
     error_message VARCHAR(500) DEFAULT NULL COMMENT '向量化失败信息',
     is_active INT DEFAULT 1 COMMENT '1=正常 0=已删除',
+    chunk_type VARCHAR(20) DEFAULT 'text' COMMENT '切片类型: text/table',
     content_terms VARCHAR(2000) DEFAULT NULL COMMENT '保留字段：全文检索用',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

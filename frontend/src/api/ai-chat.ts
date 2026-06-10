@@ -38,12 +38,12 @@ export interface ChatStreamResponse {
 }
 
 export interface Source {
-  name?: string
-  title?: string
-  source?: string
-  url?: string
-  publish_time?: string
-  type?: 'web' | 'doc' | 'db'
+  index: number
+  title: string
+  source: string
+  date: string
+  content: string
+  relevance: number
 }
 
 export interface ChatStreamParams {
@@ -90,4 +90,42 @@ export const aiChatApi = {
   // 搜索知识库
   searchKnowledge: (query: string, topK: number = 5) =>
     request.get('/ai-chat/search', { params: { query, top_k: topK } }),
+}
+
+// ==================== AI Chat V2 类型定义 ====================
+
+export interface ChatV2StreamParams {
+  sessionId: string
+  clientMsgId: string
+  question: string
+}
+
+export interface SSEEvent {
+  type: 'thought' | 'source' | 'content' | 'done' | 'error' | 'abort'
+  content?: string
+  sources?: Source[]
+  code?: string
+  message?: string
+  token_used?: number
+  compressed?: boolean
+  seq?: number
+  partial_content?: string
+  retry_after?: number
+  request_id?: string
+}
+
+// ==================== AI Chat V2 API ====================
+
+export const aiChatApiV2 = {
+  chatV2Stream: async (params: ChatV2StreamParams): Promise<ReadableStream<Uint8Array>> => {
+    const response = await fetch('/api/ai-chat/v2/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    })
+    return response.body as ReadableStream<Uint8Array>
+  },
+
+  closeSession: (sessionId: string) =>
+    request.post('/ai-chat/session/close', { sessionId }),
 }

@@ -10,9 +10,14 @@ import com.scfx.util.DocxTextExtractor;
 import com.scfx.util.TextSplitter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
 import java.io.IOException;
@@ -38,13 +43,65 @@ public class DocumentPipeline {
     private final KnowledgeTaskMapper knowledgeTaskMapper;
     private final ContentFilter contentFilter;
     private final FileStorageService fileStorageService;
+    private final VectorTaskService vectorTaskService;
+
+    @Value("${app.ai-qa-service.url}")
+    private String aiQaServiceUrl;
+
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    /** 最大重试次数（指数退避：10s、20s、40s） */
+    static final int MAX_RETRIES = 3;
 
     /**
      * 启动知识处理管道（异步）
      * 解析文件提取文本 → 合规检查 → 切片入库
+     * <p>
+     * 失败自动重试，指数退避（10s → 20s → 40s），最终标记 failed 不阻塞主流程。
      */
     @Async("chunkExecutor")
     public void start(Long knowledgeId) {
+        int attempt = 0;
+        while (attempt <= MAX_RETRIES) {
+            try {
+                processKnowledge(knowledgeId);
+
+                // 切片完成后顺序触发向量化
+                try {
+                    vectorTaskService.processSingle(knowledgeId);
+                } catch (Exception e) {
+                    log.warn("向量化触发失败（不影响切片结果）: knowledgeId={}", knowledgeId, e);
+                }
+
+                // 事务提交后再触发 Qdrant 同步，不拉长事务窗口
+                syncQdrant(knowledgeId);
+
+                return;
+            } catch (Exception e) {
+                attempt++;
+                if (attempt > MAX_RETRIES) {
+                    markFailed(knowledgeId, e);
+                    return;
+                }
+                long delay = (long) Math.pow(2, attempt - 1) * 10_000;
+                log.warn("文档处理失败，{}秒后重试 {}/{}: knowledgeId={}",
+                    delay / 1000, attempt, MAX_RETRIES, knowledgeId, e);
+                try {
+                    Thread.sleep(delay);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    markFailed(knowledgeId, e);
+                    return;
+                }
+            }
+        }
+    }
+
+    /**
+     * 核心处理逻辑（提取为独立方法，便于重试循环复用）
+     * 每次调用都会从数据库重新读取 KB 和 Task，获取最新状态
+     */
+    private void processKnowledge(Long knowledgeId) throws Exception {
         KnowledgeBase kb = knowledgeBaseMapper.selectById(knowledgeId);
         if (kb == null) {
             log.warn("知识不存在: knowledgeId={}", knowledgeId);
@@ -52,71 +109,83 @@ public class DocumentPipeline {
         }
 
         KnowledgeTask task = createTask(kb);
-        try {
-            // Step 1: 解析
-            String content = extractContent(kb);
-            if (content == null || content.isBlank()) {
-                log.info("文档无内容，跳过处理: knowledgeId={}", knowledgeId);
-                completeTask(task, kb, 0);
-                return;
-            }
 
-            // 合规检查
-            String checkResult = contentFilter.check(content);
-            if (checkResult != null) {
-                log.warn("合规检查未通过 | knowledgeId={} | {}", knowledgeId, checkResult);
-                kb.setContent("");
-                knowledgeBaseMapper.updateById(kb);
-                task.setStatus("failed");
-                task.setErrorMessage(checkResult);
-                task.setErrorCategory("CONTENT_INVALID");
-                knowledgeTaskMapper.updateById(task);
-                return;
-            }
+        // Step 1: 解析
+        String content = extractContent(kb);
+        if (content == null || content.isBlank()) {
+            log.info("文档无内容，跳过处理: knowledgeId={}", knowledgeId);
+            completeTask(task, kb, 0);
+            return;
+        }
 
-            kb.setContent(content);
+        // 合规检查
+        String checkResult = contentFilter.check(content);
+        if (checkResult != null) {
+            log.warn("合规检查未通过 | knowledgeId={} | {}", knowledgeId, checkResult);
+            kb.setContent("");
             knowledgeBaseMapper.updateById(kb);
-            updateTask(task, "parsing", 40);
-            log.info("解析完成 | knowledgeId={} | chars={}", knowledgeId, content.length());
-
-            // Step 2: 切片
-            List<TextSplitter.Chunk> segments = TextSplitter.split(content);
-            if (segments.isEmpty()) {
-                log.info("无需切片（短文本）| knowledgeId={}", knowledgeId);
-                completeTask(task, kb, 0);
-                return;
-            }
-
-            // 软删除旧切片
-            knowledgeChunkMapper.updateByKnowledgeId(knowledgeId, 0);
-
-            // 批量插入
-            List<KnowledgeChunk> chunks = segments.stream()
-                .map(s -> buildChunk(kb, s))
-                .collect(Collectors.toList());
-            int batchSize = 200;
-            for (int i = 0; i < chunks.size(); i += batchSize) {
-                int end = Math.min(i + batchSize, chunks.size());
-                knowledgeChunkMapper.insertBatch(chunks.subList(i, end));
-            }
-
-            kb.setChunkCount(chunks.size());
-            knowledgeBaseMapper.updateById(kb);
-
-            updateTask(task, "chunking", 70);
-            log.info("切片完成 | knowledgeId={} | chunks={}", knowledgeId, chunks.size());
-
-            // Step 3: 完成（向量化由 VectorTaskService 异步执行）
-            completeTask(task, kb, chunks.size());
-
-        } catch (Exception e) {
-            log.error("文档处理失败: knowledgeId={}", knowledgeId, e);
             task.setStatus("failed");
-            task.setErrorMessage("处理异常：" + e.getMessage());
+            task.setErrorMessage(checkResult);
+            task.setErrorCategory("CONTENT_INVALID");
             knowledgeTaskMapper.updateById(task);
+            return;
+        }
 
-            kb.setVectorStatus("failed");
-            knowledgeBaseMapper.updateById(kb);
+        kb.setContent(content);
+        knowledgeBaseMapper.updateById(kb);
+        updateTask(task, "parsing", 40);
+        log.info("解析完成 | knowledgeId={} | chars={}", knowledgeId, content.length());
+
+        // Step 2: 切片
+        List<TextSplitter.Chunk> segments = TextSplitter.split(content);
+        if (segments.isEmpty()) {
+            log.info("无需切片（短文本）| knowledgeId={}", knowledgeId);
+            completeTask(task, kb, 0);
+            return;
+        }
+
+        // 软删除旧切片
+        knowledgeChunkMapper.updateByKnowledgeId(knowledgeId, 0);
+
+        // 批量插入
+        List<KnowledgeChunk> chunks = segments.stream()
+            .map(s -> buildChunk(kb, s))
+            .collect(Collectors.toList());
+        int batchSize = 200;
+        for (int i = 0; i < chunks.size(); i += batchSize) {
+            int end = Math.min(i + batchSize, chunks.size());
+            knowledgeChunkMapper.insertBatch(chunks.subList(i, end));
+        }
+
+        kb.setChunkCount(chunks.size());
+        knowledgeBaseMapper.updateById(kb);
+
+        updateTask(task, "chunking", 70);
+        log.info("切片完成 | knowledgeId={} | chunks={}", knowledgeId, chunks.size());
+
+        // Step 3: 完成（向量化由 VectorTaskService 异步执行）
+        completeTask(task, kb, chunks.size());
+    }
+
+    /**
+     * 重试耗尽，标记永久失败
+     */
+    private void markFailed(Long knowledgeId, Exception e) {
+        log.error("文档处理重试耗尽: knowledgeId={}", knowledgeId, e);
+        try {
+            KnowledgeBase kb = knowledgeBaseMapper.selectById(knowledgeId);
+            if (kb != null) {
+                kb.setVectorStatus("failed");
+                knowledgeBaseMapper.updateById(kb);
+            }
+            KnowledgeTask task = knowledgeTaskMapper.selectByKnowledgeId(knowledgeId);
+            if (task != null) {
+                task.setStatus("failed");
+                task.setErrorMessage("重试耗尽：" + (e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName()));
+                knowledgeTaskMapper.updateById(task);
+            }
+        } catch (Exception ex) {
+            log.warn("标记失败状态异常: knowledgeId={}", knowledgeId, ex);
         }
     }
 
@@ -173,6 +242,17 @@ public class DocumentPipeline {
 
             kb.setVectorStatus("processing");
             knowledgeBaseMapper.updateById(kb);
+        } else {
+            // 重试场景：重置为处理中状态
+            task.setStatus("processing");
+            task.setProgress(0);
+            task.setErrorMessage(null);
+            task.setErrorCategory(null);
+            task.setCurrentStep(null);
+            knowledgeTaskMapper.updateById(task);
+
+            kb.setVectorStatus("processing");
+            knowledgeBaseMapper.updateById(kb);
         }
         return task;
     }
@@ -183,6 +263,10 @@ public class DocumentPipeline {
         knowledgeTaskMapper.updateById(task);
     }
 
+    /**
+     * 完成处理：先提交 DB 更新（chunk_count、vector_status），再触发 Qdrant 同步。
+     * DB 更新和 HTTP 调用分开，避免长事务阻塞其他线程读取最新 chunk_count。
+     */
     @Transactional
     public void completeTask(KnowledgeTask task, KnowledgeBase kb, int totalChunks) {
         kb.setChunkCount(totalChunks);
@@ -198,6 +282,22 @@ public class DocumentPipeline {
         log.info("文档处理完成 | knowledgeId={} | totalChunks={}", kb.getId(), totalChunks);
     }
 
+    /**
+     * 事务提交后再触发 Qdrant 同步，避免 HTTP 调用拉长事务窗口。
+     */
+    public void syncQdrant(Long knowledgeId) {
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<String> entity = new HttpEntity<>("{}", headers);
+            String url = aiQaServiceUrl + "/api/knowledge/" + knowledgeId + "/revectorize";
+            restTemplate.postForEntity(url, entity, String.class);
+            log.info("Qdrant 同步触发: knowledgeId={}", knowledgeId);
+        } catch (Exception e) {
+            log.warn("Qdrant 同步失败（不影响主流程）: knowledgeId={}, err={}", knowledgeId, e.getMessage());
+        }
+    }
+
     private KnowledgeChunk buildChunk(KnowledgeBase kb, TextSplitter.Chunk seg) {
         KnowledgeChunk chunk = new KnowledgeChunk();
         chunk.setKnowledgeId(kb.getId());
@@ -209,6 +309,7 @@ public class DocumentPipeline {
         chunk.setEndOffset(seg.getEndOffset());
         chunk.setIsSummary(seg.isSummary() ? 1 : 0);
         chunk.setTokenCount(seg.getEstimatedTokens());
+        chunk.setChunkType(seg.getChunkType());  // "text" | "table"
         chunk.setVectorStatus("pending");
         chunk.setIsActive(1);
         return chunk;

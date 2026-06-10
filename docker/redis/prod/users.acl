@@ -1,0 +1,5 @@
+# ========== 生产环境用户 ==========
+user ai_qa_prod on ><PROD_REDIS_PASSWORD> ~chat:* ~idempotent:* ~sse_cache:* ~lock:* +zadd +zrange +zremrangebyscore +zcard +incr +expire +del +exists +set +get +ping
+user java_proxy_prod on ><PROD_JAVA_REDIS_PASSWORD> ~heartbeat:* +set +get +expire +exists +ping
+user monitor_prod on ><PROD_MONITOR_PASSWORD> ~* +ping +info +slowlog +client +memory
+user admin_prod on ><PROD_ADMIN_PASSWORD> ~* +@all

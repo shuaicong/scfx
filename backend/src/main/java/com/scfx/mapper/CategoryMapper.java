@@ -21,7 +21,7 @@ public interface CategoryMapper {
     @Select("SELECT * FROM t_category WHERE deleted_at IS NULL AND name LIKE CONCAT('%', #{name}, '%')")
     List<Category> searchByName(String name);
 
-    @Select("SELECT COUNT(*) FROM t_knowledge_category WHERE category_id = #{categoryId}")
+    @Select("SELECT COUNT(*) FROM t_knowledge_base WHERE category_id = #{categoryId} AND deleted = 0")
     int countKnowledgeByCategoryId(Long categoryId);
 
     @Insert("INSERT INTO t_category (name, icon, color, description, parent_id, sort_order, pinned, last_operated_by, last_operated_at, permission_level, allowed_users, active_season_start, active_season_end, version) " +

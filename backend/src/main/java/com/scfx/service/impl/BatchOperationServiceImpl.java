@@ -7,6 +7,7 @@ import com.scfx.entity.BatchOperationLog;
 import com.scfx.entity.KnowledgeBase;
 import com.scfx.mapper.BatchOperationLogMapper;
 import com.scfx.mapper.KnowledgeBaseMapper;
+import com.scfx.mapper.KnowledgeCategoryMapper;
 import com.scfx.service.BatchOperationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,7 @@ public class BatchOperationServiceImpl implements BatchOperationService {
 
     private final BatchOperationLogMapper operationLogMapper;
     private final KnowledgeBaseMapper knowledgeMapper;
+    private final KnowledgeCategoryMapper knowledgeCategoryMapper;
     private final ObjectMapper objectMapper;
 
     // 撤销有效期（分钟）
@@ -74,6 +76,11 @@ public class BatchOperationServiceImpl implements BatchOperationService {
                 if (kb != null) {
                     kb.setCategoryId(operation.getSourceCategoryId());
                     knowledgeMapper.updateById(kb);
+                    // 同步分类关联表
+                    knowledgeCategoryMapper.deleteAllByKnowledgeId(knowledgeId);
+                    if (operation.getSourceCategoryId() != null) {
+                        knowledgeCategoryMapper.insertBatch(knowledgeId, List.of(operation.getSourceCategoryId()));
+                    }
                 }
             }
         } else if ("delete".equals(operation.getOperationType())) {

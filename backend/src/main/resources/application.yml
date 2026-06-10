@@ -16,17 +16,30 @@ spring:
     init:
       mode: never
 
-  # Redis配置（可选，开发时可注释掉）
-  # data:
-  #   redis:
-  #     host: localhost
-  #     port: 6379
+  # Redis配置（支持 ACL 用户认证，通过环境变量覆盖）
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      username: ${REDIS_USER:}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DB:0}
+      timeout: 2000
 
   # 文件上传限制
   servlet:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+
+  # 异步任务执行器（SSE 流式代理线程池）
+  task:
+    execution:
+      pool:
+        core-size: 10
+        max-size: 50
+        queue-capacity: 100
+      thread-name-prefix: sse-async-
 
 # MyBatis-Plus配置
 mybatis-plus:
@@ -55,6 +68,12 @@ server:
       force-request: true
   tomcat:
     uri-encoding: UTF-8
+    threads:
+      max: 200
+      min-spare: 20
+    max-connections: 8192
+    accept-count: 100
+    connection-timeout: 60000
 
 # Actuator配置
 management:
@@ -79,6 +98,8 @@ app:
     dir: data/upload       # 上传文件存储根目录（建议生产环境用绝对路径）
   ai-qa-service:
     url: http://localhost:5002
+  ai-qa:
+    gray-ratio: ${AI_QA_GRAY_RATIO:0}      # 灰度比例 0-100，0 表示不启用灰度
   jwt:
     secret: grain-platform-secret-key-2024-hainan-reserve-group
     expiration: 86400000
@@ -99,6 +120,12 @@ async:
     core-size: 2
     max-size: 5
     queue-capacity: 50
+
+# Qdrant 向量库（ai-qa-service 语义搜索用）
+qdrant:
+  host: 127.0.0.1
+  port: 6333
+  collection: grain_knowledge
 
 # 向量库配置
 vector:

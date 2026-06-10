@@ -48,7 +48,7 @@
     <!-- 主内容区 -->
     <div class="chat-content">
       <!-- 欢迎信息 -->
-      <div v-if="messages.length === 0" class="welcome-section">
+      <div v-if="!currentAnswer && !isLoading" class="welcome-section">
         <div class="welcome-icon">
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
             <circle cx="32" cy="32" r="30" stroke="url(#welcome-gradient)" stroke-width="2" opacity="0.3"/>
@@ -77,39 +77,25 @@
         </div>
       </div>
 
-      <!-- 消息列表 -->
+      <!-- 对话区域 -->
       <div v-else class="messages-container" ref="messagesContainer">
-        <div
-          v-for="(msg, index) in messages"
-          :key="index"
-          class="message-item"
-          :class="msg.role"
-        >
+        <!-- 用户问题 -->
+        <div class="message-item user">
           <div class="message-avatar">
-            <div v-if="msg.role === 'user'" class="avatar user-avatar">
+            <div class="avatar user-avatar">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M8 8C9.6 8 10.67 6.93 10.67 5.33C10.67 3.73 9.6 2.67 8 2.67C6.4 2.67 5.33 3.73 5.33 5.33C5.33 6.93 6.4 8 8 8Z" fill="currentColor"/>
                 <path d="M3.33 14C3.33 11.05 5.6 8.67 8.5 8.67V8.67C11.4 8.67 13.67 11.05 13.67 14V14.67H3.33V14Z" fill="currentColor"/>
               </svg>
             </div>
-            <div v-else class="avatar ai-avatar">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="6" fill="currentColor" opacity="0.2"/>
-                <circle cx="8" cy="8" r="3" fill="currentColor"/>
-              </svg>
-            </div>
           </div>
           <div class="message-body">
-            <MessageContent
-              :content="msg.content"
-              :sources="msg.references"
-              @preview="previewDocument"
-            />
+            <div class="message-content">{{ lastQuestion }}</div>
           </div>
         </div>
 
-        <!-- Loading indicator -->
-        <div v-if="isLoading" class="message-item assistant">
+        <!-- AI 回复区域 -->
+        <div class="message-item assistant">
           <div class="message-avatar">
             <div class="avatar ai-avatar">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -119,18 +105,38 @@
             </div>
           </div>
           <div class="message-body">
-            <!-- 思考过程展示 -->
-            <div v-if="thinkingMessages.length > 0" class="thinking-section">
-              <div v-for="(msg, i) in thinkingMessages" :key="i" class="thinking-item">
-                <span class="thinking-dot"></span>
-                <span class="thinking-text">{{ msg }}</span>
-              </div>
+            <!-- 思考过程 -->
+            <ThoughtProcess v-if="thoughts.length > 0" :thoughts="thoughts" />
+
+            <!-- 来源展示 -->
+            <div v-if="sources.length > 0" class="sources-grid">
+              <SourceCard
+                v-for="source in sources"
+                :key="source.index"
+                :source="source"
+              />
             </div>
-            <!-- 打字效果 -->
-            <div v-else class="typing-indicator">
+
+            <!-- 回答内容 -->
+            <div v-if="currentAnswer" class="message-content ai-content">{{ currentAnswer }}</div>
+
+            <!-- 错误信息 -->
+            <div v-if="errorMessage" class="error-message">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M7 4V8M7 10V10.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+              <span>{{ errorMessage }}</span>
+            </div>
+
+            <!-- 加载 / 重连指示 -->
+            <div v-if="isLoading && !currentAnswer && thoughts.length === 0" class="typing-indicator">
               <span></span>
               <span></span>
               <span></span>
+            </div>
+            <div v-if="reconnecting" class="reconnecting-hint">
+              <span>连接中断，正在重连...</span>
             </div>
           </div>
         </div>
@@ -142,16 +148,16 @@
       <div class="input-options">
         <button
           class="deep-thinking-btn"
-          :class="{ active: deepThinkingEnabled }"
-          @click="deepThinkingEnabled = !deepThinkingEnabled"
+          disabled
+          title="该功能即将上线（Phase 2）"
         >
           <span class="btn-icon">💭</span>
           <span class="btn-text">深度思考</span>
         </button>
         <button
           class="internet-search-btn"
-          :class="{ active: internetSearchEnabled }"
-          @click="internetSearchEnabled = !internetSearchEnabled"
+          disabled
+          title="该功能即将上线（Phase 2）"
         >
           <span class="btn-icon">🌐</span>
           <span class="btn-text">联网搜索</span>
@@ -164,6 +170,7 @@
           class="chat-input"
           placeholder="输入您的问题..."
           :disabled="isLoading"
+          maxlength="500"
           @keyup.enter="askQuestion(question)"
         />
         <button
@@ -220,28 +227,52 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { aiChatApi, type ChatMessage, type ChatReference, type SearchResult, type ChatStreamResponse, type Source } from '@/api/ai-chat'
-import MessageContent from './components/MessageContent.vue'
+import { aiChatApiV2, type SSEEvent, type Source } from '@/api/ai-chat'
+import SourceCard from './components/SourceCard.vue'
+import ThoughtProcess from './components/ThoughtProcess.vue'
 import DocumentPreview from './components/DocumentPreview.vue'
 
 const router = useRouter()
 
-// 状态
+// 会话状态
+const sessionId = ref(crypto.randomUUID())
+const clientMsgId = ref(crypto.randomUUID())
+
+// 按钮禁用态
+const deepThinkingDisabled = ref(true)
+const internetSearchDisabled = ref(true)
+
+// 用户输入
 const question = ref('')
-const messages = ref<ChatMessage[]>([])
+const lastQuestion = ref('')
+
+// SSE 状态
+const sources = ref<Source[]>([])
+const thoughts = ref<string[]>([])
+const currentAnswer = ref('')
 const isLoading = ref(false)
+const errorMessage = ref('')
+
+// 重连状态
+const MAX_RETRIES = 3
+const reconnectDelay = ref(0)
+const reconnecting = ref(false)
+
+// 全局超时
+const globalTimeout = ref<ReturnType<typeof setTimeout>>()
+// 心跳超时检测（18s 无事件 → 判定断连）
+let heartbeatTimer: ReturnType<typeof setTimeout> | null = null
+
+// 视图元素
 const messagesContainer = ref<HTMLElement | null>(null)
 const showReportDialog = ref(false)
-const currentReport = ref<SearchResult | null>(null)
+const currentReport = ref<{ title?: string; publish_time?: string; source?: string; content?: string } | null>(null)
 const showDocPreview = ref(false)
 const previewDocUrl = ref('')
 const previewDocTitle = ref('')
-const thinkingMessages = ref<string[]>([])  // 思考过程消息
-const deepThinkingEnabled = ref(false)  // 深度思考开关
-const internetSearchEnabled = ref(true)  // 联网搜索开关
 
 // 数据源
 const availableSources = ['粮信网', '我的钢铁', '中华粮网', 'USDA', '气象数据']
@@ -254,6 +285,27 @@ const suggestions = [
   '大豆进口情况分析',
   'USDA 最新供需报告'
 ]
+
+// ---- 心跳计时器 ----
+function resetHeartbeatTimer() {
+  if (heartbeatTimer) clearTimeout(heartbeatTimer)
+  heartbeatTimer = setTimeout(() => {
+    // 18s 无任何 SSE 事件 → 主动触发重连（Python 心跳 12s，留 6s 缓冲）
+    reconnecting.value = true
+    reconnectDelay.value = 2000
+  }, 18000)
+}
+
+onMounted(() => {
+  sessionId.value = crypto.randomUUID()
+})
+
+onUnmounted(() => {
+  if (globalTimeout.value) clearTimeout(globalTimeout.value)
+  if (heartbeatTimer) clearTimeout(heartbeatTimer)
+})
+
+// ---- UI 功能 ----
 
 // 切换数据源筛选
 const toggleSource = (source: string) => {
@@ -270,128 +322,6 @@ const goBack = () => {
   router.push('/dashboard')
 }
 
-// 提问
-const askQuestion = async (q: string) => {
-  if (!q.trim() || isLoading.value) return
-
-  const userMessage: ChatMessage = {
-    role: 'user',
-    content: q,
-    timestamp: new Date().toISOString()
-  }
-  messages.value.push(userMessage)
-  question.value = ''
-  isLoading.value = true
-
-  await nextTick()
-  scrollToBottom()
-
-  // 创建 AI 消息占位，用于流式更新
-  const aiMessage: ChatMessage = {
-    role: 'assistant',
-    content: '',
-    references: [],
-    timestamp: new Date().toISOString()
-  }
-  messages.value.push(aiMessage)
-  thinkingMessages.value = []  // 清空思考消息
-
-  try {
-    const stream = await aiChatApi.chatStream({
-      question: q,
-      top_k: 5,
-      source_filter: selectedSources.value.length > 0 ? selectedSources.value : undefined,
-      deep_thinking: deepThinkingEnabled.value,
-      use_internet: internetSearchEnabled.value
-    })
-
-    if (!stream) {
-      throw new Error('Stream response error')
-    }
-
-    const reader = stream.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let currentContent = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() || ''
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const jsonStr = line.slice(6)
-          if (!jsonStr.trim()) continue
-
-          try {
-            const data: ChatStreamResponse = JSON.parse(jsonStr)
-
-            if (data.type === 'text' && data.content) {
-              currentContent += data.content
-              aiMessage.content = currentContent
-              aiMessage.references = aiMessage.references || []
-              await nextTick()
-              scrollToBottom()
-            } else if ((data.type === 'sources' || data.type === 'source') && data.sources) {
-              // 转换 Source 到 ChatReference
-              const references: ChatReference[] = data.sources.map((s: Source) => ({
-                report_id: s.url || Math.random().toString(),
-                title: s.title || s.name || '未知来源',
-                source: s.source || s.name || '未知来源',
-                publish_time: s.publish_time || '',
-                similarity: 0.9,
-                url: s.url
-              }))
-              aiMessage.references = references
-
-              // 在回答末尾追加来源链接
-              const sourcesText = '\n\n---\n**来源：**\n' + data.sources.map((s: Source, i: number) => {
-                const name = s.title || s.name || '未知来源'
-                const url = s.url || ''
-                if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
-                  return `${i + 1}. [${name}](${url})`
-                } else if (url) {
-                  return `${i + 1}. ${name}`
-                }
-                return `${i + 1}. ${name}`
-              }).join('\n')
-              currentContent += sourcesText
-              aiMessage.content = currentContent
-            } else if (data.type === 'done') {
-              // 流式结束
-              thinkingMessages.value = []  // 清空思考过程
-            } else if (data.type === 'error') {
-              ElMessage.error(data.error || 'AI 服务错误')
-            } else if (data.type === 'thinking' && data.content) {
-              // 思考过程消息
-              thinkingMessages.value.push(data.content)
-              await nextTick()
-              scrollToBottom()
-            }
-          } catch (e) {
-            // 忽略解析错误
-          }
-        }
-      }
-    }
-  } catch (error: any) {
-    ElMessage.error('AI 服务暂时不可用，请稍后重试')
-    console.error('Chat error:', error)
-    // 移除空的 AI 消息
-    if (aiMessage.content === '') {
-      messages.value.pop()
-    }
-  } finally {
-    isLoading.value = false
-    await nextTick()
-    scrollToBottom()
-  }
-}
-
 // 滚动到底部
 const scrollToBottom = () => {
   if (messagesContainer.value) {
@@ -403,15 +333,158 @@ const scrollToBottom = () => {
 const previewDocument = (url: string, title?: string) => {
   if (!url) return
 
-  // 判断是否是外部链接
   if (url.startsWith('http://') || url.startsWith('https://')) {
-    // 外部链接，新窗口打开
     window.open(url, '_blank')
   } else {
-    // 内部文档，预览弹窗
     previewDocUrl.value = url
     previewDocTitle.value = title || '文档预览'
     showDocPreview.value = true
+  }
+}
+
+// ---- SSE 流式对话 ----
+
+async function askQuestion(q: string) {
+  if (!q.trim() || isLoading.value) return
+  // 前端校验
+  if (q.trim().length > 500) {
+    ElMessage.warning('问题长度不能超过 500 字符')
+    return
+  }
+
+  lastQuestion.value = q.trim()
+  clientMsgId.value = crypto.randomUUID()
+  isLoading.value = true
+  sources.value = []
+  thoughts.value = []
+  currentAnswer.value = ''
+  errorMessage.value = ''
+  reconnecting.value = false
+  question.value = ''
+
+  await nextTick()
+  scrollToBottom()
+
+  // 全局超时 45s
+  globalTimeout.value = setTimeout(() => {
+    isLoading.value = false
+    errorMessage.value = errorMessage.value || '请求超时，请重试'
+    reconnecting.value = false
+  }, 45000)
+
+  await startSSEStream(q.trim())
+}
+
+// ★ SSE 流读取（含自动重连）
+async function startSSEStream(q: string, retryCount = 0) {
+  resetHeartbeatTimer()
+
+  try {
+    const stream = await aiChatApiV2.chatV2Stream({
+      sessionId: sessionId.value,
+      clientMsgId: clientMsgId.value,
+      question: q,
+    })
+    if (!stream) throw new Error('Stream error')
+
+    // 重连成功 → 清空错误提示
+    if (retryCount > 0) {
+      errorMessage.value = ''
+      reconnecting.value = false
+      ElMessage.success('连接已恢复')
+    }
+
+    const reader = stream.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      resetHeartbeatTimer()        // ★ 有数据到达 → 重置心跳超时
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      let currentEventType = ''
+      let currentDataLines: string[] = []
+
+      for (const line of lines) {
+        if (line.startsWith('event: ')) {
+          flushSSEEvent(currentEventType, currentDataLines)
+          currentEventType = line.slice(7).trim()
+          currentDataLines = []
+        } else if (line.startsWith('data: ')) {
+          currentDataLines.push(line.slice(6))   // ★ 多行 data 累加
+        } else if (line === '' && currentEventType) {
+          // ★ 空行 = SSE 事件结束
+          const evt = currentEventType
+          const data = currentDataLines
+          flushSSEEvent(evt, data)
+          currentEventType = ''
+          currentDataLines = []
+        }
+      }
+    }
+    // 流结束时处理残留事件
+    flushSSEEvent(currentEventType, currentDataLines)
+  } catch (err) {
+    // ★ 自动重连（指数退避，最多 3 次）
+    if (retryCount < MAX_RETRIES && !reconnecting.value) {
+      reconnecting.value = true
+      reconnectDelay.value = Math.min(1000 * Math.pow(2, retryCount), 8000)
+      errorMessage.value = `连接中断，${reconnectDelay.value / 1000}s 后自动重连... (${retryCount + 1}/${MAX_RETRIES})`
+      await new Promise(r => setTimeout(r, reconnectDelay.value))
+      if (isLoading.value) {
+        await startSSEStream(q, retryCount + 1)
+        return
+      }
+    } else {
+      isLoading.value = false
+      reconnecting.value = false
+      errorMessage.value = '网络连接已断开，请稍后重试'
+    }
+  }
+}
+
+// ★ SSE 事件分发函数（支持 event/data/空行三行协议 + 多行 data 累加）
+function flushSSEEvent(eventType: string, dataLines: string[]) {
+  if (!eventType || dataLines.length === 0) return
+  try {
+    const data: SSEEvent = JSON.parse(dataLines.join(''))
+    switch (eventType) {
+      case 'thought':
+        thoughts.value.push(data.content || '')
+        break
+      case 'source':
+        if (data.sources) sources.value = data.sources
+        break
+      case 'content':
+        currentAnswer.value += data.content || ''
+        break
+      case 'done':
+        isLoading.value = false
+        clearTimeout(globalTimeout.value)
+        break
+      case 'error':
+        isLoading.value = false
+        errorMessage.value = data.message || '服务异常'
+        clearTimeout(globalTimeout.value)
+        break
+      case 'heartbeat':
+        // ★ 心跳保活 — 不渲染 UI，resetHeartbeatTimer() 已在外层循环调用
+        break
+      case 'abort':
+        isLoading.value = false
+        currentAnswer.value += data.partial_content || ''
+        clearTimeout(globalTimeout.value)
+        break
+    }
+    nextTick()
+    scrollToBottom()
+  } catch (e) {
+    // JSON 解析失败 → 忽略异常行
   }
 }
 </script>
@@ -653,82 +726,47 @@ const previewDocument = (url: string, title?: string) => {
   border-top-right-radius: 4px;
 }
 
-/* 引用来源 */
-.references-section {
-  margin-top: 16px;
-  padding: 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 12px;
+.ai-content {
+  margin-top: 12px;
 }
 
-.references-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #f5c87a;
-  margin-bottom: 12px;
-}
-
-.references-list {
+/* 来源网格 */
+.sources-grid {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin-bottom: 12px;
 }
 
-.reference-item {
+/* 错误消息 */
+.error-message {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.reference-item:hover {
-  background: rgba(245, 200, 122, 0.08);
-  border-color: rgba(245, 200, 122, 0.2);
-}
-
-.ref-number {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(245, 200, 122, 0.15);
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #f5c87a;
-}
-
-.ref-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.ref-title {
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(248, 81, 73, 0.1);
+  border: 1px solid rgba(248, 81, 73, 0.2);
+  border-radius: 10px;
   font-size: 13px;
-  color: #e6edf3;
+  color: #f85149;
+  margin-top: 8px;
 }
 
-.ref-meta {
-  font-size: 11px;
-  color: #6e7681;
-}
-
-.ref-similarity {
+/* 重连提示 */
+.reconnecting-hint {
+  padding: 8px 12px;
   font-size: 12px;
-  font-weight: 500;
-  color: #3fb950;
+  color: #d29922;
+  background: rgba(210, 153, 34, 0.1);
+  border: 1px solid rgba(210, 153, 34, 0.2);
+  border-radius: 8px;
+  margin-top: 8px;
+  animation: blink 1.5s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 /* Loading 动画 */
@@ -758,41 +796,6 @@ const previewDocument = (url: string, title?: string) => {
   50% { opacity: 1; transform: translateY(-4px); }
 }
 
-/* 思考过程展示 */
-.thinking-section {
-  padding: 14px 18px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 16px;
-  border-top-left-radius: 4px;
-}
-
-.thinking-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 0;
-  font-size: 13px;
-  color: #8b949e;
-}
-
-.thinking-dot {
-  width: 6px;
-  height: 6px;
-  background: #f5c87a;
-  border-radius: 50%;
-  animation: thinking-pulse 1.5s ease-in-out infinite;
-}
-
-.thinking-text {
-  color: #c9d1d9;
-}
-
-@keyframes thinking-pulse {
-  0%, 100% { opacity: 0.4; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.2); }
-}
-
 /* 底部输入区 */
 .chat-input-area {
   padding: 16px 24px 24px;
@@ -813,35 +816,20 @@ const previewDocument = (url: string, title?: string) => {
   align-items: center;
   gap: 6px;
   padding: 6px 14px;
-  background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 20px;
   font-size: 13px;
-  color: #8b949e;
-  cursor: pointer;
+  color: #484f58;
+  cursor: not-allowed;
+  opacity: 0.5;
   transition: all 0.25s ease;
 }
 
 .deep-thinking-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #c9d1d9;
-}
-
-.deep-thinking-btn.active {
-  background: linear-gradient(135deg, #f5c87a 0%, #d4a574 100%);
-  border-color: transparent;
-  color: #1a1f2e;
-  font-weight: 500;
-}
-
-.deep-thinking-btn.active .btn-icon {
-  animation: thinking-bounce 0.6s ease infinite;
-}
-
-@keyframes thinking-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2px); }
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #484f58;
 }
 
 .internet-search-btn {
@@ -849,24 +837,19 @@ const previewDocument = (url: string, title?: string) => {
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 16px;
-  color: #8b949e;
+  color: #484f58;
   font-size: 12px;
-  cursor: pointer;
+  cursor: not-allowed;
+  opacity: 0.5;
   transition: all 0.2s;
 }
 
 .internet-search-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #c9d1d9;
-}
-
-.internet-search-btn.active {
-  background: rgba(56, 139, 253, 0.15);
-  border-color: rgba(56, 139, 253, 0.4);
-  color: #58a6ff;
+  background: rgba(255, 255, 255, 0.03);
+  color: #484f58;
 }
 
 .internet-search-btn .btn-icon {
