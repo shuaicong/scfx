@@ -98,8 +98,6 @@ app:
     dir: data/upload       # 上传文件存储根目录（建议生产环境用绝对路径）
   ai-qa-service:
     url: http://localhost:5002
-  ai-qa:
-    gray-ratio: ${AI_QA_GRAY_RATIO:1}      # 灰度比例 0-100，0 表示不启用灰度
   jwt:
     secret: grain-platform-secret-key-2024-hainan-reserve-group
     expiration: 86400000

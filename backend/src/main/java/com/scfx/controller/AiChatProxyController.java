@@ -33,9 +33,6 @@ public class AiChatProxyController {
     @Value("${app.ai-qa-service.url}")
     private String aiQaServiceUrl;
 
-    @Value("${app.ai-qa.gray-ratio:0}")
-    private int grayRatio;
-
     private final RestTemplate restTemplate = new RestTemplate();
 
     {
@@ -139,26 +136,6 @@ public class AiChatProxyController {
                 outputStream.flush();
             }
         };
-    }
-
-    /**
-     * 判断指定 user_id 是否应被路由到 v2 灰度端点
-     * <p>
-     * 根据 user_id 的 hashCode 取绝对值后对 100 取模，
-     * 若结果小于 grayRatio 则命中灰度流量。
-     *
-     * @param userId 用户标识
-     * @return true 表示应路由到 v2 端点
-     */
-    private boolean useV2Endpoint(String userId) {
-        if (grayRatio <= 0) {
-            return false;
-        }
-        if (grayRatio >= 100) {
-            return true;
-        }
-        int hash = Math.abs(userId.hashCode() % 100);
-        return hash < grayRatio;
     }
 
     /**
