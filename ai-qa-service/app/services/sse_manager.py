@@ -106,11 +106,12 @@ class SSEResponseGenerator:
     async def send_done(self, token_used: int, compressed: bool = False) -> Optional[str]:
         if not await self._terminal_guard.try_send('done'):
             return None
-        await self._drain_accumulator()
+        remaining = await self._drain_accumulator()
         self._state_machine.transition('DONE')
-        return build_sse_event('done', {
-            'type': 'done', 'token_used': token_used, 'compressed': compressed,
-        })
+        data: dict = {'type': 'done', 'token_used': token_used, 'compressed': compressed}
+        if remaining:
+            data['partial_content'] = remaining
+        return build_sse_event('done', data)
 
     async def send_error(self, code: str, message: str, retry_after: int = 0) -> Optional[str]:
         if not await self._terminal_guard.try_send('error'):

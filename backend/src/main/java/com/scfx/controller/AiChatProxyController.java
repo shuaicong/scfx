@@ -55,26 +55,26 @@ public class AiChatProxyController {
     }
 
     /**
-     * SSE 流式问答（标准端点）
-     * 返回 StreamingResponseBody，Tomcat 线程在发起 HTTP 请求后即释放，
-     * 由工作线程持续将 Python 服务的 SSE 流写入响应 OutputStream。
-     */
-    @PostMapping("/stream")
-    public StreamingResponseBody stream(@RequestBody String body) {
-        String url = aiQaServiceUrl + "/api/chat/stream";
-        log.debug("Proxying POST /api/ai-chat/stream -> {}", url);
-        return proxyStream(url, body);
-    }
-
-    /**
      * SSE 流式问答（v2 灰度端点）
      * 与 /stream 功能相同但指向不同的 Python 端点，用于灰度测试。
      */
-    @PostMapping("/stream/v2")
-    public StreamingResponseBody streamV2(@RequestBody String body) {
-        String url = aiQaServiceUrl + "/api/chat/stream/v2";
-        log.debug("Proxying POST /api/ai-chat/stream/v2 -> {}", url);
-        return proxyStream(url, body);
+    @PostMapping("/v2/stream")
+    public StreamingResponseBody streamV2(@RequestBody String body,
+                                          @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        String url = aiQaServiceUrl + "/api/chat/v2/stream";
+        log.debug("Proxying POST /api/ai-chat/v2/stream -> {}", url);
+        return proxyStream(url, body, userId);
+    }
+
+    /**
+     * SSE 流式问答（标准端点）
+     */
+    @PostMapping("/stream")
+    public StreamingResponseBody stream(@RequestBody String body,
+                                        @RequestHeader(value = "X-User-Id", required = false) String userId) {
+        String url = aiQaServiceUrl + "/api/chat/stream";
+        log.debug("Proxying POST /api/ai-chat/stream -> {}", url);
+        return proxyStream(url, body, userId);
     }
 
     /**
@@ -83,19 +83,18 @@ public class AiChatProxyController {
      * 使用 RestTemplate.execute() 将请求转发到目标 URL，
      * 将 Python 服务的 SSE 响应字节逐块写入 StreamingResponseBody 的 OutputStream。
      * <p>
-     * 请求头中透传 request_id 用于链路追踪。
-     *
-     * @param targetUrl 目标 Python 服务 URL
-     * @param body      JSON 请求体
-     * @return StreamingResponseBody，由 Spring MVC 异步写入 HTTP 响应
+     * 请求头中透传 request_id 和 X-User-Id 用于链路追踪与身份识别。
      */
-    private StreamingResponseBody proxyStream(String targetUrl, String body) {
+    private StreamingResponseBody proxyStream(String targetUrl, String body, String userId) {
         String requestId = generateRequestId();
         return outputStream -> {
             restTemplate.execute(targetUrl, HttpMethod.POST,
                     req -> {
                         req.getHeaders().setContentType(MediaType.APPLICATION_JSON);
                         req.getHeaders().set("X-Request-Id", requestId);
+                        if (userId != null && !userId.isEmpty()) {
+                            req.getHeaders().set("X-User-Id", userId);
+                        }
                         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
                         req.getBody().write(bytes);
                     },

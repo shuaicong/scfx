@@ -2,6 +2,7 @@
 import json
 import logging
 import asyncio
+import time as time_module
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -97,7 +98,8 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             pass  # 清理失败依赖 TTL 兜底（300s）
 
     async def sse_gen():
-        gen = SSEResponseGenerator(request_id="-", session_id=request.session_id)
+        rid = getattr(http_request.state, "request_id", "-")
+        gen = SSEResponseGenerator(request_id=rid, session_id=request.session_id)
         hm = HistoryManager(user_id, request.session_id)
         counter = CounterFactory.get_counter()
 
@@ -136,8 +138,9 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                 qtype=TYPE_MAP.get(qtype, "general"),
             )
 
-            # 5. LLM 流式调用
+            # 5. LLM 流式调用（含心跳保活）
             answer_text = ""
+            _last_hb = time_module.monotonic()
             async for chunk in generate_answer_stream(
                 messages=messages,
                 model=None,
@@ -153,6 +156,12 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                     event = await gen.send_content(content)
                     if event:
                         yield event
+                # 每 12s 插入一次心跳
+                if time_module.monotonic() - _last_hb >= 12:
+                    hb = await gen.send_heartbeat()
+                    if hb:
+                        yield hb
+                    _last_hb = time_module.monotonic()
 
             # 6. 写 Redis（同步）+ 写 MySQL（异步双写）
             # 使用 CounterFactory.get_counter() 返回的全局计数器
@@ -255,8 +264,16 @@ async def chat(request: ChatRequest):
 
 
 async def sse_generator(question: str, context: str):
-    """SSE流式生成器"""
-    async for chunk in generate_answer_stream(question=question, context=context):
+    """SSE流式生成器（旧端点，适配新 generate_answer_stream 签名）"""
+    from app.services.llm import build_messages
+    from app.services.question_classifier import classify_question
+    messages = build_messages(
+        question=question,
+        history=[],
+        sources=[{"content": context, "source": "知识库", "relevance": 1.0}],
+        qtype="general",
+    )
+    async for chunk in generate_answer_stream(messages=messages, model=None):
         data = json.dumps(chunk)
         yield f"data: {data}\n\n"
 
@@ -264,14 +281,12 @@ async def sse_generator(question: str, context: str):
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
     """流式聊天接口，返回SSE格式数据流"""
-    # 1. 搜索相关知识
     search_results = search_vectors(
         query=request.question,
         top_k=request.top_k,
-        source_filter=None  # TODO: 支持 source_filter
+        source_filter=None
     )
 
-    # 2. 构建上下文
     context_parts = []
     for i, result in enumerate(search_results):
         context_parts.append(f"【来源 {i+1}】{result['title']} ({result.get('publish_time', '未知时间')})\n{result['content']}")
