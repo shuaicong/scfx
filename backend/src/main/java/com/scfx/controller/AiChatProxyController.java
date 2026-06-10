@@ -4,6 +4,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.DefaultResponseErrorHandler;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -36,6 +38,15 @@ public class AiChatProxyController {
 
     private final RestTemplate restTemplate = new RestTemplate();
 
+    {
+        restTemplate.setErrorHandler(new DefaultResponseErrorHandler() {
+            @Override
+            public boolean hasError(HttpStatus statusCode) {
+                return false; // 不抛出异常，让调用方自行处理错误状态码
+            }
+        });
+    }
+
     /**
      * 非流式问答
      */
@@ -48,10 +59,17 @@ public class AiChatProxyController {
         headers.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<String> entity = new HttpEntity<>(body, headers);
 
-        ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
-        return ResponseEntity.status(response.getStatusCode())
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(response.getBody());
+        try {
+            ResponseEntity<String> response = restTemplate.postForEntity(url, entity, String.class);
+            return ResponseEntity.status(response.getStatusCode())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(response.getBody());
+        } catch (HttpClientErrorException e) {
+            // 透传 Python 服务的 4xx 错误（如参数校验失败）
+            return ResponseEntity.status(e.getStatusCode())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(e.getResponseBodyAsString());
+        }
     }
 
     /**
@@ -88,26 +106,34 @@ public class AiChatProxyController {
     private StreamingResponseBody proxyStream(String targetUrl, String body, String userId) {
         String requestId = generateRequestId();
         return outputStream -> {
-            restTemplate.execute(targetUrl, HttpMethod.POST,
-                    req -> {
-                        req.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-                        req.getHeaders().set("X-Request-Id", requestId);
-                        if (userId != null && !userId.isEmpty()) {
-                            req.getHeaders().set("X-User-Id", userId);
-                        }
-                        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
-                        req.getBody().write(bytes);
-                    },
-                    res -> {
-                        byte[] buffer = new byte[4096];
-                        int bytesRead;
-                        InputStream stream = res.getBody();
-                        while ((bytesRead = stream.read(buffer)) != -1) {
-                            outputStream.write(buffer, 0, bytesRead);
-                            outputStream.flush();
-                        }
-                        return null;
-                    });
+            try {
+                restTemplate.execute(targetUrl, HttpMethod.POST,
+                        req -> {
+                            req.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+                            req.getHeaders().set("X-Request-Id", requestId);
+                            if (userId != null && !userId.isEmpty()) {
+                                req.getHeaders().set("X-User-Id", userId);
+                            }
+                            byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                            req.getBody().write(bytes);
+                        },
+                        res -> {
+                            byte[] buffer = new byte[4096];
+                            int bytesRead;
+                            InputStream stream = res.getBody();
+                            while ((bytesRead = stream.read(buffer)) != -1) {
+                                outputStream.write(buffer, 0, bytesRead);
+                                outputStream.flush();
+                            }
+                            return null;
+                        });
+            } catch (Exception e) {
+                log.warn("[AI_QA] [proxy_stream_error] url={} error={}", targetUrl, e.getMessage());
+                String errorEvent = "event: error\ndata: " +
+                        "{\"type\":\"error\",\"code\":\"PROXY_ERROR\",\"message\":\"服务暂不可用\"}\n\n";
+                outputStream.write(errorEvent.getBytes(StandardCharsets.UTF_8));
+                outputStream.flush();
+            }
         };
     }
 

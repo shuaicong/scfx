@@ -57,7 +57,7 @@ async def writer_health():
 class ChatV2Request(BaseModel):
     session_id: str = Field(..., description="会话 ID，前端 UUID 生成")
     client_msg_id: str = Field(..., description="消息幂等键，前端 UUID 生成")
-    question: str = Field(..., max_length=500, description="用户问题")
+    question: str = Field(..., min_length=1, max_length=500, description="用户问题")
     user_id: str = Field(default="", description="用户 ID（后端覆盖）")
 
 
@@ -219,7 +219,7 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
 
 
 class ChatRequest(BaseModel):
-    question: str
+    question: str = Field(..., min_length=1, max_length=500)
     top_k: Optional[int] = 5
     source_filter: Optional[List[str]] = None
 

@@ -1,6 +1,6 @@
 package com.scfx.controller;
 
-import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,10 +16,10 @@ import java.util.Map;
 @RequestMapping("/ai-chat/session")
 public class SessionController {
 
-    @Resource
+    @Autowired
     private StringRedisTemplate redisTemplate;
 
-    @Resource
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     /**

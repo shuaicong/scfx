@@ -141,12 +141,12 @@ def shutdown_event():
 # ---- 全局异常处理器 ----
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """请求体验证失败 → 400 + 结构化错误（不暴露字段细节）"""
+    """请求体验证失败 → 422 + 结构化错误（不暴露字段细节）"""
     rid = getattr(request.state, "request_id", "-")
     logger.warning("[AI_QA] [WARN] [validation_error] request_id=%s path=%s method=%s",
                    rid, request.url.path, request.method)
     return JSONResponse(
-        status_code=400,
+        status_code=422,
         content={"code": "VALIDATION_ERROR", "message": "请求参数格式错误"},
     )
 
