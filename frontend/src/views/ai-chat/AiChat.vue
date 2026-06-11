@@ -354,6 +354,9 @@ const previewDocument = (url: string, title?: string) => {
 
 // ---- SSE 流式对话 ----
 
+/** 生成匿名用户标识（会话生命周期内固定） */
+const anonymousUserId = 'anon-' + crypto.randomUUID().slice(0, 8)
+
 async function askQuestion(q: string) {
   if (!q.trim() || isLoading.value) return
   // 前端校验
@@ -394,6 +397,7 @@ async function startSSEStream(q: string, retryCount = 0) {
       sessionId: sessionId.value,
       clientMsgId: clientMsgId.value,
       question: q,
+      userId: anonymousUserId,
     })
     if (!stream) throw new Error('Stream error')
 
@@ -407,6 +411,7 @@ async function startSSEStream(q: string, retryCount = 0) {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let nonSSELines: string[] = []
 
     while (true) {
       const { done, value } = await reader.read()
@@ -434,11 +439,27 @@ async function startSSEStream(q: string, retryCount = 0) {
           flushSSEEvent(evt, data)
           currentEventType = ''
           currentDataLines = []
+        } else if (line.trim()) {
+          nonSSELines.push(line.trim())
         }
       }
     }
-    // 流结束时处理残留事件
+    // 流结束时处理残留 SSE 事件
     flushSSEEvent(currentEventType, currentDataLines)
+
+    // 回退解析：SSE 未产生事件且存在非 SSE 行，尝试作为 JSON 错误解析
+    if (thoughts.value.length === 0 && !currentAnswer.value && nonSSELines.length > 0) {
+      const raw = nonSSELines.join('')
+      try {
+        const fallback = JSON.parse(raw)
+        if (fallback.type === 'error') {
+          isLoading.value = false
+          clearHeartbeatTimer()
+          errorMessage.value = fallback.message || '请求失败'
+          clearTimeout(globalTimeout.value)
+        }
+      } catch { /* JSON 也解析失败，静默忽略 */ }
+    }
   } catch (err) {
     // ★ 自动重连（指数退避，最多 3 次）
     if (retryCount < MAX_RETRIES && !reconnecting.value) {

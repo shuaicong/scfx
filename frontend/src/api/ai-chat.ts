@@ -98,6 +98,7 @@ export interface ChatV2StreamParams {
   sessionId: string
   clientMsgId: string
   question: string
+  userId?: string
 }
 
 export interface SSEEvent {
@@ -125,6 +126,7 @@ export const aiChatApiV2 = {
         session_id: params.sessionId,
         client_msg_id: params.clientMsgId,
         question: params.question,
+        user_id: params.userId || '',
       }),
     })
     return response.body as ReadableStream<Uint8Array>
