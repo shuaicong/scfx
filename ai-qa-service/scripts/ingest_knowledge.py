@@ -108,6 +108,26 @@ def ingest():
                 "UPDATE t_knowledge_base SET vector_ids = %s WHERE id = %s",
                 (ids_str, kid),
             )
+
+            # 5. 写入 t_knowledge_chunk 表 + 更新 chunk_count（保持前端展示一致）
+            chunk_total = len(points)
+            # 先清空旧切片再写入，避免重复
+            cursor.execute(
+                "DELETE FROM t_knowledge_chunk WHERE knowledge_id = %s",
+                (kid,),
+            )
+            for idx, item in enumerate(chunks):
+                cursor.execute(
+                    "INSERT INTO t_knowledge_chunk "
+                    "(knowledge_id, chunk_index, chunk_total, content, chunk_type, vector_id, vector_status) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, 'vectorized')",
+                    (kid, idx, chunk_total, item["content"], item["type"], vector_ids[idx] if idx < len(vector_ids) else None),
+                )
+            cursor.execute(
+                "UPDATE t_knowledge_base SET chunk_count = %s WHERE id = %s",
+                (chunk_total, kid),
+            )
+
             conn.commit()
             total_chunks += len(points)
             print(f"    ✅ {len(points)} 个切片已写入 Qdrant, vector_ids={ids_str[:50]}...")
