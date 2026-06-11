@@ -114,7 +114,19 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
 
             # 3. 检索知识库
             yield await gen.send_thought("正在检索知识库...")
-            search_results = search_vectors(query=request.question, top_k=5)
+            # 获取更多结果，按时间排序确保最新数据优先
+            search_results = search_vectors(query=request.question, top_k=15)
+            # 过滤低相似度结果并按发布时间倒序（最新的在前）
+            filtered = [
+                r for r in search_results
+                if r.get("similarity", 0) > 0.4
+                and r.get("publish_time")
+            ]
+            filtered.sort(
+                key=lambda r: r.get("publish_time", ""),
+                reverse=True,
+            )
+            search_results = filtered[:5]
             sources = []
             for r in search_results:
                 sources.append({
