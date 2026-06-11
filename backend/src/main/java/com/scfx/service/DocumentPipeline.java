@@ -175,8 +175,11 @@ public class DocumentPipeline {
         try {
             KnowledgeBase kb = knowledgeBaseMapper.selectById(knowledgeId);
             if (kb != null) {
-                kb.setVectorStatus("failed");
-                knowledgeBaseMapper.updateById(kb);
+                // 不覆盖已成功的向量化状态（BGE-M3 成功后再失败的重试不应回滚）
+                if (!"vectorized".equals(kb.getVectorStatus())) {
+                    kb.setVectorStatus("failed");
+                    knowledgeBaseMapper.updateById(kb);
+                }
             }
             KnowledgeTask task = knowledgeTaskMapper.selectByKnowledgeId(knowledgeId);
             if (task != null) {

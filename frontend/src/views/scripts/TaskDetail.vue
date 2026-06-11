@@ -1057,6 +1057,7 @@ async function loadDatasources() {
 }
 
 async function loadRecentExecutions() {
+  if (!scriptId.value || isNaN(scriptId.value)) return
   try {
     const res: any = await executionApi.list(scriptId.value, { page: 1, size: 5 })
     recentExecutions.value = res.data?.records || []
@@ -1071,6 +1072,7 @@ function onTriggerChange() {
 
 /** 轻量刷新：只更新统计数据，不重置表单（供 auto-refresh 使用） */
 async function refreshScriptStats() {
+  if (!scriptId.value || isNaN(scriptId.value)) return
   try {
     const res: any = await scriptApi.getById(scriptId.value)
     stats.executionCount = res.data.executionCount || 0
@@ -1399,7 +1401,7 @@ async function saveScript() {
   const payload = {
     scriptName: form.scriptName,
     source: form.source,
-    description: form.description || undefined,
+    description: form.description ?? undefined,
     syncToKnowledgeBase: !collectionOnly.value,
     categoryId: scriptCategoryId.value ?? undefined,
     triggerType,
@@ -1507,7 +1509,7 @@ onMounted(async () => {
   // Auto-refresh every 15s to detect scheduled executions
   // 只刷新统计数据，不重置表单（不调用 loadScript）
   autoRefreshInterval = window.setInterval(async () => {
-    if (document.hidden || executing.value) return
+    if (document.hidden || executing.value || isCreateMode.value) return
     await loadRecentExecutions()
     await refreshScriptStats()
   }, 15000)
