@@ -3,6 +3,11 @@
     <!-- 顶部导航 -->
     <div class="chat-header">
       <div class="header-left">
+        <button class="sidebar-toggle" @click="toggleDrawer" title="历史会话">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+            <path d="M2 4h16M2 10h16M2 16h16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          </svg>
+        </button>
         <button class="back-btn" @click="goBack">
           <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
             <path d="M12.5 15L7.5 10L12.5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -24,10 +29,25 @@
               </defs>
             </svg>
           </div>
-          <span class="title-text">AI 知识问答</span>
+          <template v-if="titleEditing && currentSessionId">
+            <input class="title-input" v-model="titleDraft"
+              @blur="saveTitle" @keydown.enter="saveTitle" @keydown.escape="cancelTitleEdit"
+              ref="titleInputRef" autofocus />
+          </template>
+          <template v-else>
+            <span class="title-text" :class="{ clickable: !!currentSessionId }" @click="startTitleEdit">
+              {{ chatStore.currentSession?.title || 'AI 知识问答' }}
+            </span>
+          </template>
         </div>
       </div>
       <div class="header-right">
+        <button class="history-btn" @click="goToHistory" title="历史记录">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+            <path d="M9 1C4.58 1 1 4.58 1 9s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zm1-11H8v5l4.25 2.52.75-1.23-3.5-2.08V4z" fill="currentColor"/>
+          </svg>
+          <span>历史</span>
+        </button>
         <div class="data-sources">
           <span class="sources-label">数据来源</span>
           <div class="source-tags">
@@ -223,6 +243,14 @@
       :url="previewDocUrl"
       :title="previewDocTitle"
     />
+
+    <!-- 历史会话抽屉 -->
+    <SessionDrawer
+      :visible="drawerVisible"
+      @close="drawerVisible = false"
+      @switch="handleSwitchSession"
+      @new-chat="handleNewChat"
+    />
   </div>
 </template>
 
@@ -231,11 +259,83 @@ import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { aiChatApiV2, type SSEEvent, type Source } from '@/api/ai-chat'
+import { useChatStore } from '@/stores/chatStore'
+import { getSessionDetail } from '@/api/sessions'
+import { storeToRefs } from 'pinia'
 import SourceCard from './components/SourceCard.vue'
 import ThoughtProcess from './components/ThoughtProcess.vue'
 import DocumentPreview from './components/DocumentPreview.vue'
+import SessionDrawer from './components/SessionDrawer.vue'
 
 const router = useRouter()
+
+// 会话管理 Store
+const chatStore = useChatStore()
+const { currentSessionId } = storeToRefs(chatStore)
+
+// 抽屉/标题编辑状态
+const drawerVisible = ref(false)
+const titleEditing = ref(false)
+const titleDraft = ref('')
+const titleInputRef = ref<HTMLInputElement | null>(null)
+
+function toggleDrawer() {
+  drawerVisible.value = !drawerVisible.value
+  if (drawerVisible.value) {
+    chatStore.fetchSessions()
+  }
+}
+
+async function handleSwitchSession(sessionId: string) {
+  try {
+    isLoading.value = true
+    const res = await getSessionDetail(sessionId)
+    const session = (res as any).data
+    // 加载消息列表到聊天区域
+    messages.value = session.messages || []
+    currentAnswer.value = ''
+    errorMessage.value = ''
+  } catch (e) {
+    console.error('加载会话失败', e)
+    ElMessage.error('加载会话失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+function handleNewChat() {
+  messages.value = []
+  currentAnswer.value = ''
+  errorMessage.value = ''
+  thoughts.value = []
+  sources.value = []
+  chatStore.clearCurrentSession()
+}
+
+function startTitleEdit() {
+  if (!currentSessionId.value) return
+  titleDraft.value = chatStore.currentSession?.title || ''
+  titleEditing.value = true
+  nextTick(() => titleInputRef.value?.focus())
+}
+
+async function saveTitle() {
+  if (!currentSessionId.value || !titleDraft.value.trim()) {
+    titleEditing.value = false
+    return
+  }
+  try {
+    await chatStore.updateTitle(currentSessionId.value, titleDraft.value.trim(), 'manual')
+    ElMessage.success('标题已更新')
+  } catch {
+    ElMessage.error('标题更新失败')
+  }
+  titleEditing.value = false
+}
+
+function cancelTitleEdit() {
+  titleEditing.value = false
+}
 
 // 会话状态
 const sessionId = ref(crypto.randomUUID())
@@ -320,6 +420,11 @@ const toggleSource = (source: string) => {
 // 返回
 const goBack = () => {
   router.push('/dashboard')
+}
+
+// 跳转到历史记录页面
+const goToHistory = () => {
+  router.push('/ai-chat/history')
 }
 
 // 滚动到底部
@@ -510,7 +615,56 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 12px;
+}
+
+.sidebar-toggle {
+  display: flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: #8b949e;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.sidebar-toggle:hover {
+  background: rgba(255,255,255,0.08);
+  color: #e6edf3;
+}
+
+.title-text.clickable { cursor: pointer; }
+.title-text.clickable:hover { color: #f5c87a; }
+
+.title-input {
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(245,200,122,0.4);
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 16px;
+  color: #f5c87a;
+  outline: none;
+  width: 240px;
+}
+.title-input:focus {
+  box-shadow: 0 0 0 2px rgba(245,200,122,0.2);
+}
+
+.history-btn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 13px;
+  margin-right: 16px;
+  transition: all 0.2s;
+}
+.history-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: #e6edf3;
 }
 
 .back-btn {
