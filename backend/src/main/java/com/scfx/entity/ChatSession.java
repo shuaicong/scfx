@@ -26,7 +26,6 @@ public class ChatSession {
     private Integer isDeleted;   // 0-正常 1-已删除
 
     private Integer isArchived;  // 0-未归档 1-已归档
-
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

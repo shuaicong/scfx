@@ -6,7 +6,7 @@ import time as time_module
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional
 
 from app.services.llm import build_messages, generate_answer, generate_answer_stream
 from app.services.question_classifier import classify_question, QuestionType
@@ -240,7 +240,6 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
 class ChatRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=500)
     top_k: Optional[int] = 5
-    source_filter: Optional[List[str]] = None
 
 
 @router.post("/chat")
@@ -249,7 +248,7 @@ async def chat(request: ChatRequest):
     search_results = search_vectors(
         query=request.question,
         top_k=request.top_k,
-        source_filter=None  # TODO: 支持 source_filter
+        source_filter=None
     )
 
     # 2. 构建上下文
