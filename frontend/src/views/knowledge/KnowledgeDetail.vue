@@ -256,7 +256,9 @@ const sanitizeTableMeta = (raw: any): TableMetaEntry | null => {
       .filter((r: any) => Array.isArray(r))
       .map((r: any[]) => {
         const cleaned = r.map((c: any) => String(c ?? ''))
-        while (cleaned.length < headers.length) cleaned.push('')
+        // 短行补齐：金融数据表格中短行通常是缺少首列（如公共日期列），
+        // 从左侧补空而非右侧，避免子表头与数据列错位
+        while (cleaned.length < headers.length) cleaned.unshift('')
         return cleaned.slice(0, headers.length)
       })
       .filter((r: string[]) => r.some(c => c.length > 0))
