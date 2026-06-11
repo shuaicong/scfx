@@ -84,6 +84,12 @@ server:
     accept-count: 100
     connection-timeout: 60000
 
+# SSE 流式响应超时（5 分钟，适配 AI 问答长耗时场景）
+spring:
+  mvc:
+    async:
+      request-timeout: 300000
+
 # Actuator配置
 management:
   endpoints:

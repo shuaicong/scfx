@@ -289,11 +289,21 @@ const suggestions = [
 // ---- 心跳计时器 ----
 function resetHeartbeatTimer() {
   if (heartbeatTimer) clearTimeout(heartbeatTimer)
+  // 仅在请求未完成时启动心跳超时检测，避免流结束后误触发重连
+  if (!isLoading.value) return
   heartbeatTimer = setTimeout(() => {
     // 18s 无任何 SSE 事件 → 主动触发重连（Python 心跳 12s，留 6s 缓冲）
+    if (!isLoading.value) return // 再次检查，防止关闭窗口后触发
     reconnecting.value = true
     reconnectDelay.value = 2000
   }, 18000)
+}
+
+function clearHeartbeatTimer() {
+  if (heartbeatTimer) {
+    clearTimeout(heartbeatTimer)
+    heartbeatTimer = null
+  }
 }
 
 onMounted(() => {
@@ -443,6 +453,7 @@ async function startSSEStream(q: string, retryCount = 0) {
     } else {
       isLoading.value = false
       reconnecting.value = false
+      clearHeartbeatTimer()
       errorMessage.value = '网络连接已断开，请稍后重试'
     }
   }
@@ -465,10 +476,12 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         break
       case 'done':
         isLoading.value = false
+        clearHeartbeatTimer()
         clearTimeout(globalTimeout.value)
         break
       case 'error':
         isLoading.value = false
+        clearHeartbeatTimer()
         errorMessage.value = data.message || '服务异常'
         clearTimeout(globalTimeout.value)
         break
@@ -477,6 +490,7 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         break
       case 'abort':
         isLoading.value = false
+        clearHeartbeatTimer()
         currentAnswer.value += data.partial_content || ''
         clearTimeout(globalTimeout.value)
         break
