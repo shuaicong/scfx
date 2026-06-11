@@ -106,8 +106,10 @@ public class ChatSessionService extends ServiceImpl<ChatSessionMapper, ChatSessi
         if (ids == null || ids.isEmpty()) {
             return 0;
         }
+        ChatSession updateEntity = new ChatSession();
+        updateEntity.setIsDeleted(1);
         return this.baseMapper.update(
-            new ChatSession() {{ setIsDeleted(1); }},
+            updateEntity,
             new LambdaQueryWrapper<ChatSession>()
                 .in(ChatSession::getId, ids)
                 .eq(ChatSession::getIsDeleted, 0)
@@ -122,7 +124,7 @@ public class ChatSessionService extends ServiceImpl<ChatSessionMapper, ChatSessi
     @Transactional
     public void saveOrUpdateSession(String userId, String sessionId, String question, String lastAnswer) {
         ChatSession session = this.getById(sessionId);
-        if (session == null) {
+        if (session == null || session.getIsDeleted() == 1) {
             session = new ChatSession();
             session.setId(sessionId);
             session.setUserId(userId);
@@ -149,8 +151,8 @@ public class ChatSessionService extends ServiceImpl<ChatSessionMapper, ChatSessi
         return message.substring(0, MAX_LAST_MESSAGE_LENGTH) + "...";
     }
 
-    private String truncateTitle(String text, int maxLen) {
-        if (text == null) return "";
+    private static String truncateTitle(String text, int maxLen) {
+        if (text == null || text.isBlank()) return "新会话";
         String clean = text.replaceAll("[\\n\\r]", " ").trim();
         return clean.length() <= maxLen ? clean : clean.substring(0, maxLen);
     }
