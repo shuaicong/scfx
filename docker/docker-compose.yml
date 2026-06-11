@@ -52,9 +52,10 @@ services:
     command: server /data --console-address ":9001"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      # MinIO 镜像不含 curl，使用 shell TCP 连接检测
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000"]
       interval: 30s
-      timeout: 20s
+      timeout: 10s
       retries: 3
 
   # Qdrant向量数据库
@@ -70,7 +71,8 @@ services:
       - scfx-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
+      # Qdrant 镜像不含 curl 但含 bash，使用 TCP 连接检测
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/127.0.0.1/6333'"]
       interval: 30s
       timeout: 10s
       retries: 3
