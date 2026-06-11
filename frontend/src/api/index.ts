@@ -26,6 +26,13 @@ request.interceptors.request.use(
     if (!(config.data instanceof FormData)) {
       config.headers['Content-Type'] = 'application/json; charset=utf-8'
     }
+    // 透传匿名用户 ID（持久化存储，会话间不变）
+    let userId = localStorage.getItem('anonymousUserId')
+    if (!userId) {
+      userId = 'anon-' + crypto.randomUUID().slice(0, 8)
+      localStorage.setItem('anonymousUserId', userId)
+    }
+    config.headers['X-User-Id'] = userId
     return config
   },
   error => {

@@ -459,8 +459,16 @@ const previewDocument = (url: string, title?: string) => {
 
 // ---- SSE 流式对话 ----
 
-/** 生成匿名用户标识（会话生命周期内固定） */
-const anonymousUserId = 'anon-' + crypto.randomUUID().slice(0, 8)
+/** 生成匿名用户标识（localStorage 持久化，刷新页面不变） */
+function getAnonymousUserId(): string {
+  let uid = localStorage.getItem('anonymousUserId')
+  if (!uid) {
+    uid = 'anon-' + crypto.randomUUID().slice(0, 8)
+    localStorage.setItem('anonymousUserId', uid)
+  }
+  return uid
+}
+const anonymousUserId = getAnonymousUserId()
 
 async function askQuestion(q: string) {
   if (!q.trim() || isLoading.value) return
