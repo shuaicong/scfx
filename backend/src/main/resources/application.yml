@@ -14,7 +14,16 @@ spring:
   # 初始化SQL（首次建表后设为never）
   sql:
     init:
-      mode: never
+      mode: never                     # 彻底关闭 Spring Boot 原生 SQL 执行，仅 Flyway 接管
+
+  # Flyway 数据库迁移（公共配置）
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    encoding: UTF-8                   # 统一编码，避免中文乱码
+    validate-on-migrate: true         # 启动时校验已执行脚本 checksum
+    fail-on-missing-locations: true   # 脚本目录缺失直接报错
+    repair-on-migration: false        # 禁止自动修复 checksum
 
   # Redis配置（支持 ACL 用户认证，通过环境变量覆盖）
   data:
@@ -146,3 +155,25 @@ vector:
     dimensions: 768
     connect-timeout: 5000      # 连接超时（毫秒）
     read-timeout: 30000        # 读取超时（毫秒）
+
+---
+# ========== Flyway 开发环境配置 ==========
+spring:
+  config:
+    activate:
+      on-profile: dev
+  flyway:
+    baseline-on-migrate: true   # 首次启动自动基线
+    baseline-version: 5         # 基线版本对齐线上最高版本
+    clean-disabled: false       # 允许 clean，本地可重建测试库
+
+---
+# ========== Flyway 测试/生产环境配置 ==========
+spring:
+  config:
+    activate:
+      on-profile: test, prod
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 5
+    clean-disabled: true       # 严格禁止清空库

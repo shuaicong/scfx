@@ -1,3 +1,9 @@
+-- ============================================================
+-- ARCHIVED: migration-V3-chunk-type.sql
+-- 归档原因: 被 Flyway V5 baseline 覆盖，列变更已合并到 schema.sql
+-- 归档日期: 2026-06-11
+-- ============================================================
+
 -- 知识切片表新增 chunk_type 字段（V3）
 -- 执行方式：手动执行，幂等（IF NOT EXISTS 风格）
 -- CREATE TABLE IF NOT EXISTS 迁移方案：ALTER TABLE 通过检查列是否存在来保证幂等
