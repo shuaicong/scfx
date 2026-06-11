@@ -461,6 +461,7 @@ async function startSSEStream(q: string, retryCount = 0) {
       } catch { /* JSON 也解析失败，静默忽略 */ }
     }
   } catch (err) {
+    console.error('[SSE] stream error:', err)
     // ★ 自动重连（指数退避，最多 3 次）
     if (retryCount < MAX_RETRIES && !reconnecting.value) {
       reconnecting.value = true
