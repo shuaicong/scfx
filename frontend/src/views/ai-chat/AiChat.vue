@@ -260,7 +260,6 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { aiChatApiV2, type SSEEvent, type Source } from '@/api/ai-chat'
 import { useChatStore } from '@/stores/chatStore'
-import { getSessionDetail } from '@/api/sessions'
 import { storeToRefs } from 'pinia'
 import SourceCard from './components/SourceCard.vue'
 import ThoughtProcess from './components/ThoughtProcess.vue'
@@ -287,24 +286,18 @@ function toggleDrawer() {
 }
 
 async function handleSwitchSession(sessionId: string) {
-  try {
-    isLoading.value = true
-    const res = await getSessionDetail(sessionId)
-    const session = (res as any).data
-    // 加载消息列表到聊天区域
-    messages.value = session.messages || []
-    currentAnswer.value = ''
-    errorMessage.value = ''
-  } catch (e) {
-    console.error('加载会话失败', e)
-    ElMessage.error('加载会话失败')
-  } finally {
-    isLoading.value = false
-  }
+  // 切换到已有会话：设置 currentSessionId，后续提问将在此会话上下文中进行
+  chatStore.setCurrentSessionId(sessionId)
+  // 重置当前聊天 UI 状态
+  lastQuestion.value = ''
+  currentAnswer.value = ''
+  errorMessage.value = ''
+  thoughts.value = []
+  sources.value = []
 }
 
 function handleNewChat() {
-  messages.value = []
+  lastQuestion.value = ''
   currentAnswer.value = ''
   errorMessage.value = ''
   thoughts.value = []
