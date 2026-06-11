@@ -994,11 +994,12 @@ function render3D(chart: echarts.ECharts) {
 
 function onChartClick(params: any) {
   if (params.componentType !== 'series' || params.seriesName === '相似连线') return
+  const d = params.data
+  const pointId = d?.knowledgeId ?? d?.id
+  if (!pointId) return  // 防护：非数据点（如坐标轴、背景）点击不触发
   // Clear any neighbor-sourced highlight
   highlightedNeighborId.value = null
   chart?.dispatchAction({ type: 'downplay' })
-  const d = params.data
-  const pointId = d.knowledgeId ?? d.id
   selectedPoint.value = {
     id: pointId, title: d.title,
     x: d.value?.[0] ?? 0, y: d.value?.[1] ?? 0, z: d.value?.[2] ?? 0,
@@ -1018,11 +1019,12 @@ function resetView() {
 
 // ======================== Point Detail ========================
 
-async function loadPointDetail(knowledgeId: number) {
+async function loadPointDetail(knowledgeId: number | undefined) {
+  if (!knowledgeId) return
   detailVisible.value = true
   pointDetail.value = null
   try {
-    const res: any = await knowledgeApi.getPointDetail(knowledgeId, { algorithm: algorithm.value })
+    const res: any = await knowledgeApi.getPointDetail(knowledgeId!, { algorithm: algorithm.value })
     pointDetail.value = res.data as PointDetail
   } catch {
     ElMessage.error('加载详情失败')
