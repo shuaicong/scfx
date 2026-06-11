@@ -1,5 +1,8 @@
 package com.scfx.controller;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scfx.service.ChatSessionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
@@ -34,6 +37,13 @@ public class AiChatProxyController {
     private String aiQaServiceUrl;
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final ChatSessionService chatSessionService;
+    private final ObjectMapper objectMapper;
+
+    public AiChatProxyController(ChatSessionService chatSessionService, ObjectMapper objectMapper) {
+        this.chatSessionService = chatSessionService;
+        this.objectMapper = objectMapper;
+    }
 
     {
         restTemplate.setErrorHandler(new ResponseErrorHandler() {
@@ -76,12 +86,30 @@ public class AiChatProxyController {
     /**
      * SSE 流式问答（v2 灰度端点）
      * 与 /stream 功能相同但指向不同的 Python 端点，用于灰度测试。
+     * <p>
+     * 流启动前创建/更新会话记录（保存用户问题），流结束后由 Python 端异步更新标题和摘要。
      */
     @PostMapping("/v2/stream")
     public StreamingResponseBody streamV2(@RequestBody String body,
                                           @RequestHeader(value = "X-User-Id", required = false) String userId) {
         String url = aiQaServiceUrl + "/api/chat/v2/stream";
         log.debug("Proxying POST /api/ai-chat/v2/stream -> {}", url);
+
+        // 流启动前创建会话记录
+        if (userId != null && !userId.isEmpty()) {
+            try {
+                Map<String, String> req = objectMapper.readValue(body, new TypeReference<Map<String, String>>() {});
+                String sessionId = req.get("session_id");
+                String question = req.get("question");
+                if (sessionId != null && !sessionId.isEmpty()) {
+                    // 首次：创建会话（title=问题前20字），后续：递增消息数
+                    chatSessionService.saveOrUpdateSession(userId, sessionId, question, null);
+                }
+            } catch (Exception e) {
+                log.warn("[AI_QA] Failed to create session record: {}", e.getMessage());
+            }
+        }
+
         return proxyStream(url, body, userId);
     }
 

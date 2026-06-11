@@ -203,7 +203,14 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             except Exception as e:
                 logger.error("[AI_QA] [ERROR] [counter_incr_failed] user=%s error=%s", user_id, e)
 
-            # 7. done 事件 + 幂等键清理
+            # 7. 注册异步标题生成（静默30秒后触发）
+            try:
+                from app.services.session_title import schedule_title_generation
+                schedule_title_generation(request.session_id, request.question)
+            except Exception as e:
+                logger.warning("[AI_QA] [WARN] [title_schedule_failed] session=%s error=%s", request.session_id, e)
+
+            # 8. done 事件 + 幂等键清理
             done_event = await gen.send_done(token_used=0)
             if done_event:
                 yield done_event

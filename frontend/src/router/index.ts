@@ -65,6 +65,12 @@ const routes = [
         meta: { title: 'AI 知识问答' }
       },
       {
+        path: 'ai-chat/history',
+        name: 'AIChatHistory',
+        component: () => import('../views/ai-chat/HistoryPage.vue'),
+        meta: { title: '历史记录' }
+      },
+      {
         path: 'knowledge',
         name: 'Knowledge',
         component: () => import('../views/knowledge/Knowledge.vue'),
