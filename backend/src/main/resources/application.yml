@@ -50,6 +50,11 @@ spring:
         queue-capacity: 100
       thread-name-prefix: sse-async-
 
+  # SSE 流式超时（5 分钟，适配 AI 问答长耗时场景）
+  mvc:
+    async:
+      request-timeout: 300000
+
 # MyBatis-Plus配置
 mybatis-plus:
   mapper-locations: classpath:mapper/**/*.xml
@@ -83,12 +88,6 @@ server:
     max-connections: 8192
     accept-count: 100
     connection-timeout: 60000
-
-# SSE 流式响应超时（5 分钟，适配 AI 问答长耗时场景）
-spring:
-  mvc:
-    async:
-      request-timeout: 300000
 
 # Actuator配置
 management:
