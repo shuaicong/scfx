@@ -411,6 +411,8 @@ async function startSSEStream(q: string, retryCount = 0) {
     const reader = stream.getReader()
     const decoder = new TextDecoder()
     let buffer = ''
+    let currentEventType = ''
+    let currentDataLines: string[] = []
     let nonSSELines: string[] = []
 
     while (true) {
@@ -421,9 +423,6 @@ async function startSSEStream(q: string, retryCount = 0) {
       buffer += decoder.decode(value, { stream: true })
       const lines = buffer.split('\n')
       buffer = lines.pop() || ''
-
-      let currentEventType = ''
-      let currentDataLines: string[] = []
 
       for (const line of lines) {
         if (line.startsWith('event: ')) {
