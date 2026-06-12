@@ -117,11 +117,27 @@
       </div>
 
       <!-- docx-preview（上传的 Word 文档） -->
-      <div v-if="isDocx" class="detail-body docx-preview-wrapper">
+      <div v-if="isDocx && !docxError" class="detail-body docx-preview-wrapper">
         <div v-if="docxLoading" class="docx-loading">文档加载中...</div>
-        <div v-else ref="docxPreviewRef" class="docx-render-area"></div>
+        <div ref="docxPreviewRef" class="docx-render-area" :class="{ 'docx-loading-state': docxLoading }"></div>
       </div>
-      <!-- 普通内容（文本/表格） -->
+      <!-- docx 渲染失败，降级显示文本内容 -->
+      <div v-else-if="isDocx && docxError" class="detail-body">
+        <div class="docx-error-bar">
+          <span class="docx-error-text">Word 文档渲染失败，已降级显示文本内容</span>
+        </div>
+        <div v-for="(block, i) in renderedBlocks" :key="i">
+          <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
+            <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
+            <el-table :data="block.tableData" border stripe size="small" style="width: 100%" @sort-change="(e) => handleSortChange(i, e)">
+              <el-table-column v-for="(h, j) in block.columns" :key="j" :prop="'col' + j" :label="h" sortable="custom" show-overflow-tooltip />
+            </el-table>
+            <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
+          </div>
+          <div v-else v-html="block.html" class="text-block"></div>
+        </div>
+      </div>
+      <!-- 普通内容（非 docx 文件，文本/表格） -->
       <div v-else class="detail-body">
         <div v-for="(block, i) in renderedBlocks" :key="i">
           <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
@@ -219,24 +235,34 @@ const knowledge = ref<any>(null)
 // docx-preview
 const docxPreviewRef = ref<HTMLDivElement | null>(null)
 const docxLoading = ref(false)
+const docxError = ref(false)
 const isDocx = computed(() => knowledge.value?.fileType === 'docx')
 
 async function renderDocxPreview() {
   const id = Number(route.params.id)
   if (!id) return
+  console.log('[docx] fileType:', knowledge.value?.fileType, 'id:', id)
   docxLoading.value = true
+  docxError.value = false
   try {
     const url = knowledgeApi.getDownloadUrl(id)
+    console.log('[docx] fetching:', url)
     const resp = await fetch(url)
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const blob = await resp.blob()
+    console.log('[docx] blob received:', blob.size, 'bytes')
     // 等待 DOM 更新，docxPreviewRef 挂载完成
     await nextTick()
     if (docxPreviewRef.value) {
+      console.log('[docx] rendering...')
       await renderAsync(blob, docxPreviewRef.value)
+      console.log('[docx] render complete')
+    } else {
+      console.warn('[docx] ref still null after nextTick')
     }
   } catch (e) {
-    console.error('docx preview failed', e)
+    console.error('[docx] preview failed', e)
+    docxError.value = true
   } finally {
     docxLoading.value = false
   }
@@ -860,6 +886,7 @@ onMounted(async () => {
 
 /* docx-preview */
 .docx-preview-wrapper {
+  position: relative;
   background: #fff;
   border-radius: 8px;
   padding: 24px 32px;
@@ -870,9 +897,27 @@ onMounted(async () => {
   padding: 60px 0;
   color: var(--text-secondary, #8b949e);
   font-size: 14px;
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  z-index: 1;
+}
+.docx-error-bar {
+  padding: 8px 16px;
+  margin-bottom: 16px;
+  background: rgba(245,200,122,0.1);
+  border: 1px solid rgba(245,200,122,0.3);
+  border-radius: 6px;
+}
+.docx-error-text {
+  color: #f5c87a;
+  font-size: 13px;
 }
 .docx-render-area {
   min-height: 400px;
+}
+.docx-render-area.docx-loading-state {
+  visibility: hidden;
+  min-height: 100px;
 }
 .docx-render-area :deep(.docx-wrapper) {
   background: transparent !important;
