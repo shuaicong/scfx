@@ -116,17 +116,15 @@
         {{ formatDate(knowledge.publishTime) }} 来源：{{ knowledge.sourceName || knowledge.sourceType }}
       </div>
 
-      <!-- 内容区域：docx 预览 / 文本内容 -->
-      <div class="detail-body">
-        <!-- docx-preview 容器（始终在 DOM 中，用 v-show 控制可见性） -->
-        <div v-show="isDocx && !docxError" class="docx-preview-wrapper">
-          <div class="docx-render-area" ref="docxPreviewRef"></div>
-        </div>
-        <!-- docx 渲染失败提示条 -->
+      <!-- docx-preview 容器（在 detail-body 之外，避免 :deep 暗色样式渗透） -->
+      <div v-show="isDocx && !docxError" class="docx-preview-wrapper">
+        <div class="docx-render-area" ref="docxPreviewRef"></div>
+      </div>
+      <!-- docx 渲染失败提示条 + 普通文本/表格内容 -->
+      <div class="detail-body" v-show="!isDocx || docxError">
         <div v-if="docxError" class="docx-error-bar">
           <span class="docx-error-text">Word 文档渲染失败，已降级显示文本内容</span>
         </div>
-        <!-- 文本/表格内容（非 docx 时显示，或 docx 降级时显示） -->
         <template v-if="!isDocx || docxError">
           <div v-for="(block, i) in renderedBlocks" :key="i">
             <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
@@ -888,11 +886,16 @@ onMounted(async () => {
 .docx-render-area {
   min-height: 400px;
 }
-.docx-render-area :deep(.docx-wrapper) {
-  padding: 0 !important;
-}
-.docx-render-area :deep(.docx-wrapper p) {
-  line-height: 1.6;
+/* 防止暗色主题 :deep 样式渗透到 docx 内部（表格背景、文字颜色等） */
+.docx-preview-wrapper :deep(table),
+.docx-preview-wrapper :deep(td),
+.docx-preview-wrapper :deep(th),
+.docx-preview-wrapper :deep(tr),
+.docx-preview-wrapper :deep(p),
+.docx-preview-wrapper :deep(div) {
+  background: initial;
+  color: initial;
+  border-color: initial;
 }
 .docx-error-bar {
   padding: 8px 16px;
