@@ -116,7 +116,13 @@
         {{ formatDate(knowledge.publishTime) }} 来源：{{ knowledge.sourceName || knowledge.sourceType }}
       </div>
 
-      <div class="detail-body">
+      <!-- docx-preview（上传的 Word 文档） -->
+      <div v-if="isDocx" class="detail-body docx-preview-wrapper">
+        <div v-if="docxLoading" class="docx-loading">文档加载中...</div>
+        <div v-else ref="docxPreviewRef" class="docx-render-area"></div>
+      </div>
+      <!-- 普通内容（文本/表格） -->
+      <div v-else class="detail-body">
         <div v-for="(block, i) in renderedBlocks" :key="i">
           <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
             <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
@@ -196,10 +202,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
+import { renderAsync } from 'docx-preview'
 import request from '@/api'
+import { knowledgeApi } from '@/api/knowledge'
 
 const route = useRoute()
 const router = useRouter()
@@ -207,6 +215,32 @@ const router = useRouter()
 const loading = ref(true)
 const error = ref('')
 const knowledge = ref<any>(null)
+
+// docx-preview
+const docxPreviewRef = ref<HTMLDivElement | null>(null)
+const docxLoading = ref(false)
+const isDocx = computed(() => knowledge.value?.fileType === 'docx')
+
+async function renderDocxPreview() {
+  const id = Number(route.params.id)
+  if (!id) return
+  docxLoading.value = true
+  try {
+    const url = knowledgeApi.getDownloadUrl(id)
+    const resp = await fetch(url)
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const blob = await resp.blob()
+    // 等待 DOM 更新，docxPreviewRef 挂载完成
+    await nextTick()
+    if (docxPreviewRef.value) {
+      await renderAsync(blob, docxPreviewRef.value)
+    }
+  } catch (e) {
+    console.error('docx preview failed', e)
+  } finally {
+    docxLoading.value = false
+  }
+}
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return ''
@@ -418,6 +452,10 @@ onMounted(async () => {
     if (res.code === 200 && res.data) {
       knowledge.value = res.data
       renderedBlocks.value = parseMixedContent(knowledge.value?.content || '', knowledge.value?.tableMeta || null)
+      // .docx 文件通过 docx-preview 渲染
+      if (knowledge.value?.fileType === 'docx') {
+        await renderDocxPreview()
+      }
     } else {
       error.value = res.message || '获取知识详情失败'
     }
@@ -818,6 +856,31 @@ onMounted(async () => {
   word-break: break-word;
   font-family: inherit;
   margin: 0;
+}
+
+/* docx-preview */
+.docx-preview-wrapper {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px 32px;
+  overflow-x: auto;
+}
+.docx-loading {
+  text-align: center;
+  padding: 60px 0;
+  color: var(--text-secondary, #8b949e);
+  font-size: 14px;
+}
+.docx-render-area {
+  min-height: 400px;
+}
+.docx-render-area :deep(.docx-wrapper) {
+  background: transparent !important;
+  padding: 0 !important;
+}
+.docx-render-area :deep(.docx-wrapper p) {
+  font-size: 14px !important;
+  line-height: 1.8 !important;
 }
 </style>
 
