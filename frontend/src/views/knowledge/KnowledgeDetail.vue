@@ -116,53 +116,43 @@
         {{ formatDate(knowledge.publishTime) }} 来源：{{ knowledge.sourceName || knowledge.sourceType }}
       </div>
 
-      <!-- docx-preview（上传的 Word 文档） -->
-      <div v-if="isDocx && !docxError" class="detail-body docx-preview-wrapper">
-        <div v-if="docxLoading" class="docx-loading">文档加载中...</div>
-        <div ref="docxPreviewRef" class="docx-render-area" :class="{ 'docx-loading-state': docxLoading }"></div>
-      </div>
-      <!-- docx 渲染失败，降级显示文本内容 -->
-      <div v-else-if="isDocx && docxError" class="detail-body">
-        <div class="docx-error-bar">
+      <!-- 内容区域：docx 预览 / 文本内容 -->
+      <div class="detail-body">
+        <!-- docx-preview 容器（始终在 DOM 中，用 v-show 控制可见性） -->
+        <div v-show="isDocx && !docxError" class="docx-preview-wrapper">
+          <div class="docx-render-area" ref="docxPreviewRef"></div>
+        </div>
+        <!-- docx 渲染失败提示条 -->
+        <div v-if="docxError" class="docx-error-bar">
           <span class="docx-error-text">Word 文档渲染失败，已降级显示文本内容</span>
         </div>
-        <div v-for="(block, i) in renderedBlocks" :key="i">
-          <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
-            <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
-            <el-table :data="block.tableData" border stripe size="small" style="width: 100%" @sort-change="(e) => handleSortChange(i, e)">
-              <el-table-column v-for="(h, j) in block.columns" :key="j" :prop="'col' + j" :label="h" sortable="custom" show-overflow-tooltip />
-            </el-table>
-            <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
+        <!-- 文本/表格内容（非 docx 时显示，或 docx 降级时显示） -->
+        <template v-if="!isDocx || docxError">
+          <div v-for="(block, i) in renderedBlocks" :key="i">
+            <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
+              <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
+              <el-table
+                :data="block.tableData"
+                border
+                stripe
+                size="small"
+                style="width: 100%"
+                @sort-change="(e) => handleSortChange(i, e)"
+              >
+                <el-table-column
+                  v-for="(h, j) in block.columns"
+                  :key="j"
+                  :prop="'col' + j"
+                  :label="h"
+                  sortable="custom"
+                  show-overflow-tooltip
+                />
+              </el-table>
+              <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
+            </div>
+            <div v-else v-html="block.html" class="text-block"></div>
           </div>
-          <div v-else v-html="block.html" class="text-block"></div>
-        </div>
-      </div>
-      <!-- 普通内容（非 docx 文件，文本/表格） -->
-      <div v-else class="detail-body">
-        <div v-for="(block, i) in renderedBlocks" :key="i">
-          <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
-            <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
-            <el-table
-              :data="block.tableData"
-              border
-              stripe
-              size="small"
-              style="width: 100%"
-              @sort-change="(e) => handleSortChange(i, e)"
-            >
-              <el-table-column
-                v-for="(h, j) in block.columns"
-                :key="j"
-                :prop="'col' + j"
-                :label="h"
-                sortable="custom"
-                show-overflow-tooltip
-              />
-            </el-table>
-            <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
-          </div>
-          <div v-else v-html="block.html" class="text-block"></div>
-        </div>
+        </template>
       </div>
 
     </div>
@@ -218,7 +208,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { marked } from 'marked'
 import { renderAsync } from 'docx-preview'
@@ -237,13 +227,26 @@ const docxPreviewRef = ref<HTMLDivElement | null>(null)
 const docxLoading = ref(false)
 const docxError = ref(false)
 const isDocx = computed(() => knowledge.value?.fileType === 'docx')
+const docxRendered = ref(false)
 
-async function renderDocxPreview() {
-  const id = Number(route.params.id)
-  if (!id) return
-  console.log('[docx] fileType:', knowledge.value?.fileType, 'id:', id)
+// 知识数据加载完成后，如果 fileType=docx 则触发渲染
+watch(knowledge, async (val) => {
+  if (!val || val.fileType !== 'docx' || docxRendered.value) return
+  console.log('[docx] fileType:', val.fileType, 'id:', val.id)
   docxLoading.value = true
   docxError.value = false
+  // 等待 v-show 让容器进入 DOM，ref 绑定完成
+  await nextTick()
+  if (!docxPreviewRef.value) {
+    // 首次 nextTick ref 可能还未绑定，再等一次
+    await nextTick()
+  }
+  const id = Number(route.params.id)
+  if (!id || !docxPreviewRef.value) {
+    console.warn('[docx] cannot get ref after waiting, id:', id)
+    docxLoading.value = false
+    return
+  }
   try {
     const url = knowledgeApi.getDownloadUrl(id)
     console.log('[docx] fetching:', url)
@@ -251,22 +254,16 @@ async function renderDocxPreview() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const blob = await resp.blob()
     console.log('[docx] blob received:', blob.size, 'bytes')
-    // 等待 DOM 更新，docxPreviewRef 挂载完成
-    await nextTick()
-    if (docxPreviewRef.value) {
-      console.log('[docx] rendering...')
-      await renderAsync(blob, docxPreviewRef.value)
-      console.log('[docx] render complete')
-    } else {
-      console.warn('[docx] ref still null after nextTick')
-    }
+    await renderAsync(blob, docxPreviewRef.value)
+    console.log('[docx] render complete')
+    docxRendered.value = true
   } catch (e) {
     console.error('[docx] preview failed', e)
     docxError.value = true
   } finally {
     docxLoading.value = false
   }
-}
+})
 
 const formatDate = (dateStr: string) => {
   if (!dateStr) return ''
@@ -478,11 +475,7 @@ onMounted(async () => {
     if (res.code === 200 && res.data) {
       knowledge.value = res.data
       renderedBlocks.value = parseMixedContent(knowledge.value?.content || '', knowledge.value?.tableMeta || null)
-      // .docx 文件通过 docx-preview 渲染
-      if (knowledge.value?.fileType === 'docx') {
-        await renderDocxPreview()
-      }
-    } else {
+        } else {
       error.value = res.message || '获取知识详情失败'
     }
   } catch (e: any) {
@@ -886,20 +879,21 @@ onMounted(async () => {
 
 /* docx-preview */
 .docx-preview-wrapper {
-  position: relative;
   background: #fff;
   border-radius: 8px;
   padding: 24px 32px;
   overflow-x: auto;
 }
-.docx-loading {
-  text-align: center;
-  padding: 60px 0;
-  color: var(--text-secondary, #8b949e);
-  font-size: 14px;
-  position: absolute;
-  top: 0; left: 0; right: 0;
-  z-index: 1;
+.docx-render-area {
+  min-height: 400px;
+}
+.docx-render-area :deep(.docx-wrapper) {
+  background: transparent !important;
+  padding: 0 !important;
+}
+.docx-render-area :deep(.docx-wrapper p) {
+  font-size: 14px !important;
+  line-height: 1.8 !important;
 }
 .docx-error-bar {
   padding: 8px 16px;
@@ -911,21 +905,6 @@ onMounted(async () => {
 .docx-error-text {
   color: #f5c87a;
   font-size: 13px;
-}
-.docx-render-area {
-  min-height: 400px;
-}
-.docx-render-area.docx-loading-state {
-  visibility: hidden;
-  min-height: 100px;
-}
-.docx-render-area :deep(.docx-wrapper) {
-  background: transparent !important;
-  padding: 0 !important;
-}
-.docx-render-area :deep(.docx-wrapper p) {
-  font-size: 14px !important;
-  line-height: 1.8 !important;
 }
 </style>
 
