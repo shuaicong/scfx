@@ -883,17 +883,16 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 24px 32px;
   overflow-x: auto;
+  color: initial;
 }
 .docx-render-area {
   min-height: 400px;
 }
 .docx-render-area :deep(.docx-wrapper) {
-  background: transparent !important;
   padding: 0 !important;
 }
 .docx-render-area :deep(.docx-wrapper p) {
-  font-size: 14px !important;
-  line-height: 1.8 !important;
+  line-height: 1.6;
 }
 .docx-error-bar {
   padding: 8px 16px;
