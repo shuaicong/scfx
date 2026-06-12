@@ -26,8 +26,14 @@
     </div>
 
     <!-- 加载态 -->
-    <div v-if="store.loading" class="loading-area">
+    <div v-if="store.loading && !store.error" class="loading-area">
       <span class="loading-spinner"></span>
+    </div>
+
+    <!-- 错误态 -->
+    <div v-else-if="store.error" class="error-area">
+      <p class="error-text">{{ store.error }}</p>
+      <button class="retry-btn" @click="handleSearch">重试</button>
     </div>
 
     <!-- 空状态 -->
@@ -64,8 +70,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter, onBeforeRouteLeave } from 'vue-router'
 import { useChatStore } from '@/stores/chatStore'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import type { ChatSession } from '@/types/session'
@@ -86,6 +92,7 @@ const isAllSelected = computed(() => store.sessions.length > 0 && selectedIds.va
 let debounceTimer: ReturnType<typeof setTimeout>
 
 onMounted(() => { store.fetchSessions({ page: 1, size: pageSize }) })
+onBeforeRouteLeave(() => { store.clearError() })
 
 function goBack() {
   router.push('/ai-chat')
@@ -126,6 +133,7 @@ function toggleSelectAll() {
 }
 
 function goToChat(id: string) {
+  store.clearError()
   store.setCurrentSessionId(id)
   router.push('/ai-chat')
 }
@@ -232,9 +240,18 @@ function formatTime(isoStr: string): string {
   padding: 6px 14px; border-radius: 6px; cursor: pointer; margin-left: auto;
 }
 
-.loading-area, .empty-area {
-  display: flex; justify-content: center; padding: 80px; color: #6e7681;
+.loading-area, .empty-area, .error-area {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 80px; gap: 12px;
 }
+.error-text { color: #f85149; font-size: 14px; margin: 0; }
+.retry-btn {
+  background: rgba(245,200,122,0.15);
+  border: 1px solid rgba(245,200,122,0.3);
+  color: #f5c87a; padding: 6px 16px; border-radius: 6px;
+  cursor: pointer; font-size: 13px;
+}
+.retry-btn:hover { background: rgba(245,200,122,0.25); }
 .loading-spinner {
   width: 28px; height: 28px; border: 2px solid rgba(255,255,255,0.1);
   border-top-color: #f5c87a; border-radius: 50%;

@@ -62,7 +62,7 @@ const routes = [
         path: 'ai-chat',
         name: 'AIChat',
         component: () => import('../views/ai-chat/AiChat.vue'),
-        meta: { title: 'AI 知识问答' }
+        meta: { title: 'AI 知识问答', hideHeader: true }
       },
       {
         path: 'ai-chat/history',

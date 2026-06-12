@@ -112,21 +112,38 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             qtype = classify_question(request.question)
             yield await gen.send_thought(f"问题类型: {TYPE_MAP.get(qtype, '综合')}")
 
-            # 3. 检索知识库
+            # 3. 检索知识库（获取更多结果以供去重筛选）
             yield await gen.send_thought("正在检索知识库...")
-            # 获取更多结果，按时间排序确保最新数据优先
-            search_results = search_vectors(query=request.question, top_k=15)
-            # 过滤低相似度结果并按发布时间倒序（最新的在前）
+            search_results = search_vectors(query=request.question, top_k=30)
+            # 过滤低相似度结果
             filtered = [
                 r for r in search_results
                 if r.get("similarity", 0) > 0.4
                 and r.get("publish_time")
             ]
-            filtered.sort(
-                key=lambda r: r.get("publish_time", ""),
-                reverse=True,
-            )
-            search_results = filtered[:5]
+            # 按内容去重（删除真正重复的切片，不同内容的均保留）
+            seen_content = set()
+            content_deduped = []
+            for r in sorted(filtered, key=lambda x: -x.get("similarity", 0)):
+                content_hash = r.get("content", "")[:200]  # 取前200字符作为去重依据
+                if content_hash not in seen_content:
+                    seen_content.add(content_hash)
+                    content_deduped.append(r)
+            # 按时间倒序排列（最新数据优先）
+            # 同一天内：行情概述切片（内容以标题开头）排前面
+            def sort_key(r):
+                import datetime as dt
+                pt = r.get("publish_time", "") or ""
+                ts = 0
+                try:
+                    ts = -dt.datetime.fromisoformat(pt.replace("Z", "+00:00")).timestamp()
+                except Exception:
+                    ts = 0
+                # 行情概述切片（以文章标题字符开头）优先
+                overview = 0 if r.get("content", "").startswith(("（", "(", "《", "【")) else 1
+                return (ts, overview)
+            content_deduped.sort(key=sort_key)
+            search_results = content_deduped[:5]
             sources = []
             for r in search_results:
                 sources.append({
@@ -136,6 +153,8 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                     "date": r.get("publish_time", ""),
                     "content": r.get("content", ""),
                     "relevance": r.get("similarity", 0),
+                    "kb_id": r.get("kb_id"),
+                    "chunk_index": r.get("chunk_index"),
                 })
             if sources:
                 yield await gen.send_source(sources)
@@ -315,6 +334,20 @@ async def chat_stream(request: ChatRequest):
         sse_generator(question=request.question, context=context),
         media_type="text/event-stream"
     )
+
+
+@router.get("/chat/messages")
+async def get_messages(session_id: str, http_request: Request):
+    """获取会话的历史消息列表（从 Redis 读取）"""
+    user_id = http_request.headers.get("X-User-Id", "")
+    if not user_id:
+        return {"code": 400, "message": "缺少用户信息"}
+    hm = HistoryManager(user_id, session_id)
+    history = hm.get_recent_history(max_groups=50)
+    return {
+        "code": 200,
+        "data": history,
+    }
 
 
 @router.get("/reports/{report_id}")

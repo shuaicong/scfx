@@ -58,6 +58,7 @@ interface Source {
   source?: string
   url?: string
   publish_time?: string
+  kb_id?: number
 }
 
 interface ContentBlock {
@@ -92,12 +93,16 @@ const isExternalUrl = (url: string) => {
 
 // 处理来源点击
 const handleSourceClick = (source: Source) => {
-  if (!source.url) return
+  // 优先冒泡给父组件处理（kb_id 跳转知识详情等）
+  emit('source-click', source)
 
-  if (isExternalUrl(source.url)) {
-    window.open(source.url, '_blank', 'noopener,noreferrer')
-  } else {
-    emit('preview', source.url, source.title || source.name)
+  // 父组件不处理且有 url 时，本地处理预览
+  if (source.url) {
+    if (isExternalUrl(source.url)) {
+      window.open(source.url, '_blank', 'noopener,noreferrer')
+    } else {
+      emit('preview', source.url, source.title || source.name)
+    }
   }
 }
 

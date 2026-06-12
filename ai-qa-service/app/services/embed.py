@@ -1,6 +1,9 @@
 from sentence_transformers import SentenceTransformer
 import os
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 MODEL_NAME = os.getenv("BGE_MODEL", "BAAI/bge-large-zh-v1.5")
 
@@ -12,10 +15,24 @@ def get_model():
     if _use_mock:
         return None
     if _model is None:
+        # 检查模型是否已缓存到本地
+        import huggingface_hub
+        cached = huggingface_hub.try_to_load_from_cache(
+            MODEL_NAME, "modules.json"
+        )
+        if cached is None or not os.path.exists(cached):
+            logger.error(
+                "[EMBED] BGE 模型 '%s' 未缓存到本地，需要先下载。"
+                "设置 HF_HUB_OFFLINE=1 后会自动使用本地缓存。"
+                "回退到随机嵌入，问答质量将严重下降！",
+                MODEL_NAME,
+            )
         try:
             _model = SentenceTransformer(MODEL_NAME)
         except Exception as e:
-            print(f"Warning: Failed to load model, using mock embeddings: {e}")
+            logger.error(
+                "[EMBED] BGE 模型加载失败，问答将使用随机嵌入（质量严重下降）：%s", e
+            )
             _use_mock = True
             return None
     return _model

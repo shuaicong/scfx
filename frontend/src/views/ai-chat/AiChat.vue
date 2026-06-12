@@ -67,8 +67,8 @@
 
     <!-- 主内容区 -->
     <div class="chat-content">
-      <!-- 欢迎信息 -->
-      <div v-if="!currentAnswer && !isLoading" class="welcome-section">
+      <!-- 欢迎信息（无历史且无当前对话时显示） -->
+      <div v-if="displayMessages.length === 0 && !currentAnswer && !isLoading" class="welcome-section">
         <div class="welcome-icon">
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
             <circle cx="32" cy="32" r="30" stroke="url(#welcome-gradient)" stroke-width="2" opacity="0.3"/>
@@ -97,10 +97,48 @@
         </div>
       </div>
 
+      <!-- 加载历史中 -->
+      <div v-else-if="loadingMessages" class="messages-container" ref="messagesContainer">
+        <div class="loading-area">
+          <span class="loading-spinner"></span>
+          <span class="loading-text">加载历史消息...</span>
+        </div>
+      </div>
+
       <!-- 对话区域 -->
       <div v-else class="messages-container" ref="messagesContainer">
-        <!-- 用户问题 -->
-        <div class="message-item user">
+        <!-- 历史消息 -->
+        <template v-for="msg in displayMessages" :key="msg.id">
+          <div class="message-item user" v-if="msg.role === 'user'">
+            <div class="message-avatar">
+              <div class="avatar user-avatar">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 8C9.6 8 10.67 6.93 10.67 5.33C10.67 3.73 9.6 2.67 8 2.67C6.4 2.67 5.33 3.73 5.33 5.33C5.33 6.93 6.4 8 8 8Z" fill="currentColor"/>
+                  <path d="M3.33 14C3.33 11.05 5.6 8.67 8.5 8.67V8.67C11.4 8.67 13.67 11.05 13.67 14V14.67H3.33V14Z" fill="currentColor"/>
+                </svg>
+              </div>
+            </div>
+            <div class="message-body">
+              <div class="message-content">{{ msg.content }}</div>
+            </div>
+          </div>
+          <div class="message-item assistant" v-if="msg.role === 'assistant'">
+            <div class="message-avatar">
+              <div class="avatar ai-avatar">
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <circle cx="8" cy="8" r="6" fill="currentColor" opacity="0.2"/>
+                  <circle cx="8" cy="8" r="3" fill="currentColor"/>
+                </svg>
+              </div>
+            </div>
+            <div class="message-body">
+              <MessageContent :content="msg.content" :sources="msg.sources" />
+            </div>
+          </div>
+        </template>
+
+        <!-- 当前用户问题（正在进行的对话） -->
+        <div class="message-item user" v-if="lastQuestion">
           <div class="message-avatar">
             <div class="avatar user-avatar">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -115,7 +153,7 @@
         </div>
 
         <!-- AI 回复区域 -->
-        <div class="message-item assistant">
+        <div class="message-item assistant" v-if="lastQuestion">
           <div class="message-avatar">
             <div class="avatar ai-avatar">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -128,17 +166,14 @@
             <!-- 思考过程 -->
             <ThoughtProcess v-if="thoughts.length > 0" :thoughts="thoughts" />
 
-            <!-- 来源展示 -->
-            <div v-if="sources.length > 0" class="sources-grid">
-              <SourceCard
-                v-for="source in sources"
-                :key="source.index"
-                :source="source"
-              />
-            </div>
 
-            <!-- 回答内容 -->
-            <div v-if="currentAnswer" class="message-content ai-content">{{ currentAnswer }}</div>
+            <!-- 回答内容（使用 MessageContent 渲染 Markdown） -->
+            <MessageContent
+              v-if="currentAnswer"
+              :content="currentAnswer"
+              :sources="sources"
+              @source-click="handleSourceClick"
+            />
 
             <!-- 错误信息 -->
             <div v-if="errorMessage" class="error-message">
@@ -255,16 +290,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+defineOptions({ name: 'AiChat' })
+import { ref, onMounted, onUnmounted, onActivated, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { aiChatApiV2, type SSEEvent, type Source } from '@/api/ai-chat'
+import { getSessionMessages } from '@/api/sessions'
 import { useChatStore } from '@/stores/chatStore'
 import { storeToRefs } from 'pinia'
-import SourceCard from './components/SourceCard.vue'
 import ThoughtProcess from './components/ThoughtProcess.vue'
 import DocumentPreview from './components/DocumentPreview.vue'
 import SessionDrawer from './components/SessionDrawer.vue'
+import MessageContent from './components/MessageContent.vue'
 
 const router = useRouter()
 
@@ -285,23 +322,50 @@ function toggleDrawer() {
   }
 }
 
-async function handleSwitchSession(sessionId: string) {
-  // 切换到已有会话：设置 currentSessionId，后续提问将在此会话上下文中进行
-  chatStore.setCurrentSessionId(sessionId)
-  // 重置当前聊天 UI 状态
-  lastQuestion.value = ''
-  currentAnswer.value = ''
-  errorMessage.value = ''
-  thoughts.value = []
-  sources.value = []
+function handleSwitchSession(sid: string) {
+  // 兜底归档：上一轮未归档的临时问答
+  if (lastQuestion.value && !isArchived.value) {
+    const now = Date.now()
+    displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0` })
+    if (currentAnswer.value) {
+      displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, sources: sources.value, id: `a-${now}-1` })
+    }
+  }
+  // 关闭抽屉，切换到新会话
+  drawerVisible.value = false
+  chatStore.clearError()
+  chatStore.setCurrentSessionId(sid)
+  sessionId.value = sid
+  resetCurrentRound()
+  displayMessages.value = []
+  // 加载历史消息（非阻塞）
+  loadHistoryMessages(sid)
+  nextTick(() => throttleScrollToBottom())
+}
+
+async function loadHistoryMessages(sid: string) {
+  loadingMessages.value = true
+  try {
+    const res = await getSessionMessages(sid)
+    const msgs = (res as any).data || []
+    displayMessages.value = msgs.filter((m: any) => m.content).map((m: any, i: number) => ({
+      role: m.role,
+      content: m.content,
+      id: `h-${m.message_id || i}`,
+      // API 返回的 assistant 消息不含 sources，历史渲染不附带来源卡片
+    }))
+  } catch {
+    displayMessages.value = []
+  } finally {
+    loadingMessages.value = false
+  }
 }
 
 function handleNewChat() {
-  lastQuestion.value = ''
-  currentAnswer.value = ''
+  displayMessages.value = []
+  resetCurrentRound()
   errorMessage.value = ''
-  thoughts.value = []
-  sources.value = []
+  sessionId.value = crypto.randomUUID()
   chatStore.clearCurrentSession()
 }
 
@@ -348,6 +412,26 @@ const thoughts = ref<string[]>([])
 const currentAnswer = ref('')
 const isLoading = ref(false)
 const errorMessage = ref('')
+
+// 历史消息加载
+interface DisplayMessage {
+  role: 'user' | 'assistant'
+  content: string
+  id: string       // q-{ts}-0 / a-{ts}-1（同轮共用 ts）
+  sources?: Source[]
+}
+const displayMessages = ref<DisplayMessage[]>([])
+const loadingMessages = ref(false)
+const isArchived = ref(false)  // 当前轮 Q&A 是否已归档到 displayMessages
+
+/** 重置当前轮临时状态（不清 displayMessages） */
+function resetCurrentRound() {
+  lastQuestion.value = ''
+  currentAnswer.value = ''
+  sources.value = []
+  thoughts.value = []
+  isArchived.value = false
+}
 
 // 重连状态
 const MAX_RETRIES = 3
@@ -400,7 +484,14 @@ function clearHeartbeatTimer() {
 }
 
 onMounted(() => {
-  sessionId.value = crypto.randomUUID()
+  // 如果是从 HistoryPage 选了会话跳转回来，加载历史消息
+  if (chatStore.currentSessionId) {
+    const sid = chatStore.currentSessionId
+    sessionId.value = sid
+    loadHistoryMessages(sid)
+  } else {
+    sessionId.value = crypto.randomUUID()
+  }
 })
 
 onUnmounted(() => {
@@ -430,10 +521,58 @@ const goToHistory = () => {
   router.push('/ai-chat/history')
 }
 
-// 滚动到底部
-const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+// —— SSE 渲染节流（50ms 固定间隔，不可修改） ——
+const FLUSH_INTERVAL = 50   // 节流间隔
+const MAX_BUFFER_SIZE = 500 // 字符上限，超过立即刷新
+const SCROLL_OFFSET = 120   // 用户手动上滚超过此值则暂停自动滚动
+let contentBuffer = ''
+let contentTimer: ReturnType<typeof setTimeout> | null = null
+let scrollRAF = 0
+
+function flushContentBuffer() {
+  if (contentTimer) {
+    clearTimeout(contentTimer)
+    contentTimer = null
+  }
+  if (!contentBuffer) return
+  currentAnswer.value += contentBuffer
+  contentBuffer = ''
+  // 统一在批量更新后调用一次 nextTick + scroll
+  nextTick(() => throttleScrollToBottom())
+}
+
+function appendContent(text: string) {
+  contentBuffer += text
+  // buffer 过大时立即刷新，避免视觉延迟
+  if (contentBuffer.length > MAX_BUFFER_SIZE) {
+    flushContentBuffer(); return
+  }
+  if (!contentTimer) {
+    contentTimer = setTimeout(flushContentBuffer, FLUSH_INTERVAL)
+  }
+}
+
+// 滚动到底部（带节流 + 用户手动滚动检测）
+function throttleScrollToBottom() {
+  const el = messagesContainer.value
+  if (!el) return
+  // 用户主动上滚超过 SCROLL_OFFSET 则不自动滚
+  if (el.scrollTop + el.clientHeight < el.scrollHeight - SCROLL_OFFSET) return
+  cancelAnimationFrame(scrollRAF)
+  scrollRAF = requestAnimationFrame(() => {
+    el.scrollTop = el.scrollHeight
+  })
+}
+
+// 处理来源点击（MessageContent 事件转发）
+const handleSourceClick = (source: { url?: string; title?: string; kb_id?: number }) => {
+  // 有 kb_id 则跳转到知识详情页
+  if (source.kb_id) {
+    router.push(`/knowledge/${source.kb_id}`)
+    return
+  }
+  if (source.url) {
+    previewDocument(source.url, source.title)
   }
 }
 
@@ -465,10 +604,19 @@ const anonymousUserId = getAnonymousUserId()
 
 async function askQuestion(q: string) {
   if (!q.trim() || isLoading.value) return
-  // 前端校验
   if (q.trim().length > 500) {
     ElMessage.warning('问题长度不能超过 500 字符')
     return
+  }
+
+  // 兜底：上一轮 Q&A 未归档（SSE done 未触发）→ 强制归档
+  if (lastQuestion.value && !isArchived.value) {
+    const now = Date.now()
+    displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0` })
+    if (currentAnswer.value) {
+      displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, sources: sources.value, id: `a-${now}-1` })
+    }
+    resetCurrentRound()
   }
 
   lastQuestion.value = q.trim()
@@ -481,8 +629,10 @@ async function askQuestion(q: string) {
   reconnecting.value = false
   question.value = ''
 
+  // 发起新提问，恢复自动滚动
+  scrollRAF = 0
   await nextTick()
-  scrollToBottom()
+  throttleScrollToBottom()
 
   // 全局超时 45s
   globalTimeout.value = setTimeout(() => {
@@ -599,14 +749,26 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         if (data.sources) sources.value = data.sources
         break
       case 'content':
-        currentAnswer.value += data.content || ''
+        appendContent(data.content || '')
         break
       case 'done':
+        flushContentBuffer()
+        // 归档本轮 Q&A 到 displayMessages（状态驱动，不依赖文本匹配）
+        if (!isArchived.value && lastQuestion.value) {
+          const now = Date.now()
+          displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0` })
+          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value })
+          isArchived.value = true
+        }
+        resetCurrentRound()
         isLoading.value = false
         clearHeartbeatTimer()
         clearTimeout(globalTimeout.value)
+        nextTick(() => throttleScrollToBottom())
         break
       case 'error':
+        flushContentBuffer()
+        resetCurrentRound()   // 异常不归档，仅清临时状态
         isLoading.value = false
         clearHeartbeatTimer()
         errorMessage.value = data.message || '服务异常'
@@ -616,14 +778,15 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         // ★ 心跳保活 — 不渲染 UI，resetHeartbeatTimer() 已在外层循环调用
         break
       case 'abort':
+        flushContentBuffer()
+        appendContent(data.partial_content || '')
+        flushContentBuffer()
+        resetCurrentRound()   // abort 不归档，仅清临时状态
         isLoading.value = false
         clearHeartbeatTimer()
-        currentAnswer.value += data.partial_content || ''
         clearTimeout(globalTimeout.value)
         break
     }
-    nextTick()
-    scrollToBottom()
   } catch (e) {
     // JSON 解析失败 → 忽略异常行
   }
@@ -958,6 +1121,29 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
   0%, 100% { opacity: 0.6; }
   50% { opacity: 1; }
 }
+
+/* 历史消息加载中 */
+.loading-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 120px 0;
+  gap: 16px;
+}
+.loading-spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(255,255,255,0.1);
+  border-top-color: #f5c87a;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.loading-text {
+  color: #8b949e;
+  font-size: 14px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* Loading 动画 */
 .typing-indicator {

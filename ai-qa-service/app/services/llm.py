@@ -30,11 +30,11 @@ TOKENIZER_ENCODING = os.getenv("TOKENIZER_ENCODING", "cl100k_base")
 # ============================================================
 # Token 风控常量
 # ============================================================
-TOKEN_HARD_LIMIT = 2600          # 消息数组总 token 硬上限
-TOKEN_WARN_LIMIT = 2400          # 触发降级的警告线
+TOKEN_HARD_LIMIT = 4000          # 消息数组总 token 硬上限
+TOKEN_WARN_LIMIT = 3800          # 触发降级的警告线
 MODULE_B_SOFT_LIMIT = 1800       # 模块 B（历史）token 软上限
 SOURCES_MAX_COUNT = 8            # 模块 D 最大参考资料条数
-SOURCES_MAX_TOKENS = 600         # 模块 D 总 token 上限
+SOURCES_MAX_TOKENS = 2000        # 模块 D 总 token 上限（提至2000让LLM看到完整数据）
 CONTEXT_MAX_TOKENS = 1200        # 旧接口 generate_answer 的 context 截断阈值
 
 # ============================================================
@@ -296,13 +296,8 @@ def build_messages(
 
     # ---- 模块 D: 外部参考资料（system） ----
     if sources:
-        # 阈值 1: 数量上限 — 按相关性排序取前 N 条
-        limited = sorted(
-            sources,
-            key=lambda s: -abs(
-                s.get("relevance", s.get("similarity", 0))
-            ),
-        )[:SOURCES_MAX_COUNT]
+        # 阈值 1: 数量上限 — 保留上层传入的排序（chat.py 已按时间倒序排列）
+        limited = sources[:SOURCES_MAX_COUNT]
 
         # 阈值 2: Token 上限 — 从最不相关开始丢弃
         selected = []
@@ -336,7 +331,10 @@ def build_messages(
             )
 
     # ---- 模块 C: 本次执行指令（system） ----
+    from datetime import date
     template = templates.get(qtype, templates.get("general", ""))
+    # 注入当前日期，让 LLM 能判断数据是否过时
+    template = f"当前日期：{date.today().isoformat()}\n\n{template}"
     messages.append({"role": "system", "content": template})
 
     # ---- 模块 Q: 当前问题（user） ----

@@ -5,7 +5,10 @@ import com.scfx.common.Result;
 import com.scfx.entity.ChatSession;
 import com.scfx.service.ChatSessionService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.List;
@@ -17,6 +20,10 @@ import java.util.Map;
 public class SessionManageController {
 
     private final ChatSessionService sessionService;
+    private final RestTemplate restTemplate = new RestTemplate();
+
+    @Value("${app.ai-qa-service.url}")
+    private String aiQaServiceUrl;
 
     public SessionManageController(ChatSessionService sessionService) {
         this.sessionService = sessionService;
@@ -80,6 +87,32 @@ public class SessionManageController {
             return Result.error(403, "手动命名的标题不允许自动修改");
         }
         return Result.success();
+    }
+
+    /**
+     * GET /api/ai-chat/sessions/{id}/messages — 获取会话历史消息（代理到 Python 服务）
+     */
+    @GetMapping("/{id}/messages")
+    public ResponseEntity<String> getSessionMessages(
+            @PathVariable String id,
+            @RequestHeader("X-User-Id") String userId) {
+
+        String url = aiQaServiceUrl + "/api/chat/messages?session_id=" + id;
+        log.debug("Proxying GET /api/ai-chat/sessions/{}/messages -> {}", id, url);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("X-User-Id", userId);
+        HttpEntity<String> entity = new HttpEntity<>(headers);
+
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.GET, entity, String.class);
+            return ResponseEntity.status(response.getStatusCode())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(response.getBody());
+        } catch (Exception e) {
+            log.warn("[ChatSession] messages proxy failed: {}", e.getMessage());
+            return ResponseEntity.ok("{\"code\":200,\"data\":[]}");
+        }
     }
 
     /**

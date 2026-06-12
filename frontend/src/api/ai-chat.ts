@@ -44,6 +44,8 @@ export interface Source {
   date: string
   content: string
   relevance: number
+  kb_id?: number
+  chunk_index?: number
 }
 
 export interface ChatStreamParams {
@@ -119,9 +121,14 @@ export interface SSEEvent {
 
 export const aiChatApiV2 = {
   chatV2Stream: async (params: ChatV2StreamParams): Promise<ReadableStream<Uint8Array>> => {
+    // 原生 fetch 不带 axios 拦截器，手动添加 X-User-Id 头
+    const xUserId = localStorage.getItem('anonymousUserId') || ''
     const response = await fetch('/api/ai-chat/v2/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Id': xUserId,
+      },
       body: JSON.stringify({
         session_id: params.sessionId,
         client_msg_id: params.clientMsgId,

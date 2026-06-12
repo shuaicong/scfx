@@ -82,7 +82,7 @@
 
     <!-- 主内容区 -->
     <el-container class="main-wrapper">
-      <el-header class="header">
+      <el-header class="header" v-if="!route.meta?.hideHeader">
         <div class="header-left">
           <h1 class="page-title">{{ pageTitle }}</h1>
           <div class="breadcrumb" v-if="route.path !== '/dashboard'">
@@ -138,9 +138,11 @@
         </div>
       </el-header>
       <el-main class="main-content" :class="{ 'no-sidebar': route.meta.hideSidebar }">
-        <router-view v-slot="{ Component }">
+        <router-view v-slot="{ Component, route }">
           <transition name="page-fade" mode="out-in">
-            <component :is="Component" />
+            <KeepAlive include="AiChat">
+              <component :is="Component" :key="route.path" />
+            </KeepAlive>
           </transition>
         </router-view>
       </el-main>

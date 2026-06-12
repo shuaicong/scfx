@@ -22,6 +22,9 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+    defaults:
+      run:
+        working-directory: workspace/ai/scfx
     steps:
       - uses: actions/checkout@v4
       - name: Set up JDK 17
@@ -42,6 +45,9 @@ jobs:
 
   frontend:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workspace/ai/scfx
     steps:
       - uses: actions/checkout@v4
       - name: Set up Node
@@ -49,13 +55,13 @@ jobs:
         with:
           node-version: 20
           cache: npm
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: workspace/ai/scfx/frontend/package-lock.json
       - name: Install dependencies
         run: npm ci
-        working-directory: frontend
+        working-directory: workspace/ai/scfx/frontend
       - name: Type check
         run: npx vue-tsc --noEmit
-        working-directory: frontend
+        working-directory: workspace/ai/scfx/frontend
       - name: Build
         run: npm run build
-        working-directory: frontend
+        working-directory: workspace/ai/scfx/frontend

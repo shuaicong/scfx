@@ -22,3 +22,12 @@ export interface SessionListParams {
   start?: string
   end?: string
 }
+
+/** 历史消息条目 */
+export interface HistoryMessage {
+  role: 'user' | 'assistant'
+  content: string
+  message_id: number
+  group_id: number
+  seq: number
+}

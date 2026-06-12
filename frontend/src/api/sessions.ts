@@ -1,6 +1,6 @@
 // AI 问答会话管理 API
 import request from './index'
-import type { ChatSession, SessionListResponse, SessionListParams } from '@/types/session'
+import type { ChatSession, SessionListResponse, SessionListParams, HistoryMessage } from '@/types/session'
 
 /** 获取会话列表（分页+搜索） */
 export function getSessions(params: SessionListParams) {
@@ -34,5 +34,13 @@ export function batchDeleteSessions(ids: string[]) {
     url: '/ai-chat/sessions',
     method: 'delete',
     data: { ids }
+  })
+}
+
+/** 获取会话历史消息 */
+export function getSessionMessages(id: string) {
+  return request<HistoryMessage[]>({
+    url: `/ai-chat/sessions/${id}/messages`,
+    method: 'get'
   })
 }
