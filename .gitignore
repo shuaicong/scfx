@@ -102,3 +102,4 @@ ai-qa-service/models/*
 
 # Vite 构建缓存
 .vite/
+BOOT-INF/

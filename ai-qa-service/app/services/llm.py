@@ -351,7 +351,7 @@ def build_messages(
         selected = []
         token_budget = SOURCES_MAX_TOKENS
         for s in limited:
-            _src_date = s.get('publish_time') or s.get('date') or ''
+            _src_date = (s.get('publish_time') or s.get('date') or '')[:10]  # 归一化为 YYYY-MM-DD
             _src_tag = f"[来源: {s.get('source', '未知')} | {_src_date}]" if _src_date else f"[来源: {s.get('source', '未知')}]"
             snippet = f"{_src_tag}\n{s['content'].strip()}"
             tokens = _count_tokens(snippet)

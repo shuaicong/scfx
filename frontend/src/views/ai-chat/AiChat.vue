@@ -120,6 +120,7 @@
             </div>
             <div class="message-body">
               <div class="message-content">{{ msg.content }}</div>
+              <div class="message-time" v-if="msg.time">{{ formatTime(msg.time) }}</div>
             </div>
           </div>
           <div class="message-item assistant" v-if="msg.role === 'assistant'">
@@ -149,6 +150,7 @@
           </div>
           <div class="message-body">
             <div class="message-content">{{ lastQuestion }}</div>
+            <div class="message-time">{{ formatTime(new Date().toISOString()) }}</div>
           </div>
         </div>
 
@@ -326,7 +328,7 @@ function handleSwitchSession(sid: string) {
   // 兜底归档：上一轮未归档的临时问答
   if (lastQuestion.value && !isArchived.value) {
     const now = Date.now()
-    displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0` })
+    displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
     if (currentAnswer.value) {
       displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, sources: sources.value, id: `a-${now}-1` })
     }
@@ -352,6 +354,7 @@ async function loadHistoryMessages(sid: string) {
       role: m.role,
       content: m.content,
       id: `h-${m.message_id || i}`,
+      time: m.created_at || '',
       // API 返回的 assistant 消息不含 sources，历史渲染不附带来源卡片
     }))
   } catch {
@@ -419,6 +422,16 @@ interface DisplayMessage {
   content: string
   id: string       // q-{ts}-0 / a-{ts}-1（同轮共用 ts）
   sources?: Source[]
+  time?: string    // 消息时间（ISO 格式，可选）
+}
+
+/** 格式化 ISO 时间为 HH:mm */
+function formatTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return ''
+    return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  } catch { return '' }
 }
 const displayMessages = ref<DisplayMessage[]>([])
 const loadingMessages = ref(false)
@@ -612,7 +625,7 @@ async function askQuestion(q: string) {
   // 兜底：上一轮 Q&A 未归档（SSE done 未触发）→ 强制归档
   if (lastQuestion.value && !isArchived.value) {
     const now = Date.now()
-    displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0` })
+    displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
     if (currentAnswer.value) {
       displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, sources: sources.value, id: `a-${now}-1` })
     }
@@ -760,8 +773,8 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         // 归档本轮 Q&A 到 displayMessages（状态驱动，不依赖文本匹配）
         if (!isArchived.value && lastQuestion.value) {
           const now = Date.now()
-          displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0` })
-          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value })
+          displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
+          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, time: new Date(now).toISOString() })
           isArchived.value = true
         }
         resetCurrentRound()
@@ -1074,6 +1087,13 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
   font-size: 14px;
   line-height: 1.6;
   color: #e6edf3;
+}
+
+.message-time {
+  font-size: 11px;
+  color: #6e7681;
+  margin-top: 6px;
+  text-align: right;
 }
 
 .message-item.user .message-content {

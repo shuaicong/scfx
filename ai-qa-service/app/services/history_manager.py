@@ -41,13 +41,16 @@ class HistoryManager:
             self._cache.clear()
 
     def add_message(self, role: str, content: str, group_id: int,
-                    message_id: int, knowledge_ids: list[int] | None = None) -> None:
+                    message_id: int, knowledge_ids: list[int] | None = None,
+                    created_at: str | None = None) -> None:
+        from datetime import datetime, timezone
         member = json.dumps({
             "role": role, "content": content,
             "message_id": message_id, "group_id": group_id,
             "seq": 0 if role == "user" else 1,
             "knowledge_ids": knowledge_ids,
             "request_id": "-",
+            "created_at": created_at or datetime.now(timezone.utc).isoformat(),
         })
         self.redis.zadd(self._history_key, {member: message_id})
         self.redis.expire(self._history_key, SUMMARY_TTL)
