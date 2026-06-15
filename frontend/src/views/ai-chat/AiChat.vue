@@ -132,7 +132,7 @@
               </div>
             </div>
             <div class="message-body">
-              <MessageContent :content="msg.content" :sources="msg.sources" />
+              <MessageContent :content="msg.content" :sources="msg.sources" @source-click="handleSourceClick" />
             </div>
           </div>
         </template>
@@ -753,6 +753,10 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         break
       case 'done':
         flushContentBuffer()
+        // 补上后端 _accumulator 中残留的尾部内容（未达到 150 字符或句末分界的内容）
+        if (data.partial_content) {
+          currentAnswer.value += data.partial_content
+        }
         // 归档本轮 Q&A 到 displayMessages（状态驱动，不依赖文本匹配）
         if (!isArchived.value && lastQuestion.value) {
           const now = Date.now()

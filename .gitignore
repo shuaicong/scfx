@@ -99,3 +99,6 @@ frontend/test-results/
 # AI 模型缓存（符号链接到本地 HuggingFace 缓存）
 ai-qa-service/models/*
 !ai-qa-service/models/.gitkeep
+
+# Vite 构建缓存
+.vite/

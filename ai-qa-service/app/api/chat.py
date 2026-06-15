@@ -2,19 +2,22 @@
 import json
 import logging
 import asyncio
-import time as time_module
+import uuid as _uuid
+from typing import Optional
+
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, Field, field_validator
 
 from app.services.llm import build_messages, generate_answer, generate_answer_stream
 from app.services.question_classifier import classify_question, QuestionType
 from app.services.sse_manager import SSEResponseGenerator
 from app.services.history_manager import HistoryManager
-from app.services.counter import CounterFactory, LocalCounter
+from app.services.counter import CounterFactory
 from app.services.redis_client import get_redis_client
 from app.services.vector import search_vectors
+from app.services.async_writer import get_global_writer
+from app.services.session_title import schedule_title_generation
 from app.db.qdrant import get_client
 
 logger = logging.getLogger(__name__)
@@ -30,16 +33,24 @@ TYPE_MAP = {
 
 COLLECTION_NAME = "grain_knowledge"
 
+# ============================================================
+# 常量定义（集中管理，避免魔法值）
+# ============================================================
+SIMILARITY_THRESHOLD = 0.4          # 向量检索相似度阈值
+SEARCH_TOP_K_INITIAL = 30           # Qdrant 初始检索数量
+SEARCH_TOP_K_PRE_SORT = 10          # 精细排序前截取数量
+SEARCH_TOP_K_FINAL = 5              # 最终返回数量
+SOURCE_CONTENT_MAX_LEN = 500        # source.content 截断长度
+HEARTBEAT_INTERVAL_SEC = 12         # 心跳间隔（秒）
+IDEMPOTENT_TTL_SEC = 300            # 幂等 key TTL
+SSE_CACHE_TTL_SEC = 300             # SSE 缓存 TTL
+HISTORY_MAX_GROUPS = 30             # 历史消息最大组数
 
-# ============================================================
-# 监控端点
-# ============================================================
 
 
 @router.get("/health/async-writer")
 async def writer_health():
     """MySQL 异步写入器运行状态（用于监控告警）"""
-    from app.services.async_writer import get_global_writer
     writer = get_global_writer()
     return {
         "status": "alive" if writer.status()["alive"] else "dead",
@@ -59,6 +70,14 @@ class ChatV2Request(BaseModel):
     client_msg_id: str = Field(..., description="消息幂等键，前端 UUID 生成")
     question: str = Field(..., min_length=1, max_length=500, description="用户问题")
     user_id: str = Field(default="", description="用户 ID（后端覆盖）")
+
+    @field_validator("question")
+    @classmethod
+    def strip_question(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("问题不能为纯空白")
+        return stripped
 
 
 # ============================================================
@@ -84,18 +103,19 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             iter([json.dumps({"type": "done", "token_used": 0})]),
             media_type="text/event-stream",
         )
-    redis.setex(idempotent_key, 300, json.dumps({"status": "running"}))
+    redis.setex(idempotent_key, IDEMPOTENT_TTL_SEC, json.dumps({"status": "running"}))
+    try:
+        redis.setex(sse_cache_key, SSE_CACHE_TTL_SEC, "")  # TTL 兜底，防止清理失败残留
+    except Exception:
+        pass
 
     def _cleanup_idempotent(terminal_type: str):
         """请求终态主动清理幂等 key（done/error/abort 后调用）"""
         try:
-            if terminal_type in ("error", "abort"):
-                redis.delete(idempotent_key, sse_cache_key)
-            elif terminal_type == "done":
-                redis.expire(idempotent_key, 60)
-                redis.delete(sse_cache_key)
-        except Exception:
-            pass  # 清理失败依赖 TTL 兜底（300s）
+            redis.delete(idempotent_key, sse_cache_key)
+        except Exception as e:
+            logger.warning("[AI_QA] [WARN] [idempotent_cleanup_failed] key=%s type=%s error=%s",
+                           idempotent_key, terminal_type, e)
 
     async def sse_gen():
         rid = getattr(http_request.state, "request_id", "-")
@@ -103,10 +123,29 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
         hm = HistoryManager(user_id, request.session_id)
         counter = CounterFactory.get_counter()
 
+        # ── 后台心跳任务：全程保活，不与 LLM 分片耦合 ──
+        hb_queue: asyncio.Queue = asyncio.Queue()
+
+        async def _heartbeat_worker():
+            try:
+                while True:
+                    await asyncio.sleep(HEARTBEAT_INTERVAL_SEC)
+                    event = await gen.send_heartbeat()
+                    if event:
+                        await hb_queue.put(event)
+            except asyncio.CancelledError:
+                pass
+
+        async def _drain_hb():
+            while not hb_queue.empty():
+                yield await hb_queue.get_nowait()
+
+        hb_task = asyncio.create_task(_heartbeat_worker())
+
         try:
             # 1. 读取历史
             yield await gen.send_thought("正在读取对话历史...")
-            history = hm.get_recent_history()
+            history = hm.get_recent_history(max_groups=HISTORY_MAX_GROUPS)
 
             # 2. 问题分类
             qtype = classify_question(request.question)
@@ -114,12 +153,11 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
 
             # 3. 检索知识库（获取更多结果以供去重筛选）
             yield await gen.send_thought("正在检索知识库...")
-            search_results = search_vectors(query=request.question, top_k=30)
-            # 过滤低相似度结果
+            search_results = search_vectors(query=request.question, top_k=SEARCH_TOP_K_INITIAL)
+            # 过滤低相似度结果（不再要求 publish_time，支持用户上传的无日期文档）
             filtered = [
                 r for r in search_results
-                if r.get("similarity", 0) > 0.4
-                and r.get("publish_time")
+                if r.get("similarity", 0) > SIMILARITY_THRESHOLD
             ]
             # 按内容去重（删除真正重复的切片，不同内容的均保留）
             seen_content = set()
@@ -129,29 +167,32 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                 if content_hash not in seen_content:
                     seen_content.add(content_hash)
                     content_deduped.append(r)
+            # 精细排序前先截取 top-N，减少排序开销
+            content_deduped = content_deduped[:SEARCH_TOP_K_PRE_SORT]
             # 按时间倒序排列（最新数据优先）
             # 同一天内：行情概述切片（内容以标题开头）排前面
             def sort_key(r):
-                import datetime as dt
                 pt = r.get("publish_time", "") or ""
                 ts = 0
                 try:
-                    ts = -dt.datetime.fromisoformat(pt.replace("Z", "+00:00")).timestamp()
+                    import datetime as _dt
+                    ts = -_dt.datetime.fromisoformat(pt.replace("Z", "+00:00")).timestamp()
                 except Exception:
                     ts = 0
                 # 行情概述切片（以文章标题字符开头）优先
                 overview = 0 if r.get("content", "").startswith(("（", "(", "《", "【")) else 1
                 return (ts, overview)
             content_deduped.sort(key=sort_key)
-            search_results = content_deduped[:5]
+            search_results = content_deduped[:SEARCH_TOP_K_FINAL]
             sources = []
             for r in search_results:
+                raw_content = r.get("content", "")
                 sources.append({
                     "index": len(sources),
                     "title": r.get("title", ""),
                     "source": r.get("source", "知识库"),
                     "date": r.get("publish_time", ""),
-                    "content": r.get("content", ""),
+                    "content": raw_content[:SOURCE_CONTENT_MAX_LEN],  # 截断过长的 content
                     "relevance": r.get("similarity", 0),
                     "kb_id": r.get("kb_id"),
                     "chunk_index": r.get("chunk_index"),
@@ -167,15 +208,19 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                 history=history,
                 sources=search_results,
                 qtype=TYPE_MAP.get(qtype, "general"),
+                request_id=rid,
+                session_id=request.session_id,
             )
 
-            # 5. LLM 流式调用（含心跳保活）
+            # 5. LLM 流式调用（心跳由后台 _heartbeat_worker 独立负责）
             answer_text = ""
-            _last_hb = time_module.monotonic()
             async for chunk in generate_answer_stream(
                 messages=messages,
                 model=None,
             ):
+                # 消费积压的心跳事件
+                async for hb in _drain_hb():
+                    yield hb
                 if chunk.get("type") == "error":
                     err = await gen.send_error("LLM_FAILED", chunk.get("content", ""))
                     if err:
@@ -187,29 +232,32 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                     event = await gen.send_content(content)
                     if event:
                         yield event
-                # 每 12s 插入一次心跳
-                if time_module.monotonic() - _last_hb >= 12:
-                    hb = await gen.send_heartbeat()
-                    if hb:
-                        yield hb
-                    _last_hb = time_module.monotonic()
 
             # 6. 写 Redis（同步）+ 写 MySQL（异步双写）
-            # 使用 CounterFactory.get_counter() 返回的全局计数器
-            # group_id = user 的 message_id（同一个 pair 共享 group_id）
+            # Fix 3: 计数器与持久化分别异常捕获，互不阻断
+            _msg_id = None
+            _asst_msg_id = None
             try:
-                msg_id = counter.incr("chat_messages")
-                group_id = msg_id
-                hm.add_message(role="user", content=request.question, group_id=group_id, message_id=msg_id)
-                asst_msg_id = counter.incr("chat_messages")
-                hm.add_message(role="assistant", content=answer_text, group_id=group_id, message_id=asst_msg_id)
+                _msg_id = counter.incr("chat_messages")
+                _asst_msg_id = counter.incr("chat_messages")
+            except Exception as e:
+                logger.error("[AI_QA] [ERROR] [counter_incr_failed] user=%s error=%s", user_id, e)
+                _msg_id = _asst_msg_id = str(_uuid.uuid4())
+            group_id = _msg_id
 
-                # MySQL 异步写入（模块级单例）
-                from app.services.async_writer import get_global_writer
+            # Redis 写入（与 MySQL 异步写入独立异常捕获）
+            try:
+                hm.add_message(role="user", content=request.question, group_id=group_id, message_id=_msg_id)
+                hm.add_message(role="assistant", content=answer_text, group_id=group_id, message_id=_asst_msg_id)
+            except Exception as e:
+                logger.error("[AI_QA] [ERROR] [redis_history_write_failed] user=%s error=%s", user_id, e)
+
+            # MySQL 异步写入
+            try:
                 writer = get_global_writer()
                 for role, content, gid, mid, s in [
-                    ("user", request.question, group_id, msg_id, 0),
-                    ("assistant", answer_text, group_id, asst_msg_id, 1),
+                    ("user", request.question, group_id, _msg_id, 0),
+                    ("assistant", answer_text, group_id, _asst_msg_id, 1),
                 ]:
                     writer.enqueue({
                         "user_id": user_id, "request_id": "-",
@@ -220,11 +268,10 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                         "message_id": mid, "group_id": gid, "seq": s,
                     })
             except Exception as e:
-                logger.error("[AI_QA] [ERROR] [counter_incr_failed] user=%s error=%s", user_id, e)
+                logger.error("[AI_QA] [ERROR] [async_writer_enqueue_failed] user=%s error=%s", user_id, e)
 
-            # 7. 注册异步标题生成（静默30秒后触发）
+            # 7. 注册异步标题生成（schedule_title_generation 内部用后台线程 + 30s 静默超时触发）
             try:
-                from app.services.session_title import schedule_title_generation
                 schedule_title_generation(request.session_id, request.question)
             except Exception as e:
                 logger.warning("[AI_QA] [WARN] [title_schedule_failed] session=%s error=%s", request.session_id, e)
@@ -236,6 +283,8 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             _cleanup_idempotent('done')
 
         except asyncio.CancelledError:
+            logger.warning("[AI_QA] [WARN] [client_disconnected] session=%s user=%s",
+                           request.session_id, user_id)
             abort_event = await gen.send_abort(code="LLM_CANCELLED")
             if abort_event:
                 yield abort_event
@@ -247,6 +296,12 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             if err_event:
                 yield err_event
             _cleanup_idempotent('error')
+        finally:
+            hb_task.cancel()
+            try:
+                await hb_task
+            except asyncio.CancelledError:
+                pass
 
     return StreamingResponse(sse_gen(), media_type="text/event-stream")
 
@@ -263,6 +318,7 @@ class ChatRequest(BaseModel):
 
 @router.post("/chat")
 async def chat(request: ChatRequest):
+    """[DEPRECATED] 旧版同步聊天接口 — 请迁移至 /chat/v2/stream"""
     # 1. 搜索相关知识
     search_results = search_vectors(
         query=request.question,
@@ -302,8 +358,6 @@ async def chat(request: ChatRequest):
 
 async def sse_generator(question: str, context: str):
     """SSE流式生成器（旧端点，适配新 generate_answer_stream 签名）"""
-    from app.services.llm import build_messages
-    from app.services.question_classifier import classify_question
     messages = build_messages(
         question=question,
         history=[],
@@ -317,7 +371,7 @@ async def sse_generator(question: str, context: str):
 
 @router.post("/chat/stream")
 async def chat_stream(request: ChatRequest):
-    """流式聊天接口，返回SSE格式数据流"""
+    """[DEPRECATED] 旧版流式聊天接口 — 请迁移至 /chat/v2/stream"""
     search_results = search_vectors(
         query=request.question,
         top_k=request.top_k,
@@ -343,7 +397,7 @@ async def get_messages(session_id: str, http_request: Request):
     if not user_id:
         return {"code": 400, "message": "缺少用户信息"}
     hm = HistoryManager(user_id, session_id)
-    history = hm.get_recent_history(max_groups=50)
+    history = hm.get_recent_history(max_groups=HISTORY_MAX_GROUPS)
     return {
         "code": 200,
         "data": history,

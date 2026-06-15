@@ -12,9 +12,11 @@ import json
 import logging
 import time
 import asyncio
+from datetime import date
+from typing import Optional, AsyncGenerator
+
 import yaml
 import tiktoken
-from typing import Optional, AsyncGenerator
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -43,61 +45,73 @@ CONTEXT_MAX_TOKENS = 1200        # 旧接口 generate_answer 的 context 截断�
 CIRCUIT_BREAKER_THRESHOLD = 3      # 连续失败次数 → 熔断打开
 CIRCUIT_BREAKER_RECOVERY = 60      # 熔断恢复时间（秒）
 CIRCUIT_BREAKER_HALF_OPEN_MAX = 1  # 半开状态最大放行请求数
-LLM_REQUEST_TIMEOUT = 60           # 单次 LLM 请求超时（秒）
+LLM_CONNECT_TIMEOUT = 15           # 连接超时（秒）
+LLM_READ_TIMEOUT = 55              # 读取超时（秒）
+LLM_REQUEST_TIMEOUT = 60           # 整体请求超时（秒，兼容旧引用）
 LLM_RETRY_MAX = 2                  # 失败后指数退避重试次数（不含首次）
 LLM_RETRY_BASE_DELAY = 2.0         # 退避基值（秒）
-
-# ---- 熔断状态 ----
-_circuit_state = "closed"             # closed / open / half-open
-_circuit_failures = 0
-_circuit_last_open = 0.0
-
-
-def _check_circuit_breaker() -> bool:
-    """检查熔断状态。True = 允许请求；False = 拒绝请求。"""
-    global _circuit_state, _circuit_failures, _circuit_last_open
-    if _circuit_state == "closed":
-        return True
-    if _circuit_state == "open":
-        now = time.monotonic()
-        if now - _circuit_last_open >= CIRCUIT_BREAKER_RECOVERY:
-            _circuit_state = "half-open"
-            _circuit_failures = 0
-            logger.info("[AI_QA] [INFO] [circuit_breaker_half_open]")
-            return True
-        logger.warning(
-            "[AI_QA] [WARN] [circuit_breaker_open] remaining=%ds",
-            int(CIRCUIT_BREAKER_RECOVERY - (now - _circuit_last_open)),
-        )
-        return False
-    # half-open: 最多放行一个测试请求
-    return _circuit_failures < CIRCUIT_BREAKER_HALF_OPEN_MAX
-
-
-def _record_llm_success():
-    """LLM 请求成功 → 重置计数器，关闭熔断（如果处于半开状态）。"""
-    global _circuit_state, _circuit_failures
-    _circuit_failures = 0
-    if _circuit_state in ("half-open",):
-        _circuit_state = "closed"
-        logger.info("[AI_QA] [INFO] [circuit_breaker_closed]")
-
-
-def _record_llm_failure():
-    """LLM 请求失败 → 递增计数器，判断是否触发熔断。"""
-    global _circuit_state, _circuit_failures, _circuit_last_open
-    _circuit_failures += 1
-    if _circuit_failures >= CIRCUIT_BREAKER_THRESHOLD:
-        _circuit_state = "open"
-        _circuit_last_open = time.monotonic()
-        logger.error(
-            "[AI_QA] [ALERT] [circuit_breaker_tripped] failures=%d recovery=%ds",
-            _circuit_failures, CIRCUIT_BREAKER_RECOVERY,
-        )
-
+LLM_RETRY_MAX_DELAY = 10.0         # 退避最大延迟上限（秒）
 
 class CircuitBreakerOpen(Exception):
     """熔断打开异常 — 调用方捕获后立即返回 error 事件，不再尝试。"""
+
+
+class CircuitBreaker:
+    """熔断器 — 独立实例，asyncio.Lock 保护状态，支持并发安全。"""
+
+    def __init__(self, threshold: int, recovery: int, half_open_max: int):
+        self._threshold = threshold
+        self._recovery = recovery
+        self._half_open_max = half_open_max
+        self._state = "closed"      # closed / open / half-open
+        self._failures = 0
+        self._last_open = 0.0
+        self._lock = asyncio.Lock()
+
+    async def allow_request(self) -> bool:
+        async with self._lock:
+            if self._state == "closed":
+                return True
+            if self._state == "open":
+                now = time.monotonic()
+                if now - self._last_open >= self._recovery:
+                    self._state = "half-open"
+                    self._failures = 0
+                    logger.info("[AI_QA] [INFO] [circuit_breaker_half_open]")
+                    return True
+                logger.warning(
+                    "[AI_QA] [WARN] [circuit_breaker_open] remaining=%ds",
+                    int(self._recovery - (now - self._last_open)),
+                )
+                return False
+            # half-open
+            return self._failures < self._half_open_max
+
+    async def record_success(self):
+        async with self._lock:
+            self._failures = 0
+            if self._state == "half-open":
+                self._state = "closed"
+                logger.info("[AI_QA] [INFO] [circuit_breaker_closed]")
+
+    async def record_failure(self):
+        async with self._lock:
+            self._failures += 1
+            if self._failures >= self._threshold:
+                self._state = "open"
+                self._last_open = time.monotonic()
+                logger.error(
+                    "[AI_QA] [ALERT] [circuit_breaker_tripped] failures=%d recovery=%ds",
+                    self._failures, self._recovery,
+                )
+
+
+# 全局熔断器实例
+_circuit_breaker = CircuitBreaker(
+    threshold=CIRCUIT_BREAKER_THRESHOLD,
+    recovery=CIRCUIT_BREAKER_RECOVERY,
+    half_open_max=CIRCUIT_BREAKER_HALF_OPEN_MAX,
+)
 
 
 # ============================================================
@@ -105,28 +119,38 @@ class CircuitBreakerOpen(Exception):
 # ============================================================
 _MODULE_A_CACHE: Optional[str] = None
 _TEMPLATES_CACHE: Optional[dict] = None
+_CONFIG_MTIME: float = 0
 
 
 def _load_prompt_config():
-    """加载模块 A 和模板 C 配置（带内存缓存）。"""
-    global _MODULE_A_CACHE, _TEMPLATES_CACHE
-    if _MODULE_A_CACHE is not None and _TEMPLATES_CACHE is not None:
-        return _MODULE_A_CACHE, _TEMPLATES_CACHE
+    """加载模块 A 和模板 C 配置（带文件 mtime 热更新）。"""
+    global _MODULE_A_CACHE, _TEMPLATES_CACHE, _CONFIG_MTIME
     config_path = os.path.join(
         os.path.dirname(__file__), "..", "config", "prompt.yaml"
     )
+    try:
+        current_mtime = os.path.getmtime(config_path)
+        if _MODULE_A_CACHE is not None and current_mtime <= _CONFIG_MTIME:
+            return _MODULE_A_CACHE, _TEMPLATES_CACHE
+    except OSError:
+        if _MODULE_A_CACHE is not None:
+            return _MODULE_A_CACHE, _TEMPLATES_CACHE
     try:
         with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         _MODULE_A_CACHE = config["module_a"]
         _TEMPLATES_CACHE = config["templates"]
+        _CONFIG_MTIME = current_mtime
+        logger.info("[AI_QA] [INFO] [config_reloaded] mtime=%s", current_mtime)
     except Exception as e:
         logger.warning(
             "[AI_QA] [WARN] [config_load_failed] path=%s error=%s",
             config_path, e,
         )
-        _MODULE_A_CACHE = "你是专业的粮食价格分析助手。请基于参考材料回答问题。"
-        _TEMPLATES_CACHE = {"general": "请根据提供的参考材料回答用户问题。"}
+        if _MODULE_A_CACHE is None:
+            _MODULE_A_CACHE = "你是专业的粮食价格分析助手。请基于参考材料回答问题。"
+        if _TEMPLATES_CACHE is None:
+            _TEMPLATES_CACHE = {"general": "请根据提供的参考材料回答用户问题。"}
     return _MODULE_A_CACHE, _TEMPLATES_CACHE
 
 
@@ -136,13 +160,18 @@ def _load_prompt_config():
 
 
 def _count_tokens(text: str) -> int:
-    """使用 tiktoken 计算 token 数。"""
+    """使用 tiktoken 计算纯文本 token 数。"""
     try:
         enc = tiktoken.get_encoding(TOKENIZER_ENCODING)
         return len(enc.encode(text))
     except Exception:
         logger.warning("[AI_QA] [WARN] [tiktoken_failed] fallback=len_estimate")
         return len(text)  # fallback: 中文字符数 ≈ token 数
+
+
+def _count_msg_tokens(msg: dict) -> int:
+    """计算单条 message 的总 token（含 role/name 结构开销）。"""
+    return _count_tokens(json.dumps(msg, ensure_ascii=False))
 
 
 # ============================================================
@@ -160,13 +189,13 @@ async def _call_llm_with_retry(messages: list[dict], stream: bool = False) -> ht
     3. 失败后 sleep(retry_base * 2^attempt) 重试
     4. 全部重试耗尽 → 记录熔断失败 → 抛出原始异常
     """
-    if not _check_circuit_breaker():
+    if not await _circuit_breaker.allow_request():
         raise CircuitBreakerOpen("LLM circuit breaker is open")
 
     last_exc = None
     for attempt in range(LLM_RETRY_MAX + 1):
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(LLM_REQUEST_TIMEOUT)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(LLM_CONNECT_TIMEOUT, read=LLM_READ_TIMEOUT)) as client:
                 response = await client.post(
                     API_URL,
                     json={
@@ -182,18 +211,28 @@ async def _call_llm_with_retry(messages: list[dict], stream: bool = False) -> ht
                     },
                 )
                 response.raise_for_status()
-                _record_llm_success()
+                await _circuit_breaker.record_success()
                 return response
-        except (httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError) as e:
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code < 500:
+                raise  # 4xx 属于业务错误，不重试
+            last_exc = e
+            logger.warning(
+                "[AI_QA] [WARN] [llm_request_failed] attempt=%d/%d status=%d error=%s",
+                attempt + 1, LLM_RETRY_MAX + 1, e.response.status_code, e,
+            )
+            if attempt < LLM_RETRY_MAX:
+                await asyncio.sleep(min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY))
+        except (httpx.TimeoutException, httpx.ConnectError) as e:
             last_exc = e
             logger.warning(
                 "[AI_QA] [WARN] [llm_request_failed] attempt=%d/%d error=%s",
                 attempt + 1, LLM_RETRY_MAX + 1, e,
             )
             if attempt < LLM_RETRY_MAX:
-                await asyncio.sleep(LLM_RETRY_BASE_DELAY * (2 ** attempt))
+                await asyncio.sleep(min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY))
 
-    _record_llm_failure()
+    await _circuit_breaker.record_failure()
     raise last_exc  # type: ignore[misc]
 
 
@@ -207,14 +246,15 @@ async def _call_llm_stream_with_retry(
     - 正常内容: {"type": "text", "content": char}
     - 错误:     {"type": "error", "content": str(e)}
     """
-    if not _check_circuit_breaker():
-        yield {"type": "error", "content": "LLM circuit breaker is open"}
+    if not await _circuit_breaker.allow_request():
+        logger.warning("[AI_QA] [WARN] [circuit_breaker_open] action=stream_reject")
+        yield {"type": "error", "content": "[CIRCUIT_OPEN] 服务暂时限流，请稍后重试"}
         return
 
     last_exc = None
     for attempt in range(LLM_RETRY_MAX + 1):
         try:
-            async with httpx.AsyncClient(timeout=httpx.Timeout(LLM_REQUEST_TIMEOUT)) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(LLM_CONNECT_TIMEOUT, read=LLM_READ_TIMEOUT)) as client:
                 async with client.stream(
                     "POST",
                     API_URL,
@@ -231,7 +271,7 @@ async def _call_llm_stream_with_retry(
                     },
                 ) as response:
                     response.raise_for_status()
-                    _record_llm_success()
+                    await _circuit_breaker.record_success()
                     async for line in response.aiter_lines():
                         if line.startswith("data: "):
                             data = line[6:]  # Remove "data: " prefix
@@ -242,8 +282,8 @@ async def _call_llm_stream_with_retry(
                                 if "choices" in chunk and len(chunk["choices"]) > 0:
                                     delta = chunk["choices"][0].get("delta", {})
                                     content = delta.get("content", "")
-                                    for char in content:
-                                        yield {"type": "text", "content": char}
+                                    if content:
+                                        yield {"type": "text", "content": content}
                             except json.JSONDecodeError:
                                 continue
                     return  # 正常完成
@@ -254,9 +294,9 @@ async def _call_llm_stream_with_retry(
                 attempt + 1, LLM_RETRY_MAX + 1, e,
             )
             if attempt < LLM_RETRY_MAX:
-                await asyncio.sleep(LLM_RETRY_BASE_DELAY * (2 ** attempt))
+                await asyncio.sleep(min(LLM_RETRY_BASE_DELAY * (2 ** attempt), LLM_RETRY_MAX_DELAY))
 
-    _record_llm_failure()
+    await _circuit_breaker.record_failure()
     yield {"type": "error", "content": str(last_exc)}
 
 
@@ -270,6 +310,8 @@ def build_messages(
     history: list[dict],
     sources: list[dict],
     qtype: str = "general",
+    request_id: str = "",
+    session_id: str = "",
 ) -> list[dict]:
     """
     构建 A → B → D → C → Q 顺序的 messages 数组。
@@ -277,22 +319,28 @@ def build_messages(
 
     参考资料限制（双阈值）：
     - 数量上限: SOURCES_MAX_COUNT = 8 条
-    - Token 上限: SOURCES_MAX_TOKENS = 600（超出后丢弃最不相关的来源）
+    - Token 上限: SOURCES_MAX_TOKENS = 2000（超出后丢弃最不相关的来源）
 
     参数：
         question: 用户当前问题
         history: 对话历史列表，每项含 role/content/message_id/group_id
         sources: 检索到的参考资料列表，每项含 content/source/similarity 等
         qtype: 问题类型（price/trend/policy/general）
+        request_id: 链路追踪 ID
+        session_id: 会话 ID
     """
+    _trace = f"req={request_id} session={session_id}"
     module_a, templates = _load_prompt_config()
 
     # ---- 模块 A: 全局角色（system） ----
     messages = [{"role": "system", "content": module_a}]
 
-    # ---- 模块 B: 对话历史（user/assistant） ----
+    # ---- 模块 B: 对话历史（user/assistant，过滤空内容和无效消息） ----
     for h in history:
-        messages.append({"role": h["role"], "content": h["content"]})
+        content = h.get("content", "").strip()
+        if not content:
+            continue
+        messages.append({"role": h["role"], "content": content})
 
     # ---- 模块 D: 外部参考资料（system） ----
     if sources:
@@ -303,10 +351,9 @@ def build_messages(
         selected = []
         token_budget = SOURCES_MAX_TOKENS
         for s in limited:
-            snippet = (
-                f"[来源: {s.get('source', '未知')} | {s.get('publish_time', '')}]\n"
-                f"{s['content']}"
-            )
+            _src_date = s.get('publish_time') or s.get('date') or ''
+            _src_tag = f"[来源: {s.get('source', '未知')} | {_src_date}]" if _src_date else f"[来源: {s.get('source', '未知')}]"
+            snippet = f"{_src_tag}\n{s['content'].strip()}"
             tokens = _count_tokens(snippet)
             if tokens <= token_budget:
                 selected.append(snippet)
@@ -314,10 +361,7 @@ def build_messages(
             elif token_budget > 50:
                 # 单条超限: 截断到剩余预算的 80%（保留至少 20% 给其他来源）
                 truncated = s["content"][:max(50, token_budget * 3)]
-                selected.append(
-                    f"[来源: {s.get('source', '未知')} | {s.get('publish_time', '')}]\n"
-                    f"{truncated}"
-                )
+                selected.append(f"{_src_tag}\n{truncated}")
                 token_budget = 0
                 break
 
@@ -326,12 +370,11 @@ def build_messages(
 
         if len(sources) > SOURCES_MAX_COUNT:
             logger.warning(
-                "[AI_QA] [WARN] [sources_truncated] count=%d max=%d dropped=%d",
-                len(sources), SOURCES_MAX_COUNT, len(sources) - SOURCES_MAX_COUNT,
+                "[AI_QA] [WARN] [sources_truncated] count=%d max=%d dropped=%d %s",
+                len(sources), SOURCES_MAX_COUNT, len(sources) - SOURCES_MAX_COUNT, _trace,
             )
 
     # ---- 模块 C: 本次执行指令（system） ----
-    from datetime import date
     template = templates.get(qtype, templates.get("general", ""))
     # 注入当前日期，让 LLM 能判断数据是否过时
     template = f"当前日期：{date.today().isoformat()}\n\n{template}"
@@ -341,20 +384,20 @@ def build_messages(
     messages.append({"role": "user", "content": question})
 
     # ================================================================
-    # Token 风控
+    # Token 风控（使用 _count_msg_tokens 纳入 role 结构开销）
     # ================================================================
-    total_tokens = sum(_count_tokens(m["content"]) for m in messages)
+    total_tokens = sum(_count_msg_tokens(m) for m in messages)
     if total_tokens <= TOKEN_WARN_LIMIT:
         return messages
 
     logger.warning(
-        "[AI_QA] [WARN] [token_overflow] total=%d threshold=%d action=degrade",
-        total_tokens, TOKEN_WARN_LIMIT,
+        "[AI_QA] [WARN] [token_overflow] total=%d threshold=%d action=degrade %s",
+        total_tokens, TOKEN_WARN_LIMIT, _trace,
     )
 
-    # 降级 1: 精简模块 B（对话历史）— 只保留最近 3 轮
+    # 降级 1: 精简模块 B（对话历史）— 先保留最近 3 轮
     module_b_tokens = sum(
-        _count_tokens(m["content"])
+        _count_msg_tokens(m)
         for m in messages
         if m["role"] in ("user", "assistant")
     )
@@ -363,15 +406,33 @@ def build_messages(
         non_b = [m for m in messages if m["role"] not in ("user", "assistant")]
         kept = msg_b[-6:]  # 最多 3 组 = 6 条
         messages = non_b + kept
+        logger.info(
+            "[AI_QA] [INFO] [token_degrade_history] kept_rounds=3 %s", _trace,
+        )
+
+    # 降级 1b: 二次校验 — 降级 1 后仍超限则继续裁历史至 2 轮
+    total_tokens = sum(_count_msg_tokens(m) for m in messages)
+    if total_tokens > TOKEN_WARN_LIMIT:
+        msg_b = [m for m in messages if m["role"] in ("user", "assistant")]
+        non_b = [m for m in messages if m["role"] not in ("user", "assistant")]
+        kept = msg_b[-4:]  # 2 组 = 4 条
+        messages = non_b + kept
+        logger.info(
+            "[AI_QA] [INFO] [token_degrade_history_aggressive] kept_rounds=2 %s", _trace,
+        )
 
     # 降级 2: 替换模块 D 为占位符
-    total_tokens = sum(_count_tokens(m["content"]) for m in messages)
+    total_tokens = sum(_count_msg_tokens(m) for m in messages)
     if total_tokens > TOKEN_HARD_LIMIT:
         for m in messages:
             if m["role"] == "system" and (
                 "[来源:" in m["content"] or "暂无相关资料" in m["content"]
             ):
                 m["content"] = "（参考资料已精简）"
+                logger.warning(
+                    "[AI_QA] [WARN] [token_degrade_sources] total=%d hard_limit=%d",
+                    total_tokens, TOKEN_HARD_LIMIT,
+                )
                 break
 
     return messages
@@ -396,6 +457,7 @@ async def generate_answer(
     model = model or MODEL
 
     if not API_KEY:
+        logger.info("[AI_QA] [INFO] [DEMO_MODE] API_KEY 未配置，使用演示模式")
         return (
             f"【演示模式】基于以下信息回答您的问题：\n\n{context}\n\n"
             f"问题：{question}\n\n"
@@ -413,12 +475,10 @@ async def generate_answer(
             total, CONTEXT_MAX_TOKENS,
         )
 
-    # ---- 构建简单消息（旧接口风格） ----
+    # ---- 构建简单消息（旧接口风格，复用配置中心 module_a） ----
+    _module_a, _ = _load_prompt_config()
     messages = [
-        {
-            "role": "system",
-            "content": "你是专业的粮食价格分析助手。请基于参考材料回答问题。",
-        },
+        {"role": "system", "content": _module_a},
         {
             "role": "user",
             "content": f"参考材料：\n{context}\n\n问题：{question}\n\n"
@@ -440,7 +500,8 @@ async def generate_answer(
         else:
             return f"AI 服务返回异常：{result}"
     except CircuitBreakerOpen:
-        return "AI 服务暂时不可用（熔断保护），请稍后重试。"
+        logger.warning("[AI_QA] [WARN] [circuit_breaker_open] action=fallback")
+        return "[CIRCUIT_OPEN] AI 服务暂时限流，请稍后重试"
     except Exception as e:
         logger.error(
             "[AI_QA] [ERROR] [generate_answer_failed] error=%s", e,
@@ -470,11 +531,8 @@ async def generate_answer_stream(
     model = model or MODEL
 
     if not API_KEY:
-        demo_content = (
-            "【演示模式】请配置 SILICON_FLOW_API_KEY 环境变量以启用真实 AI 回答。"
-        )
-        for char in demo_content:
-            yield {"type": "text", "content": char}
+        logger.info("[AI_QA] [INFO] [DEMO_MODE] API_KEY 未配置，使用演示模式")
+        yield {"type": "text", "content": "【演示模式】请配置 SILICON_FLOW_API_KEY 环境变量以启用真实 AI 回答。"}
         return
 
     # 调用熔断保护的流式请求
