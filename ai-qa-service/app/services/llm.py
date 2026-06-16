@@ -329,6 +329,7 @@ def build_messages(
         qtype: 问题类型（price/trend/policy/general）
         request_id: 链路追踪 ID
         session_id: 会话 ID
+        deep_thinking: 是否启用深度思考模式（CoT）
     """
     _trace = f"req={request_id} session={session_id}"
     module_a, templates = _load_prompt_config()
