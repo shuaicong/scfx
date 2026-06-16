@@ -595,12 +595,39 @@ async def chat_stream(request: ChatRequest):
 
 @router.get("/chat/messages")
 async def get_messages(session_id: str, http_request: Request):
-    """获取会话的历史消息列表（从 Redis 读取）"""
+    """获取会话的历史消息列表（Redis + MySQL 补充 reasoning_content）"""
     user_id = http_request.headers.get("X-User-Id", "")
     if not user_id:
         return {"code": 400, "message": "缺少用户信息"}
     hm = HistoryManager(user_id, session_id)
     history = hm.get_recent_history(max_groups=HISTORY_MAX_GROUPS)
+
+    # 查询 MySQL 获取 reasoning_content
+    if history:
+        try:
+            from app.db.mysql import execute_query as mysql_query
+            mysql_rows = mysql_query(
+                "SELECT message_id, reasoning_content "
+                "FROM t_chat_history "
+                "WHERE session_id = %s AND user_id = %s AND role = 'assistant' "
+                "AND reasoning_content IS NOT NULL "
+                "ORDER BY message_id ASC",
+                (session_id, user_id),
+            )
+            reasoning_map = {
+                row["message_id"]: row["reasoning_content"]
+                for row in mysql_rows
+            }
+            for item in history:
+                mid = item.get("message_id")
+                if mid in reasoning_map:
+                    item["reasoning_content"] = reasoning_map[mid]
+        except Exception as e:
+            logger.warning(
+                "[AI_QA] [WARN] [reasoning_query_failed] session=%s error=%s",
+                session_id, e,
+            )
+
     return {
         "code": 200,
         "data": history,
