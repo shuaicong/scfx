@@ -101,6 +101,7 @@ export interface ChatV2StreamParams {
   clientMsgId: string
   question: string
   userId?: string
+  deepThinking?: boolean
 }
 
 export interface SSEEvent {
@@ -134,6 +135,7 @@ export const aiChatApiV2 = {
         client_msg_id: params.clientMsgId,
         question: params.question,
         user_id: params.userId || '',
+        deep_thinking: params.deepThinking || false,
       }),
     })
     return response.body as ReadableStream<Uint8Array>

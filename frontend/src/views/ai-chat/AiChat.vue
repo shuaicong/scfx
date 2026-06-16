@@ -688,6 +688,7 @@ async function startSSEStream(q: string, retryCount = 0) {
       clientMsgId: clientMsgId.value,
       question: q,
       userId: anonymousUserId,
+      deepThinking: deepThinkingEnabled.value,
     })
     if (!stream) throw new Error('Stream error')
 
