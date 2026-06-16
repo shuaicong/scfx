@@ -24,7 +24,7 @@ class SSEStateMachine:
     """SSE 事件顺序状态机"""
     VALID_TRANSITIONS = {
         'INIT': {'THOUGHT', 'REASONING', 'CONTENT', 'ERROR', 'ABORT', 'HEARTBEAT'},
-        'THOUGHT': {'THOUGHT', 'SOURCE', 'REASONING', 'ERROR', 'ABORT', 'HEARTBEAT'},
+        'THOUGHT': {'SOURCE', 'REASONING', 'ERROR', 'ABORT', 'HEARTBEAT'},
         'SOURCE': {'REASONING', 'CONTENT', 'ERROR', 'ABORT', 'HEARTBEAT'},
         'REASONING': {'REASONING', 'CONTENT', 'DONE', 'ERROR', 'ABORT', 'HEARTBEAT'},
         'CONTENT': {'CONTENT', 'DONE', 'ERROR', 'ABORT', 'HEARTBEAT'},
@@ -135,6 +135,7 @@ class SSEResponseGenerator:
     async def send_abort(self, code: str, partial_content: str = "") -> Optional[str]:
         if not await self._terminal_guard.try_send('abort'):
             return None
+        self._state_machine.state = 'ABORT'
         return build_sse_event('abort', {
             'type': 'abort', 'code': code, 'message': '回答已中断',
             'partial_content': partial_content or self._accumulator,
