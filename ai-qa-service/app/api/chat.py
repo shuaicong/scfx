@@ -115,6 +115,9 @@ class CoTStreamParser:
                 # 找到 </reasoning>，切换到 IN_ANSWER
                 self._state = self.STATE_IN_ANSWER
                 remaining = self._tag_window[end_match.end():]
+                # 强力剥离 answer 标签
+                remaining = remaining.replace("<answer>", "").replace("</answer>", "")
+                remaining = remaining.replace("<Answer>", "").replace("</Answer>", "")
                 self._tag_window = ''
                 self._buffer = ''
                 if remaining:
@@ -140,10 +143,15 @@ class CoTStreamParser:
                 events.append({"type": "reasoning", "content": chunk})
 
         elif self._state == self.STATE_IN_ANSWER:
-            # 顶层 IN_ANSWER 分支：后续所有 chunk 直接作为 content 输出
+            # 顶层 IN_ANSWER 分支：后续所有 chunk 作为 content 输出
+            # 剥离残留的 <answer> 和 </answer> 标签（可能跨 chunk）
             if self._buffer:
-                events.append({"type": "content", "content": self._buffer})
+                cleaned = self._buffer
+                cleaned = self._ANSWER_START.sub('', cleaned)
+                cleaned = self._ANSWER_END.sub('', cleaned)
                 self._buffer = ''
+                if cleaned:
+                    events.append({"type": "content", "content": cleaned})
 
         return events
 
@@ -380,34 +388,43 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
 
                     events = cot_parser.feed(content)
                     for evt in events:
+                        _content = evt["content"]
                         if evt["type"] == "reasoning":
-                            reasoning_text += evt["content"]
+                            reasoning_text += _content
                             _reasoning_seq += 1
                             yield build_reasoning_event(
-                                evt["content"],
+                                _content,
                                 seq=_reasoning_seq,
                             )
                         elif evt["type"] == "content":
-                            answer_text += evt["content"]
-                            event = await gen.send_content(evt["content"])
-                            if event:
-                                yield event
+                            # 统一剥离残留标签（<answer> / </answer>）
+                            _content = _content.replace("<answer>", "").replace("</answer>", "")
+                            _content = _content.replace("<Answer>", "").replace("</Answer>", "")
+                            if _content:
+                                answer_text += _content
+                                event = await gen.send_content(_content)
+                                if event:
+                                    yield event
 
                 # 流结束：处理残留缓冲区
                 final_events = cot_parser.finalize()
                 for evt in final_events:
+                    _content = evt["content"]
                     if evt["type"] == "reasoning":
-                        reasoning_text += evt["content"]
+                        reasoning_text += _content
                         _reasoning_seq += 1
                         yield build_reasoning_event(
-                            evt["content"],
+                            _content,
                             seq=_reasoning_seq,
                         )
                     elif evt["type"] == "content":
-                        answer_text += evt["content"]
-                        event = await gen.send_content(evt["content"])
-                        if event:
-                            yield event
+                        _content = _content.replace("<answer>", "").replace("</answer>", "")
+                        _content = _content.replace("<Answer>", "").replace("</Answer>", "")
+                        if _content:
+                            answer_text += _content
+                            event = await gen.send_content(_content)
+                            if event:
+                                yield event
             else:
                 # 普通模式：不使用标签解析器
                 async for chunk in generate_answer_stream(
@@ -427,6 +444,10 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                         event = await gen.send_content(content)
                         if event:
                             yield event
+
+            # 最终清理：剥离所有残留标签（冗余安全网）
+            answer_text = answer_text.replace("<answer>", "").replace("</answer>", "")
+            answer_text = answer_text.replace("<Answer>", "").replace("</Answer>", "")
 
             # 6. 写 Redis（同步）+ 写 MySQL（异步双写）
             # Fix 3: 计数器与持久化分别异常捕获，互不阻断
