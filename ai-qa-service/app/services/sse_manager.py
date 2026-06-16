@@ -23,12 +23,14 @@ class SSETerminalConflictError(Exception):
 class SSEStateMachine:
     """SSE 事件顺序状态机"""
     VALID_TRANSITIONS = {
-        'INIT': {'THOUGHT', 'SOURCE', 'CONTENT', 'ERROR'},
-        'THOUGHT': {'THOUGHT', 'SOURCE', 'CONTENT', 'DONE', 'ERROR'},
-        'SOURCE': {'CONTENT', 'DONE', 'ERROR'},
-        'CONTENT': {'DONE', 'ERROR'},
+        'INIT': {'THOUGHT', 'REASONING', 'CONTENT', 'ERROR', 'ABORT', 'HEARTBEAT'},
+        'THOUGHT': {'THOUGHT', 'SOURCE', 'REASONING', 'ERROR', 'ABORT', 'HEARTBEAT'},
+        'SOURCE': {'REASONING', 'CONTENT', 'ERROR', 'ABORT', 'HEARTBEAT'},
+        'REASONING': {'REASONING', 'CONTENT', 'DONE', 'ERROR', 'ABORT', 'HEARTBEAT'},
+        'CONTENT': {'CONTENT', 'DONE', 'ERROR', 'ABORT', 'HEARTBEAT'},
         'DONE': set(),
         'ERROR': set(),
+        'ABORT': set(),
     }
 
     def __init__(self):
@@ -71,6 +73,13 @@ class TerminalEventGuard:
 
 def build_sse_event(event_type: str, data: dict) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+
+def build_reasoning_event(content: str, seq: int = 0) -> str:
+    """构建 reasoning SSE 事件"""
+    return build_sse_event('reasoning', {
+        'type': 'reasoning', 'content': content, 'seq': seq,
+    })
 
 
 class SSEResponseGenerator:
