@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.services.llm import build_messages, generate_answer, generate_answer_stream
 from app.services.question_classifier import classify_question, QuestionType
-from app.services.sse_manager import SSEResponseGenerator
+from app.services.sse_manager import SSEResponseGenerator, build_reasoning_event
 from app.services.history_manager import HistoryManager
 from app.services.counter import CounterFactory
 from app.services.redis_client import get_redis_client
@@ -109,16 +109,20 @@ class CoTStreamParser:
                 content = self._buffer[:end_match.start()]
                 if content:
                     events.append({"type": "reasoning", "content": content})
-                self._state = self.STATE_SEARCHING
                 self._buffer = self._buffer[end_match.end():]
-                # 检查 </reasoning> 后是否紧跟 <answer>
+                # 进入 IN_ANSWER 状态，后续等待 <answer> 或直接作为内容输出
+                self._state = self.STATE_IN_ANSWER
+                # 检查 </reasoning> 后是否紧跟 <answer>（同 chunk 内紧跟）
                 answer_match = self._ANSWER_START.search(self._buffer)
                 if answer_match:
-                    self._state = self.STATE_IN_ANSWER
                     remainder = self._buffer[answer_match.end():]
-                    self._buffer = remainder
                     if remainder:
                         events.append({"type": "content", "content": remainder})
+                    self._buffer = ''
+                elif self._buffer:
+                    # </reasoning> 后有内容但无 <answer> 标签 → 直接作为 answer 内容
+                    events.append({"type": "content", "content": self._buffer})
+                    self._buffer = ''
             else:
                 wrong_match = self._ANSWER_START.search(self._buffer)
                 if wrong_match:
@@ -139,11 +143,11 @@ class CoTStreamParser:
                     events.append({"type": "reasoning", "content": self._buffer})
                     self._buffer = ''
 
-            if self._state == self.STATE_IN_ANSWER:
-                # 在 IN_ANSWER 状态下处理剩余内容
-                if self._buffer:
-                    events.append({"type": "content", "content": self._buffer})
-                    self._buffer = ''
+        elif self._state == self.STATE_IN_ANSWER:
+            # 顶层 IN_ANSWER 分支：后续所有 chunk 直接作为 content 输出
+            if self._buffer:
+                events.append({"type": "content", "content": self._buffer})
+                self._buffer = ''
 
         return events
 
@@ -154,9 +158,9 @@ class CoTStreamParser:
             if self._buffer:
                 logger.warning(
                     "[AI_QA] [WARN] [cot_tag_incomplete] "
-                    "no </reasoning> tag found, remaining degraded"
+                    "no </reasoning> tag found, remaining as reasoning"
                 )
-                events.append({"type": "content", "content": self._buffer})
+                events.append({"type": "reasoning", "content": self._buffer})
         elif self._state == self.STATE_SEARCHING and self._buffer:
             events.append({"type": "content", "content": self._buffer})
         self._buffer = ''
@@ -361,8 +365,8 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
 
             if request.deep_thinking:
                 # 深度思考模式：使用标签解析器分流
-                from app.services.sse_manager import build_reasoning_event
                 cot_parser = CoTStreamParser()
+                _reasoning_seq = 0
                 async for chunk in generate_answer_stream(
                     messages=messages,
                     model=None,
@@ -382,9 +386,10 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                     for evt in events:
                         if evt["type"] == "reasoning":
                             reasoning_text += evt["content"]
+                            _reasoning_seq += 1
                             yield build_reasoning_event(
                                 evt["content"],
-                                seq=len(reasoning_text),
+                                seq=_reasoning_seq,
                             )
                         elif evt["type"] == "content":
                             answer_text += evt["content"]
@@ -397,9 +402,10 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                 for evt in final_events:
                     if evt["type"] == "reasoning":
                         reasoning_text += evt["content"]
+                        _reasoning_seq += 1
                         yield build_reasoning_event(
                             evt["content"],
-                            seq=len(reasoning_text),
+                            seq=_reasoning_seq,
                         )
                     elif evt["type"] == "content":
                         answer_text += evt["content"]
