@@ -133,6 +133,12 @@
               </div>
             </div>
             <div class="message-body">
+              <ReasoningPanel
+                v-if="msg.reasoning"
+                :reasoning="msg.reasoning"
+                :collapsed="true"
+                @toggle="() => {}"
+              />
               <MessageContent :content="msg.content" :sources="msg.sources" @source-click="handleSourceClick" />
             </div>
           </div>
@@ -168,6 +174,13 @@
             <!-- 思考过程 -->
             <ThoughtProcess v-if="thoughts.length > 0" :thoughts="thoughts" />
 
+            <!-- 深度思考推理面板 -->
+            <ReasoningPanel
+              v-if="deepThinkingEnabled && reasoningContent.trim()"
+              :reasoning="reasoningContent"
+              :collapsed="reasoningCollapsed"
+              @toggle="reasoningCollapsed = !reasoningCollapsed"
+            />
 
             <!-- 回答内容（使用 MessageContent 渲染 Markdown） -->
             <MessageContent
@@ -205,8 +218,9 @@
       <div class="input-options">
         <button
           class="deep-thinking-btn"
-          disabled
-          title="该功能即将上线（Phase 2）"
+          :class="{ active: deepThinkingEnabled }"
+          :disabled="isLoading"
+          @click="deepThinkingEnabled = !deepThinkingEnabled"
         >
           <span class="btn-icon">💭</span>
           <span class="btn-text">深度思考</span>
@@ -304,6 +318,7 @@ import ThoughtProcess from './components/ThoughtProcess.vue'
 import DocumentPreview from './components/DocumentPreview.vue'
 import SessionDrawer from './components/SessionDrawer.vue'
 import MessageContent from './components/MessageContent.vue'
+import ReasoningPanel from './components/ReasoningPanel.vue'
 
 const router = useRouter()
 
@@ -355,6 +370,7 @@ async function loadHistoryMessages(sid: string) {
       content: m.content,
       id: `h-${m.message_id || i}`,
       time: m.created_at || '',
+      reasoning: m.reasoning_content || '',
       // API 返回的 assistant 消息不含 sources，历史渲染不附带来源卡片
     }))
   } catch {
@@ -413,6 +429,9 @@ const lastQuestion = ref('')
 const sources = ref<Source[]>([])
 const thoughts = ref<string[]>([])
 const currentAnswer = ref('')
+const deepThinkingEnabled = ref(false)
+const reasoningContent = ref('')
+const reasoningCollapsed = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
 
@@ -423,6 +442,7 @@ interface DisplayMessage {
   id: string       // q-{ts}-0 / a-{ts}-1（同轮共用 ts）
   sources?: Source[]
   time?: string    // 消息时间（ISO 格式，可选）
+  reasoning?: string   // ★ 推理过程（深度思考模式）
 }
 
 /** 格式化 ISO 时间为 HH:mm */
@@ -637,6 +657,7 @@ async function askQuestion(q: string) {
   isLoading.value = true
   sources.value = []
   thoughts.value = []
+  reasoningContent.value = ''
   currentAnswer.value = ''
   errorMessage.value = ''
   reconnecting.value = false
@@ -755,6 +776,14 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
   try {
     const data: SSEEvent = JSON.parse(dataLines.join(''))
     switch (eventType) {
+      case 'reasoning': {
+        const rawChunk = data.content || ''
+        const chunk = rawChunk.trimStart().trimEnd()
+        if (chunk) {
+          reasoningContent.value += chunk + '\n'
+        }
+        break
+      }
       case 'thought':
         thoughts.value.push(data.content || '')
         break
@@ -770,11 +799,14 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         if (data.partial_content) {
           currentAnswer.value += data.partial_content
         }
+        // 推理内容全局首尾空白清洗
+        const reasoningTrimmed = reasoningContent.value.trim()
+        reasoningContent.value = reasoningTrimmed
         // 归档本轮 Q&A 到 displayMessages（状态驱动，不依赖文本匹配）
         if (!isArchived.value && lastQuestion.value) {
           const now = Date.now()
           displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
-          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, time: new Date(now).toISOString() })
+          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, reasoning: reasoningTrimmed, time: new Date(now).toISOString() })
           isArchived.value = true
         }
         resetCurrentRound()
@@ -1230,6 +1262,19 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
   background: rgba(255, 255, 255, 0.03);
   border-color: rgba(255, 255, 255, 0.08);
   color: #484f58;
+}
+
+.deep-thinking-btn.active {
+  color: #f5c87a;
+  border-color: rgba(245, 200, 122, 0.4);
+  background: rgba(245, 200, 122, 0.1);
+  cursor: pointer;
+  opacity: 1;
+}
+.deep-thinking-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .internet-search-btn {
