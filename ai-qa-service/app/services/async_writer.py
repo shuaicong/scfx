@@ -200,7 +200,7 @@ def get_global_writer() -> MySQLAsyncWriter:
     if _global_writer is None:
         with _global_writer_lock:
             if _global_writer is None:
-                from app.db.mysql import get_connection
-                _global_writer = MySQLAsyncWriter(get_connection())
+                from app.db import mysql as mysql_module
+                _global_writer = MySQLAsyncWriter(mysql_module)
                 _global_writer.start()
     return _global_writer

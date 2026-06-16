@@ -24,7 +24,7 @@ class SSEStateMachine:
     """SSE 事件顺序状态机"""
     VALID_TRANSITIONS = {
         'INIT': {'THOUGHT', 'REASONING', 'CONTENT', 'ERROR', 'ABORT', 'HEARTBEAT'},
-        'THOUGHT': {'SOURCE', 'REASONING', 'ERROR', 'ABORT', 'HEARTBEAT'},
+        'THOUGHT': {'THOUGHT', 'SOURCE', 'REASONING', 'ERROR', 'ABORT', 'HEARTBEAT'},
         'SOURCE': {'REASONING', 'CONTENT', 'ERROR', 'ABORT', 'HEARTBEAT'},
         'REASONING': {'REASONING', 'CONTENT', 'DONE', 'ERROR', 'ABORT', 'HEARTBEAT'},
         'CONTENT': {'CONTENT', 'DONE', 'ERROR', 'ABORT', 'HEARTBEAT'},
@@ -102,6 +102,7 @@ class SSEResponseGenerator:
         return build_sse_event('source', {'type': 'source', 'sources': sources})
 
     async def send_content(self, chunk: str) -> Optional[str]:
+        self._state_machine.transition('CONTENT')
         self._accumulator += chunk
         if len(self._accumulator) >= 150:
             return self._flush_content()

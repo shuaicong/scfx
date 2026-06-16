@@ -54,6 +54,7 @@ class CoTStreamParser:
         self._is_degraded = False
         self._no_match_count = 0
         self._buffer = ''
+        self._tag_window = ''
 
     @property
     def is_degraded(self) -> bool:
@@ -104,44 +105,39 @@ class CoTStreamParser:
                     self._buffer = self._buffer[-64:]
 
         elif self._state == self.STATE_IN_REASONING:
-            end_match = self._REASONING_END.search(self._buffer)
+            # 累积到标签匹配窗口（保留末 64 字符，用于跨 chunk 标签匹配）
+            self._tag_window += chunk
+            if len(self._tag_window) > 64:
+                self._tag_window = self._tag_window[-64:]
+
+            end_match = self._REASONING_END.search(self._tag_window)
             if end_match:
-                content = self._buffer[:end_match.start()]
-                if content:
-                    events.append({"type": "reasoning", "content": content})
-                self._buffer = self._buffer[end_match.end():]
-                # 进入 IN_ANSWER 状态，后续等待 <answer> 或直接作为内容输出
+                # 找到 </reasoning>，切换到 IN_ANSWER
                 self._state = self.STATE_IN_ANSWER
-                # 检查 </reasoning> 后是否紧跟 <answer>（同 chunk 内紧跟）
-                answer_match = self._ANSWER_START.search(self._buffer)
-                if answer_match:
-                    remainder = self._buffer[answer_match.end():]
-                    if remainder:
-                        events.append({"type": "content", "content": remainder})
-                    self._buffer = ''
-                elif self._buffer:
-                    # </reasoning> 后有内容但无 <answer> 标签 → 直接作为 answer 内容
-                    events.append({"type": "content", "content": self._buffer})
-                    self._buffer = ''
-            else:
-                wrong_match = self._ANSWER_START.search(self._buffer)
-                if wrong_match:
-                    logger.warning(
-                        "[AI_QA] [WARN] [cot_tag_wrong_order] "
-                        "<answer> before </reasoning>, degrading"
-                    )
-                    self._is_degraded = True
-                    content = self._buffer[:wrong_match.start()]
-                    if content:
-                        events.append({"type": "reasoning", "content": content})
-                    after = self._buffer[wrong_match.end():]
-                    if after:
-                        events.append({"type": "content", "content": after})
-                    self._buffer = ''
-                    return events
-                if self._buffer:
-                    events.append({"type": "reasoning", "content": self._buffer})
-                    self._buffer = ''
+                remaining = self._tag_window[end_match.end():]
+                self._tag_window = ''
+                self._buffer = ''
+                if remaining:
+                    events.append({"type": "content", "content": remaining})
+                return events
+
+            # 检查是否跳过至 <answer>（标签顺序颠倒）
+            wrong_match = self._ANSWER_START.search(self._tag_window)
+            if wrong_match:
+                logger.warning(
+                    "[AI_QA] [WARN] [cot_tag_wrong_order] "
+                    "<answer> before </reasoning>, degrading"
+                )
+                self._is_degraded = True
+                self._tag_window = ''
+                self._buffer = ''
+                if chunk:
+                    events.append({"type": "content", "content": chunk})
+                return events
+
+            # 正常推理内容：立即发射 chunk 保持流式
+            if chunk:
+                events.append({"type": "reasoning", "content": chunk})
 
         elif self._state == self.STATE_IN_ANSWER:
             # 顶层 IN_ANSWER 分支：后续所有 chunk 直接作为 content 输出
@@ -284,7 +280,7 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
 
         async def _drain_hb():
             while not hb_queue.empty():
-                yield await hb_queue.get_nowait()
+                yield hb_queue.get_nowait()
 
         hb_task = asyncio.create_task(_heartbeat_worker())
 
