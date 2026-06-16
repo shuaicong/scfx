@@ -115,9 +115,9 @@ class CoTStreamParser:
                 # 找到 </reasoning>，切换到 IN_ANSWER
                 self._state = self.STATE_IN_ANSWER
                 remaining = self._tag_window[end_match.end():]
-                # 强力剥离 answer 标签
-                remaining = remaining.replace("<answer>", "").replace("</answer>", "")
-                remaining = remaining.replace("<Answer>", "").replace("</Answer>", "")
+                # 用正则剥离 answer 标签（兼容空白/大小写变体）
+                remaining = self._ANSWER_START.sub('', remaining)
+                remaining = self._ANSWER_END.sub('', remaining)
                 self._tag_window = ''
                 self._buffer = ''
                 if remaining:
@@ -404,7 +404,7 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                                 answer_text += _content
                                 event = await gen.send_content(_content)
                                 if event:
-                                    yield event
+                                    yield event.replace("<answer>", "").replace("</answer>", "")
 
                 # 流结束：处理残留缓冲区
                 final_events = cot_parser.finalize()
@@ -424,7 +424,7 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                             answer_text += _content
                             event = await gen.send_content(_content)
                             if event:
-                                yield event
+                                yield event.replace("<answer>", "").replace("</answer>", "")
             else:
                 # 普通模式：不使用标签解析器
                 async for chunk in generate_answer_stream(
@@ -499,6 +499,9 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             # 8. done 事件 + 幂等键清理
             done_event = await gen.send_done(token_used=0)
             if done_event:
+                # 最终安全网：剥离 SSE 事件中的所有残留标签
+                done_event = done_event.replace("<answer>", "").replace("</answer>", "")
+                done_event = done_event.replace("<Answer>", "").replace("</Answer>", "")
                 yield done_event
             _cleanup_idempotent('done')
 
