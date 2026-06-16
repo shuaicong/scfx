@@ -179,11 +179,15 @@ class MySQLAsyncWriter:
     def _write_mysql(self, record: dict):
         sql = """INSERT INTO t_chat_history
             (user_id, request_id, session_id, client_msg_id, role, content,
-             knowledge_ids, message_id, group_id, seq, session_status)
+             knowledge_ids, message_id, group_id, seq, session_status,
+             reasoning_content)
             VALUES (%(user_id)s, %(request_id)s, %(session_id)s, %(client_msg_id)s,
                     %(role)s, %(content)s, %(knowledge_ids)s,
-                    %(message_id)s, %(group_id)s, %(seq)s, 1)
-            ON DUPLICATE KEY UPDATE content=VALUES(content), updated_at=NOW()"""
+                    %(message_id)s, %(group_id)s, %(seq)s, 1,
+                    %(reasoning_content)s)
+            ON DUPLICATE KEY UPDATE content=VALUES(content),
+                                    reasoning_content=VALUES(reasoning_content),
+                                    updated_at=NOW()"""
         self._mysql.execute_update(sql, record)
 
 
