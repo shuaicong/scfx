@@ -312,6 +312,7 @@ def build_messages(
     qtype: str = "general",
     request_id: str = "",
     session_id: str = "",
+    deep_thinking: bool = False,     # 是否启用深度思考模式
 ) -> list[dict]:
     """
     构建 A → B → D → C → Q 顺序的 messages 数组。
@@ -378,6 +379,12 @@ def build_messages(
     template = templates.get(qtype, templates.get("general", ""))
     # 注入当前日期，让 LLM 能判断数据是否过时
     template = f"当前日期：{date.today().isoformat()}\n\n{template}"
+
+    # 深度思考模式：追加 CoT 指令（放在模块 C 尾部，参考资料之后、问题之前）
+    cot_instr = templates.get("deep_thinking_instruction", "")
+    if deep_thinking and cot_instr:
+        template += f"\n\n{cot_instr}"
+
     messages.append({"role": "system", "content": template})
 
     # ---- 模块 Q: 当前问题（user） ----
