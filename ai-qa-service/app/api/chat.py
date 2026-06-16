@@ -4,6 +4,7 @@ import logging
 import asyncio
 import uuid as _uuid
 from typing import Optional
+import re as _re
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
@@ -21,6 +22,146 @@ from app.services.session_title import schedule_title_generation
 from app.db.qdrant import get_client
 
 logger = logging.getLogger(__name__)
+
+# ============================================================
+# 流式标签解析器 — 三状态解析 <reasoning>/<answer> 标签
+# ============================================================
+
+class CoTStreamParser:
+    """深度思考流式标签解析器 — 逐 chunk 解析 <reasoning>/<answer> 标签。
+
+    三状态：SEARCHING / IN_REASONING / IN_ANSWER
+    生命周期：每条新问答初始化一次，流式过程不重置，会话间隔离。
+    """
+
+    STATE_SEARCHING = 'SEARCHING'
+    STATE_IN_REASONING = 'IN_REASONING'
+    STATE_IN_ANSWER = 'IN_ANSWER'
+
+    _REASONING_START = _re.compile(r'<\s*reasoning\s*>', _re.IGNORECASE)
+    _REASONING_END = _re.compile(r'<\s*/\s*reasoning\s*>', _re.IGNORECASE)
+    _ANSWER_START = _re.compile(r'<\s*answer\s*>', _re.IGNORECASE)
+    _ANSWER_END = _re.compile(r'<\s*/\s*answer\s*>', _re.IGNORECASE)
+
+    TIMEOUT_CHUNKS = 20
+
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        """每条新问答请求调用一次，完全重置状态。"""
+        self._state = self.STATE_SEARCHING
+        self._is_degraded = False
+        self._no_match_count = 0
+        self._buffer = ''
+
+    @property
+    def is_degraded(self) -> bool:
+        return self._is_degraded
+
+    def feed(self, chunk: str) -> list[dict]:
+        """喂入一个 LLM chunk，返回事件列表。
+
+        返回的每个 dict 格式：
+        {"type": "reasoning", "content": str}
+        {"type": "content", "content": str}
+        """
+        events: list[dict] = []
+
+        if self._is_degraded:
+            if chunk:
+                events.append({"type": "content", "content": chunk})
+            return events
+
+        self._buffer += chunk
+
+        if self._state == self.STATE_SEARCHING:
+            match = self._REASONING_START.search(self._buffer)
+            if match:
+                self._state = self.STATE_IN_REASONING
+                self._no_match_count = 0
+                prefix = self._buffer[:match.start()]
+                if prefix:
+                    events.append({"type": "content", "content": prefix})
+                remainder = self._buffer[match.end():]
+                self._buffer = remainder
+                if remainder:
+                    events.append({"type": "reasoning", "content": remainder})
+            else:
+                self._no_match_count += 1
+                if self._no_match_count >= self.TIMEOUT_CHUNKS:
+                    self._is_degraded = True
+                    logger.warning(
+                        "[AI_QA] [WARN] [cot_tag_timeout] "
+                        "no <reasoning> tag after %d chunks, degraded",
+                        self.TIMEOUT_CHUNKS,
+                    )
+                    if self._buffer:
+                        events.append({"type": "content", "content": self._buffer})
+                        self._buffer = ''
+                    return events
+                if len(self._buffer) > 64:
+                    self._buffer = self._buffer[-64:]
+
+        elif self._state == self.STATE_IN_REASONING:
+            end_match = self._REASONING_END.search(self._buffer)
+            if end_match:
+                content = self._buffer[:end_match.start()]
+                if content:
+                    events.append({"type": "reasoning", "content": content})
+                self._state = self.STATE_SEARCHING
+                self._buffer = self._buffer[end_match.end():]
+                # 检查 </reasoning> 后是否紧跟 <answer>
+                answer_match = self._ANSWER_START.search(self._buffer)
+                if answer_match:
+                    self._state = self.STATE_IN_ANSWER
+                    remainder = self._buffer[answer_match.end():]
+                    self._buffer = remainder
+                    if remainder:
+                        events.append({"type": "content", "content": remainder})
+            else:
+                wrong_match = self._ANSWER_START.search(self._buffer)
+                if wrong_match:
+                    logger.warning(
+                        "[AI_QA] [WARN] [cot_tag_wrong_order] "
+                        "<answer> before </reasoning>, degrading"
+                    )
+                    self._is_degraded = True
+                    content = self._buffer[:wrong_match.start()]
+                    if content:
+                        events.append({"type": "reasoning", "content": content})
+                    after = self._buffer[wrong_match.end():]
+                    if after:
+                        events.append({"type": "content", "content": after})
+                    self._buffer = ''
+                    return events
+                if self._buffer:
+                    events.append({"type": "reasoning", "content": self._buffer})
+                    self._buffer = ''
+
+            if self._state == self.STATE_IN_ANSWER:
+                # 在 IN_ANSWER 状态下处理剩余内容
+                if self._buffer:
+                    events.append({"type": "content", "content": self._buffer})
+                    self._buffer = ''
+
+        return events
+
+    def finalize(self) -> list[dict]:
+        """流结束时调用，处理缓冲区残留。"""
+        events: list[dict] = []
+        if self._state == self.STATE_IN_REASONING:
+            if self._buffer:
+                logger.warning(
+                    "[AI_QA] [WARN] [cot_tag_incomplete] "
+                    "no </reasoning> tag found, remaining degraded"
+                )
+                events.append({"type": "content", "content": self._buffer})
+        elif self._state == self.STATE_SEARCHING and self._buffer:
+            events.append({"type": "content", "content": self._buffer})
+        self._buffer = ''
+        return events
+
 
 router = APIRouter(prefix="/api", tags=["chat"])
 
@@ -69,6 +210,7 @@ class ChatV2Request(BaseModel):
     session_id: str = Field(..., description="会话 ID，前端 UUID 生成")
     client_msg_id: str = Field(..., description="消息幂等键，前端 UUID 生成")
     question: str = Field(..., min_length=1, max_length=500, description="用户问题")
+    deep_thinking: bool = Field(default=False, description="是否启用深度思考模式")
     user_id: str = Field(default="", description="用户 ID（后端覆盖）")
 
     @field_validator("question")
@@ -210,28 +352,79 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                 qtype=TYPE_MAP.get(qtype, "general"),
                 request_id=rid,
                 session_id=request.session_id,
+                deep_thinking=request.deep_thinking,
             )
 
-            # 5. LLM 流式调用（心跳由后台 _heartbeat_worker 独立负责）
+            # 5. LLM 流式调用 + 深度思考标签解析
             answer_text = ""
-            async for chunk in generate_answer_stream(
-                messages=messages,
-                model=None,
-            ):
-                # 消费积压的心跳事件
-                async for hb in _drain_hb():
-                    yield hb
-                if chunk.get("type") == "error":
-                    err = await gen.send_error("LLM_FAILED", chunk.get("content", ""))
-                    if err:
-                        yield err
-                    return
-                content = chunk.get("content", "")
-                if content:
-                    answer_text += content
-                    event = await gen.send_content(content)
-                    if event:
-                        yield event
+            reasoning_text = ""
+
+            if request.deep_thinking:
+                # 深度思考模式：使用标签解析器分流
+                from app.services.sse_manager import build_reasoning_event
+                cot_parser = CoTStreamParser()
+                async for chunk in generate_answer_stream(
+                    messages=messages,
+                    model=None,
+                ):
+                    async for hb in _drain_hb():
+                        yield hb
+                    if chunk.get("type") == "error":
+                        err = await gen.send_error("LLM_FAILED", chunk.get("content", ""))
+                        if err:
+                            yield err
+                        return
+                    content = chunk.get("content", "")
+                    if not content:
+                        continue
+
+                    events = cot_parser.feed(content)
+                    for evt in events:
+                        if evt["type"] == "reasoning":
+                            reasoning_text += evt["content"]
+                            yield build_reasoning_event(
+                                evt["content"],
+                                seq=len(reasoning_text),
+                            )
+                        elif evt["type"] == "content":
+                            answer_text += evt["content"]
+                            event = await gen.send_content(evt["content"])
+                            if event:
+                                yield event
+
+                # 流结束：处理残留缓冲区
+                final_events = cot_parser.finalize()
+                for evt in final_events:
+                    if evt["type"] == "reasoning":
+                        reasoning_text += evt["content"]
+                        yield build_reasoning_event(
+                            evt["content"],
+                            seq=len(reasoning_text),
+                        )
+                    elif evt["type"] == "content":
+                        answer_text += evt["content"]
+                        event = await gen.send_content(evt["content"])
+                        if event:
+                            yield event
+            else:
+                # 普通模式：不使用标签解析器
+                async for chunk in generate_answer_stream(
+                    messages=messages,
+                    model=None,
+                ):
+                    async for hb in _drain_hb():
+                        yield hb
+                    if chunk.get("type") == "error":
+                        err = await gen.send_error("LLM_FAILED", chunk.get("content", ""))
+                        if err:
+                            yield err
+                        return
+                    content = chunk.get("content", "")
+                    if content:
+                        answer_text += content
+                        event = await gen.send_content(content)
+                        if event:
+                            yield event
 
             # 6. 写 Redis（同步）+ 写 MySQL（异步双写）
             # Fix 3: 计数器与持久化分别异常捕获，互不阻断
@@ -252,6 +445,9 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             except Exception as e:
                 logger.error("[AI_QA] [ERROR] [redis_history_write_failed] user=%s error=%s", user_id, e)
 
+            # 推理内容入库前空值处理
+            reasoning_text_clean = reasoning_text.strip()
+
             # MySQL 异步写入
             try:
                 writer = get_global_writer()
@@ -265,6 +461,7 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                         "client_msg_id": request.client_msg_id,
                         "role": role, "content": content,
                         "knowledge_ids": None,
+                        "reasoning_content": reasoning_text_clean if reasoning_text_clean and role == "assistant" else None,
                         "message_id": mid, "group_id": gid, "seq": s,
                     })
             except Exception as e:
