@@ -42,6 +42,7 @@ class LiangxinCollector(BaseCollector):
         password: str,
         report_type: str = "morning",  # morning / evening
         execution_id: str = None,
+        target_date: str = None,
     ):
         """初始化粮信网采集器
 
@@ -51,6 +52,7 @@ class LiangxinCollector(BaseCollector):
             username: 粮信网账号
             password: 粮信网密码
             report_type: 报告类型 morning=晨报 evening=日报
+            target_date: 目标采集日期 (yyyy-MM-dd)，不传则默认今天
         """
         super().__init__(
             config=config,
@@ -65,6 +67,7 @@ class LiangxinCollector(BaseCollector):
         self.username = username
         self.password = password
         self.report_type = report_type
+        self.target_date = target_date
         self._page: Optional[Page] = None
         self._logged_in = False
 
@@ -557,7 +560,20 @@ class LiangxinCollector(BaseCollector):
             采集数量
         """
         count = 0
-        today = datetime.now().strftime("%Y-%m-%d")
+        # 目标日期：优先使用传入的 target_date，否则取今天
+        if self.target_date and self.target_date.strip():
+            run_date = self.target_date.strip()
+        else:
+            run_date = datetime.now().strftime("%Y-%m-%d")
+        # 兜底强解析校验
+        try:
+            datetime.strptime(run_date, "%Y-%m-%d")
+        except ValueError:
+            logger.error(f"manual_execute_collect_date 目标日期格式非法: {run_date}，终止采集")
+            return 1
+
+        logger.info(f"manual_execute_collect_date 粮信玉米日报采集目标日期：{run_date}, executionId={self.execution_id}")
+        today = run_date
 
         try:
             # 创建浏览器并登录

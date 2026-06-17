@@ -64,6 +64,7 @@ def main():
     parser.add_argument("--task-id", type=int, default=2, help="任务ID（默认 2=日报）")
     parser.add_argument("--no-report", action="store_true", help="禁用上报（仅本地调试）")
     parser.add_argument("--headless", action="store_true", default=True, help="无头模式（默认开启）")
+    parser.add_argument("--date", default=None, help="目标采集日期 (yyyy-MM-dd)")
     args = parser.parse_args()
 
     # 加载配置
@@ -100,6 +101,7 @@ def main():
         username=username,
         password=password,
         report_type="evening",
+        target_date=args.date,
     )
 
     logger.info("=" * 50)

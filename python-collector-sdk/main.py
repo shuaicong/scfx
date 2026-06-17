@@ -125,7 +125,7 @@ def build_collector_params(collector_class, code, args):
     sig = inspect.signature(collector_class.__init__)
     params = {}
 
-    KNOWN = {"config", "task_id", "execution_id"}
+    KNOWN = {"config", "task_id", "execution_id", "target_date"}
 
     for name, param in sig.parameters.items():
         if name == "self":
@@ -140,6 +140,8 @@ def build_collector_params(collector_class, code, args):
             params[name] = args.task_id
         elif name == "execution_id":
             params[name] = args.execution_id
+        elif name == "target_date":
+            params[name] = args.date
         else:
             # 尝试环境变量 {CODE}_{NAME}
             # 数据源编码中的特殊字符替换为下划线，多个连续特殊字符合并为一个下划线
@@ -226,6 +228,7 @@ def main():
     p.add_argument("--execution-id", default=None, help="执行ID (不传则自动创建)")
     p.add_argument("--no-report", action="store_true", help="禁用上报（本地调试）")
     p.add_argument("--local", action="store_true", help="从 dev/collectors/ 加载脚本，不从后端下载")
+    p.add_argument("--date", default=None, help="目标采集日期 (yyyy-MM-dd)，不传则默认今天")
 
     args = parser.parse_args()
 
