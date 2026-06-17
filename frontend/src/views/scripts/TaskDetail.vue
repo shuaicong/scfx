@@ -80,8 +80,7 @@
       </div>
 
       <!-- Execution Result Cards -->
-      <template v-if="!isCreateMode">
-        <div class="result-card success" v-if="lastResult === 'success'" v-show="showResultCard">
+      <div v-if="!isCreateMode && lastResult === 'success' && showResultCard" class="result-card success">
           <div class="result-icon">✓</div>
           <div class="result-info">
             <div class="result-title">执行成功</div>
@@ -95,7 +94,7 @@
           </div>
         </div>
 
-        <div class="result-card failed" v-if="lastResult === 'failed'" v-show="showResultCard">
+        <div v-else-if="lastResult === 'failed' && showResultCard" class="result-card failed">
           <div class="result-icon">✗</div>
           <div class="result-info">
             <div class="result-title">执行失败</div>
@@ -107,7 +106,7 @@
           </div>
         </div>
 
-        <div class="result-card cancelled" v-if="lastResult === 'cancelled'" v-show="showResultCard">
+        <div v-else-if="lastResult === 'cancelled' && showResultCard" class="result-card cancelled">
           <div class="result-icon">⊘</div>
           <div class="result-info">
             <div class="result-title">已取消</div>
@@ -118,7 +117,6 @@
             <button class="result-btn" @click="reExecute">重新执行</button>
           </div>
         </div>
-      </template>
 
       <!-- Main Content Grid -->
       <div class="content-grid">
@@ -615,8 +613,6 @@
         </div>
       </div>
     </div>
-  </div>
-
     <!-- 日期选择弹窗 -->
     <el-dialog v-model="executeDialogVisible" title="选择采集日期" width="420px" :close-on-click-modal="false" append-to-body>
       <div class="date-picker-container">
@@ -624,7 +620,6 @@
         <el-date-picker
           v-model="executeDate"
           type="date"
-          value-format="yyyy-MM-dd"
           placeholder="选择采集日期"
           :disabled-date="disabledDate"
           :editable="false"
@@ -637,6 +632,7 @@
         <el-button type="primary" @click="confirmExecute" :loading="executing">确认执行</el-button>
       </template>
     </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -785,15 +781,21 @@ const status = ref('enabled')
 const executing = ref(false)
 
 const executeDialogVisible = ref(false)
-const executeDate = ref('')
 const minExecuteDate = ref('2020-01-01')
 
+/** 获取今天 00:00:00 的 Date 对象 */
+function getTodayDate(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+const executeDate = ref<Date>(getTodayDate())
+
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 const isTodaySelected = computed(() => {
-  const today = new Date()
-  const y = today.getFullYear()
-  const m = String(today.getMonth() + 1).padStart(2, '0')
-  const d = String(today.getDate()).padStart(2, '0')
-  return executeDate.value === `${y}-${m}-${d}`
+  return fmtDate(executeDate.value) === fmtDate(getTodayDate())
 })
 
 // 是否有正在执行的任务
@@ -1319,20 +1321,7 @@ function disabledDate(time: Date) {
 
 async function handleExecute() {
   if (executing.value) return
-  // 设置默认值
-  const today = new Date()
-  const y = today.getFullYear()
-  const m = String(today.getMonth() + 1).padStart(2, '0')
-  const d = String(today.getDate()).padStart(2, '0')
-  const todayStr = `${y}-${m}-${d}`
-  // 默认选中: 如果最小日期<今天则选昨天，否则选今天
-  if (minExecuteDate.value < todayStr) {
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    executeDate.value = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
-  } else {
-    executeDate.value = todayStr
-  }
+  executeDate.value = getTodayDate()
   executeDialogVisible.value = true
 }
 
@@ -1359,7 +1348,7 @@ async function doExecuteWithDate() {
   realtimeLogs.value = []
 
   try {
-    const params = executeDate.value ? { date: executeDate.value } : undefined
+    const params = executeDate.value ? { date: fmtDate(executeDate.value) } : undefined
     await scriptApi.execute(scriptId.value, params)
     executeDialogVisible.value = false
     setTimeout(() => {

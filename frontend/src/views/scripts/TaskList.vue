@@ -285,8 +285,6 @@
       :script-id="detailScriptId"
       @edit="(script: any) => { detailDialogVisible = false; router.push(`/scripts/${script.id}`) }"
     />
-  </div>
-
     <!-- 日期选择弹窗 -->
     <el-dialog v-model="executeDialogVisible" title="选择采集日期" width="420px" :close-on-click-modal="false" append-to-body>
       <div class="date-picker-container">
@@ -294,7 +292,6 @@
         <el-date-picker
           v-model="executeDate"
           type="date"
-          value-format="yyyy-MM-dd"
           placeholder="选择采集日期"
           :disabled-date="disabledDate"
           :editable="false"
@@ -307,6 +304,7 @@
         <el-button type="primary" @click="confirmExecute" :loading="executing">确认执行</el-button>
       </template>
     </el-dialog>
+  </div>
 </template>
 
 <style>
@@ -344,17 +342,23 @@ const progressDrawer = ref<any>(null)
 
 // 日期选择弹窗
 const executeDialogVisible = ref(false)
-const executeDate = ref('')
 const minExecuteDate = ref('2020-01-01')
+
+/** 获取今天 00:00:00 的 Date 对象 */
+function getTodayDate(): Date {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+function fmtDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+const executeDate = ref<Date>(getTodayDate())
 const currentScript = ref<CollectionScript | null>(null)
 const executing = ref(false)
 
 const isTodaySelected = computed(() => {
-  const today = new Date()
-  const y = today.getFullYear()
-  const m = String(today.getMonth() + 1).padStart(2, '0')
-  const d = String(today.getDate()).padStart(2, '0')
-  return executeDate.value === `${y}-${m}-${d}`
+  return fmtDate(executeDate.value) === fmtDate(getTodayDate())
 })
 
 function disabledDate(time: Date) {
@@ -589,20 +593,7 @@ function handleRecord(id: number) {
 
 async function handleExecute(script: CollectionScript) {
   currentScript.value = script
-  // 设置默认值
-  const today = new Date()
-  const y = today.getFullYear()
-  const m = String(today.getMonth() + 1).padStart(2, '0')
-  const d = String(today.getDate()).padStart(2, '0')
-  const todayStr = `${y}-${m}-${d}`
-  // 默认选中: 如果最小日期<今天则选昨天，否则选今天
-  if (minExecuteDate.value < todayStr) {
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    executeDate.value = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
-  } else {
-    executeDate.value = todayStr
-  }
+  executeDate.value = getTodayDate()
   executeDialogVisible.value = true
 }
 
@@ -623,7 +614,7 @@ async function confirmExecute() {
   const script = currentScript.value
   executing.value = true
   try {
-    const params = executeDate.value ? { date: executeDate.value } : undefined
+    const params = executeDate.value ? { date: fmtDate(executeDate.value) } : undefined
     const res: any = await scriptApi.execute(script.id!, params)
     executeDialogVisible.value = false
     if (res.data?.executionId) {
