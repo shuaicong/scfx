@@ -14,7 +14,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
+import java.util.Arrays;
 
 import javax.sql.DataSource;
 import java.io.BufferedReader;
@@ -128,14 +132,34 @@ public class CollectorAgentService {
             String datasourceCode = datasourceName.toUpperCase().replaceAll("[^a-zA-Z0-9]+", "_")
                 .replaceAll("^_|_$", "");
 
+            // 读取 detail_json 提取 date
+            String date = null;
+            try {
+                String detailJson = execution.getDetailJson();
+                if (detailJson != null && !detailJson.isEmpty()) {
+                    JsonNode root = objectMapper.readTree(detailJson);
+                    if (root.has("date")) {
+                        date = root.get("date").asText();
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("解析 detail_json 失败，忽略 date 参数: executionId={}", executionId);
+            }
+
             // 构建命令 - 使用 main.py run <code> 方式运行
-            ProcessBuilder pb = new ProcessBuilder(
+            List<String> commandArgs = new ArrayList<>(Arrays.asList(
                 "python3", "main.py",
                 "--api-base", apiBase,
                 "run", datasourceName,
                 "--execution-id", executionId,
                 "--task-id", String.valueOf(script.getId())
-            );
+            ));
+            if (date != null) {
+                commandArgs.add("--date");
+                commandArgs.add(date);
+                log.info("manual_execute_collect_date:{}, executionId={}", date, executionId);
+            }
+            ProcessBuilder pb = new ProcessBuilder(commandArgs);
             // 设置工作目录为 SDK 根目录
             pb.directory(new java.io.File(collectorSdkPath));
             // 通过环境变量传递报告类型
