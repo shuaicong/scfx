@@ -171,12 +171,21 @@
         <span class="preview-sep"></span>
         <button class="preview-btn preview-close-btn" @click="closePreview" title="关闭">✕</button>
       </div>
-      <!-- 图片容器（支持滚轮缩放） -->
-      <div class="preview-img-wrap" @click.stop @wheel="onPreviewWheel">
+      <!-- 图片容器（支持滚轮缩放 + 拖拽平移） -->
+      <div
+        class="preview-img-wrap"
+        @click.stop
+        @wheel="onPreviewWheel"
+        @mousedown="onPreviewMouseDown"
+        @mousemove="onPreviewMouseMove"
+        @mouseup="onPreviewMouseUp"
+        @mouseleave="onPreviewMouseUp"
+      >
         <img
           :src="previewImageUrl"
           class="image-preview-img"
-          :style="{ transform: 'scale(' + previewScale + ')' }"
+          :style="{ transform: 'translate(' + previewOffsetX + 'px, ' + previewOffsetY + 'px) scale(' + previewScale + ')' }"
+          draggable="false"
           @click.stop
         >
       </div>
@@ -456,10 +465,19 @@ const showChunks = ref(false)
 const chunks = ref<any[]>([])
 const previewImageUrl = ref('')
 const previewScale = ref(1)
+const previewOffsetX = ref(0)
+const previewOffsetY = ref(0)
+let isDragging = false
+let dragStartX = 0
+let dragStartY = 0
+let dragOffsetX = 0
+let dragOffsetY = 0
 
 function closePreview() {
   previewImageUrl.value = ''
   previewScale.value = 1
+  previewOffsetX.value = 0
+  previewOffsetY.value = 0
 }
 function zoomIn() {
   previewScale.value = Math.min(5, Math.round(previewScale.value * 1.5 * 100) / 100)
@@ -471,6 +489,27 @@ function onPreviewWheel(e: WheelEvent) {
   e.preventDefault()
   const delta = e.deltaY > 0 ? 0.9 : 1.1
   previewScale.value = Math.max(0.25, Math.min(5, Math.round(previewScale.value * delta * 100) / 100))
+}
+
+function onPreviewMouseDown(e: MouseEvent) {
+  isDragging = true
+  dragStartX = e.clientX
+  dragStartY = e.clientY
+  dragOffsetX = previewOffsetX.value
+  dragOffsetY = previewOffsetY.value
+  const img = (e.currentTarget as HTMLElement)?.querySelector('img')
+  if (img) img.style.cursor = 'grabbing'
+  e.preventDefault()
+}
+function onPreviewMouseMove(e: MouseEvent) {
+  if (!isDragging) return
+  previewOffsetX.value = dragOffsetX + (e.clientX - dragStartX)
+  previewOffsetY.value = dragOffsetY + (e.clientY - dragStartY)
+}
+function onPreviewMouseUp() {
+  isDragging = false
+  const img = document.querySelector('.image-preview-img') as HTMLElement | null
+  if (img) img.style.cursor = ''
 }
 
 /** 清洗后的 HTML 内容（TABLE_MARKER 区域替换为 HTML 表格，保留图片和文本） */
@@ -1160,7 +1199,7 @@ onMounted(async () => {
   max-height: 100%;
   object-fit: contain;
   border-radius: 4px;
-  transition: transform 0.15s ease;
+  cursor: grab;
   box-shadow: 0 8px 40px rgba(0,0,0,0.4);
 }
 
