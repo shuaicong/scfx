@@ -18,7 +18,7 @@ class LiangxinDailyCollector(LiangxinCollector):
         python main.py run liangxin-daily
     """
 
-    def __init__(self, config, task_id=2, username="", password="", execution_id=None):
+    def __init__(self, config, task_id=2, username="", password="", execution_id=None, target_date=None):
         """初始化日报采集器
 
         Args:
@@ -26,6 +26,8 @@ class LiangxinDailyCollector(LiangxinCollector):
             task_id: 任务ID（默认 2=日报）
             username: 粮信网账号
             password: 粮信网密码
+            execution_id: 执行ID
+            target_date: 目标采集日期 (yyyy-MM-dd)，不传则默认今天
         """
         super().__init__(
             config=config,
@@ -34,4 +36,5 @@ class LiangxinDailyCollector(LiangxinCollector):
             password=password,
             report_type="evening",
             execution_id=execution_id,
+            target_date=target_date,
         )

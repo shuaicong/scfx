@@ -572,7 +572,7 @@ class LiangxinCollector(BaseCollector):
             logger.error(f"manual_execute_collect_date 目标日期格式非法: {run_date}，终止采集")
             raise ValueError(f"目标日期格式非法: {run_date}")
 
-        logger.info(f"manual_execute_collect_date 粮信玉米日报采集目标日期：{run_date}, executionId={self.execution_id}")
+        logger.info(f"manual_execute_collect_date 粮信玉米日报采集目标日期：{run_date}, executionId={self._execution_id}")
         today = run_date
 
         try:
