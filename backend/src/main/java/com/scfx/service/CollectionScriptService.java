@@ -138,10 +138,16 @@ public class CollectionScriptService {
                     }
                     ((ObjectNode) root).put("date", date);
                     execution.setDetailJson(objectMapper.writeValueAsString(root));
-                } catch (JsonProcessingException e) {
-                    ObjectNode root = objectMapper.createObjectNode();
-                    root.put("date", date);
-                    execution.setDetailJson(objectMapper.writeValueAsString(root));
+                } catch (Exception e) {
+                    // JSON 解析失败时初始化为空 JSON 对象
+                    try {
+                        ObjectNode root = objectMapper.createObjectNode();
+                        root.put("date", date);
+                        execution.setDetailJson(objectMapper.writeValueAsString(root));
+                    } catch (Exception ignored) {
+                        // 极端情况写入失败，忽略该日志
+                        log.warn("写入 detail_json 失败: executionId={}", execution.getExecutionId());
+                    }
                 }
                 taskExecutionMapper.updateById(execution);
             }
