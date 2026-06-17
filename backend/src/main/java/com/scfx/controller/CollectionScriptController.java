@@ -2,6 +2,7 @@ package com.scfx.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.scfx.common.Result;
+import com.scfx.dto.ScriptExecuteReq;
 import com.scfx.entity.CollectionScript;
 import com.scfx.entity.ExecutionItem;
 import com.scfx.entity.TaskExecution;
@@ -131,8 +132,10 @@ public class CollectionScriptController {
      * 创建执行记录，由 CollectorAgentService 异步执行
      */
     @PostMapping("/{id}/execute")
-    public Result<Map<String, Object>> executeScript(@PathVariable Long id) {
-        return scriptService.executeScriptNow(id);
+    public Result<Map<String, Object>> executeScript(
+            @PathVariable Long id,
+            @RequestBody(required = false) ScriptExecuteReq req) {
+        return scriptService.executeScriptNow(id, req);
     }
 
     /**

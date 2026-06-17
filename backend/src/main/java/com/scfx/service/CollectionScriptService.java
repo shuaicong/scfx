@@ -3,7 +3,12 @@ package com.scfx.service;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.scfx.common.Result;
+import com.scfx.dto.ScriptExecuteReq;
 import com.scfx.entity.CollectionScript;
 import com.scfx.entity.TaskExecution;
 import com.scfx.mapper.CollectionLogMapper;
@@ -14,16 +19,22 @@ import com.scfx.mapper.TaskExecutionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 /**
@@ -51,12 +62,17 @@ public class CollectionScriptService {
     @Autowired
     private CollectionLogMapper collectionLogMapper;
 
+    @Value("${collector.min-execute-date:2020-01-01}")
+    private String minExecuteDate;
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     /**
      * 立即执行脚本
      * 创建待执行记录，由 CollectorAgentService 异步执行 Python 脚本
      */
     @Transactional
-    public Result<Map<String, Object>> executeScriptNow(Long id) {
+    public Result<Map<String, Object>> executeScriptNow(Long id, ScriptExecuteReq req) {
         CollectionScript script = scriptMapper.selectById(id);
         if (script == null) {
             return Result.error("脚本不存在");
@@ -65,32 +81,119 @@ public class CollectionScriptService {
             return Result.error("脚本已禁用，请先启用");
         }
 
-        // 创建待执行记录，由 CollectorAgentService 轮询并执行
-        TaskExecution execution = executionService.createExecution(id, "manual");
-
-        // 更新脚本统计
-        script.setLastExecutionTime(LocalDateTime.now());
-        script.setNextExecutionTime(calculateNextExecution(script));
-        script.setExecutionCount(script.getExecutionCount() == null ? 1 : script.getExecutionCount() + 1);
-        scriptMapper.updateById(script);
-
-        // 单次触发手动执行后自动禁用
-        String tt = script.getTriggerType();
-        if ("once".equals(tt) || "single".equals(tt)) {
-            script.setStatus("disabled");
-            scriptMapper.updateById(script);
-            log.info("单次任务执行完毕，已自动禁用: {}", script.getScriptName());
+        // 1. 分布式锁拦截（基于 scriptId）
+        String lockKey = "script_execute_lock_" + id;
+        if (!acquireLock(lockKey, 30)) {
+            return Result.error("操作频繁，请稍后重试");
         }
+        try {
+            // 2. 全局并发拦截：锁内二次校验
+            long runningCount = taskExecutionMapper.selectCount(
+                new LambdaQueryWrapper<TaskExecution>()
+                    .eq(TaskExecution::getScriptId, id)
+                    .eq(TaskExecution::getStatus, "running"));
+            if (runningCount > 0) {
+                return Result.error("该任务正在执行中，请等待完成");
+            }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("scriptId", id);
-        result.put("executionId", execution.getExecutionId());
-        result.put("scriptName", script.getScriptName());
-        result.put("source", script.getSource());
-        result.put("subject", script.getSubject());
+            // 3. 白名单检查
+            String source = script.getSource();
+            boolean isWhiteListed = "liangxin".equals(source) || "liangxin-daily".equals(source);
 
-        log.info("触发采集脚本执行: {}, executionId={}", script.getScriptName(), execution.getExecutionId());
-        return Result.success(result);
+            // 4. 处理 date 参数
+            String date = (req != null && isWhiteListed) ? req.getDate() : null;
+            if (date != null) {
+                date = date.trim();
+                if (date.length() > 10) {
+                    return Result.error("日期格式错误：长度不能超过 10 位");
+                }
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+                try {
+                    LocalDate parsed = LocalDate.parse(date, formatter);
+                    if (parsed.isAfter(LocalDate.now())) {
+                        return Result.error("不能采集未来日期的数据");
+                    }
+                    LocalDate minDate = LocalDate.parse(minExecuteDate, formatter);
+                    if (parsed.isBefore(minDate)) {
+                        return Result.error("日期早于最小可采集日期 " + minExecuteDate);
+                    }
+                } catch (DateTimeParseException e) {
+                    return Result.error("日期格式错误，必须为 yyyy-MM-dd");
+                }
+            }
+
+            // 5. 创建执行记录
+            TaskExecution execution = executionService.createExecution(id, "manual");
+
+            // 6. 写入 detail_json（只新增 date 键，不覆盖原有 JSON）
+            if (date != null) {
+                try {
+                    JsonNode root;
+                    if (execution.getDetailJson() != null && !execution.getDetailJson().isEmpty()) {
+                        root = objectMapper.readTree(execution.getDetailJson());
+                    } else {
+                        root = objectMapper.createObjectNode();
+                    }
+                    ((ObjectNode) root).put("date", date);
+                    execution.setDetailJson(objectMapper.writeValueAsString(root));
+                } catch (JsonProcessingException e) {
+                    ObjectNode root = objectMapper.createObjectNode();
+                    root.put("date", date);
+                    execution.setDetailJson(objectMapper.writeValueAsString(root));
+                }
+                taskExecutionMapper.updateById(execution);
+            }
+
+            // 7. 采集日期写入执行备注
+            if (date != null) {
+                execution.setErrorMessage("采集日期：" + date);
+                taskExecutionMapper.updateById(execution);
+            }
+
+            // 8. 更新脚本统计
+            script.setLastExecutionTime(LocalDateTime.now());
+            script.setNextExecutionTime(calculateNextExecution(script));
+            script.setExecutionCount(script.getExecutionCount() == null ? 1 : script.getExecutionCount() + 1);
+            scriptMapper.updateById(script);
+
+            // 单次触发手动执行后自动禁用
+            String tt = script.getTriggerType();
+            if ("once".equals(tt) || "single".equals(tt)) {
+                script.setStatus("disabled");
+                scriptMapper.updateById(script);
+            }
+
+            Map<String, Object> result = new HashMap<>();
+            result.put("scriptId", id);
+            result.put("executionId", execution.getExecutionId());
+            result.put("scriptName", script.getScriptName());
+            result.put("source", script.getSource());
+
+            log.info("manual_execute_collect_date:{}, 任务ID:{}", date, id);
+            return Result.success(result);
+        } finally {
+            releaseLock(lockKey);
+        }
+    }
+
+    private final ConcurrentMap<String, java.util.concurrent.locks.ReentrantLock> lockMap = new ConcurrentHashMap<>();
+
+    private boolean acquireLock(String key, int seconds) {
+        java.util.concurrent.locks.ReentrantLock lock = lockMap.computeIfAbsent(key,
+            k -> new java.util.concurrent.locks.ReentrantLock());
+        try {
+            return lock.tryLock(seconds, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        }
+    }
+
+    private void releaseLock(String key) {
+        java.util.concurrent.locks.ReentrantLock lock = lockMap.get(key);
+        if (lock != null && lock.isHeldByCurrentThread()) {
+            lock.unlock();
+        }
     }
 
     /**

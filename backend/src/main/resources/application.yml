@@ -103,6 +103,7 @@ logging:
 
 # 自定义配置
 collector:
+  min-execute-date: 2020-01-01
   sdk-path: ${COLLECTOR_SDK_PATH:${user.home}/workspace/ai/scfx/python-collector-sdk}
   script:
     path: ${COLLECTOR_SCRIPT_PATH:${user.home}/workspace/ai/scfx/data/collectors}
