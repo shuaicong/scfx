@@ -156,7 +156,7 @@
     </div>
 
     <!-- 原始 HTML 内容（含图片） -->
-    <div v-if="knowledge.contentHtml" class="content-html">
+    <div v-if="knowledge?.contentHtml" class="content-html">
       <div v-html="knowledge.contentHtml"></div>
     </div>
 
