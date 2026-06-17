@@ -108,7 +108,7 @@ def main():
     logger.info("粮信网玉米日报采集开始")
     logger.info(f"  账号: {username}")
     logger.info(f"  API:  {api_base}")
-    logger.info(f"  日期: {datetime.now().strftime('%Y-%m-%d')}")
+    logger.info(f"  日期: {args.date or datetime.now().strftime('%Y-%m-%d')}")
     logger.info("=" * 50)
 
     # 执行采集

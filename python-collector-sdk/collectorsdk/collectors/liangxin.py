@@ -42,7 +42,7 @@ class LiangxinCollector(BaseCollector):
         password: str,
         report_type: str = "morning",  # morning / evening
         execution_id: str = None,
-        target_date: str = None,
+        target_date: Optional[str] = None,
     ):
         """初始化粮信网采集器
 
@@ -570,7 +570,7 @@ class LiangxinCollector(BaseCollector):
             datetime.strptime(run_date, "%Y-%m-%d")
         except ValueError:
             logger.error(f"manual_execute_collect_date 目标日期格式非法: {run_date}，终止采集")
-            return 1
+            raise ValueError(f"目标日期格式非法: {run_date}")
 
         logger.info(f"manual_execute_collect_date 粮信玉米日报采集目标日期：{run_date}, executionId={self.execution_id}")
         today = run_date
