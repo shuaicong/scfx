@@ -153,9 +153,9 @@
         </template>
       </div>
 
-      <!-- 原始 HTML 内容（含图片） -->
-      <div v-if="knowledge?.contentHtml" class="content-html" @click="onContentClick">
-        <div v-html="knowledge.contentHtml"></div>
+      <!-- 文章内嵌图片（从 contentHtml 提取） -->
+      <div v-if="imagesFromHtml.length > 0" class="content-images" @click="onContentClick">
+        <img v-for="(url, idx) in imagesFromHtml" :key="idx" :src="url" class="inline-image" alt="文章图片">
       </div>
 
     </div>
@@ -436,6 +436,19 @@ const renderedBlocks = ref<ContentBlock[]>([])
 const showChunks = ref(false)
 const chunks = ref<any[]>([])
 const previewImageUrl = ref('')
+
+/** 从 contentHtml 中提取所有图片 URL */
+const imagesFromHtml = computed(() => {
+  const html = knowledge.value?.contentHtml
+  if (!html) return []
+  const urls: string[] = []
+  const re = /<img[^>]+src="([^"]+)"/g
+  let m
+  while ((m = re.exec(html)) !== null) {
+    urls.push(m[1])
+  }
+  return urls
+})
 
 /** 点击内容区的图片时弹出预览 */
 function onContentClick(e: MouseEvent) {
@@ -955,17 +968,17 @@ onMounted(async () => {
   background: #0d1117 !important;
 }
 
-.content-html {
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text-secondary);
+.content-images {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
 }
 
-.content-html p {
-  margin-bottom: 10px;
-}
-
-.content-html img {
+.inline-image {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
   cursor: zoom-in;
 }
 
