@@ -1,12 +1,9 @@
 """图片下载、校验、上传处理器"""
-import hashlib
 import json
 import logging
 import os
 import re
-import tempfile
 import uuid
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 from playwright.sync_api import Page
 
@@ -28,12 +25,6 @@ ALLOWED_DOMAINS = {'cms.jinnong.cn'}
 
 # 单图下载超时（毫秒）
 SINGLE_IMAGE_TIMEOUT_MS = 30_000
-
-# 全局下载超时（秒）
-GLOBAL_TIMEOUT_SECONDS = 120
-
-# 最大并发数
-MAX_WORKERS = 5
 
 # 文件大小上限
 IMAGE_MAX_BYTES = 10 * 1024 * 1024
@@ -143,23 +134,15 @@ def process_images(
         from datetime import datetime
         collect_date = datetime.now().strftime("%Y%m%d")
 
-    # 并发下载
+    # 顺序下载（必须与 Playwright 同线程，ThreadPoolExecutor 会触发跨线程错误）
     url_to_body: dict[str, Optional[bytes]] = {}
 
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        future_map = {
-            executor.submit(_download_image, page, url): url
-            for url in source_urls
-        }
-        for future in as_completed(future_map, timeout=GLOBAL_TIMEOUT_SECONDS):
-            url = future_map[future]
-            try:
-                body = future.result()
-                url_to_body[url] = body
-            except Exception as e:
-                url_to_body[url] = None
-                result.failed += 1
-                result.failures.append({"url": url, "reason": f"download_exception:{str(e)[:50]}"})
+    for url in source_urls:
+        body = _download_image(page, url)
+        url_to_body[url] = body
+        if body is None:
+            result.failed += 1
+            result.failures.append({"url": url, "reason": "download_failed"})
 
     # 校验魔数 + 上传 MinIO
     from datetime import datetime
