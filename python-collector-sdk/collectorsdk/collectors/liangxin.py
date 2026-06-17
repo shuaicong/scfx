@@ -70,6 +70,7 @@ class LiangxinCollector(BaseCollector):
         self.target_date = target_date
         self._page: Optional[Page] = None
         self._logged_in = False
+        self._image_count = 0
 
     def _create_browser(self):
         """创建浏览器，优先复用已保存的登录状态"""
@@ -615,6 +616,28 @@ class LiangxinCollector(BaseCollector):
                             )
                             table_meta_raw = []
 
+                    # 处理文章中的图片（替换为 MinIO 本地地址）
+                    self._image_count = 0
+                    try:
+                        from collectorsdk.image_processor import process_images
+                        from collectorsdk.minio_client import MinioClient
+
+                        if content and content.get("html"):
+                            minio_client = MinioClient()
+                            processed_html, img_result = process_images(
+                                html=content["html"],
+                                page=self._page,
+                                minio_client=minio_client,
+                                execution_id=self.get_execution_id(),
+                                collect_date=self.target_date or datetime.now().strftime("%Y-%m-%d"),
+                            )
+                            if img_result.success > 0:
+                                content["html"] = processed_html
+                            self._image_count = img_result.success
+                    except Exception as e:
+                        logger.warning("图片处理失败（已降级）: %s", str(e))
+                        self._image_count = 0
+
                     self.submit_report(
                         title=report["title"],
                         source="liangxin",
@@ -625,6 +648,7 @@ class LiangxinCollector(BaseCollector):
                         content_html=content["html"],
                         publish_time=report["publish_time"],
                         table_meta=json.dumps(table_meta_raw, ensure_ascii=False),
+                        image_count=self._image_count,
                     )
                     count += 1
                     self._success_count += 1

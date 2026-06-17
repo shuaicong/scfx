@@ -441,7 +441,7 @@ class CollectorReporter:
         """快捷方法：记录ERROR日志"""
         self.report_log("ERROR", message, phase=phase, category=category)
 
-    def submit_report(self, title: str, source: str, url: str, variety: str = "", report_type: str = "", content: str = "", content_html: str = "", publish_time: str = "", table_meta: str = ""):
+    def submit_report(self, title: str, source: str, url: str, variety: str = "", report_type: str = "", content: str = "", content_html: str = "", publish_time: str = "", table_meta: str = "", image_count: int = 0):
         """
         快捷方法：提交报告数据
 
@@ -455,6 +455,7 @@ class CollectorReporter:
             content_html: 正文HTML（保留格式）
             publish_time: 发布时间
             table_meta: 结构化表格数据 JSON 字符串（由采集器在提取 HTML 时生成）
+            image_count: 图片数量
         """
         data = {
             "title": title,
@@ -466,5 +467,6 @@ class CollectorReporter:
             "contentHtml": content_html,
             "publishTime": publish_time,
             "tableMeta": table_meta,
+            "imageCount": image_count,
         }
         self.report_data(data)
