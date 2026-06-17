@@ -158,10 +158,32 @@
     </div>
 
     <!-- 图片预览遮罩 -->
-    <div v-if="previewImageUrl" class="image-preview-overlay" @click="previewImageUrl = ''">
-      <img :src="previewImageUrl" class="image-preview-img" @click.stop>
-      <button class="image-preview-close" @click="previewImageUrl = ''">✕</button>
-      <a :href="previewImageUrl" target="_blank" rel="noopener" class="image-preview-open">新窗口打开</a>
+    <div v-if="previewImageUrl" class="image-preview-overlay" @click="closePreview">
+      <!-- 工具栏 -->
+      <div class="preview-toolbar" @click.stop>
+        <button class="preview-btn" @click="zoomOut" :disabled="previewScale <= 0.25" title="缩小">−</button>
+        <span class="preview-zoom-level">{{ Math.round(previewScale * 100) }}%</span>
+        <button class="preview-btn" @click="zoomIn" :disabled="previewScale >= 5" title="放大">+</button>
+        <span class="preview-sep"></span>
+        <button class="preview-btn" @click="previewScale = 1" title="重置">⊡</button>
+        <span class="preview-sep"></span>
+        <a :href="previewImageUrl" target="_blank" rel="noopener" class="preview-btn" title="新窗口打开">↗</a>
+        <span class="preview-sep"></span>
+        <button class="preview-btn preview-close-btn" @click="closePreview" title="关闭">✕</button>
+      </div>
+      <!-- 图片容器（支持滚轮缩放） -->
+      <div class="preview-img-wrap" @click.stop @wheel="onPreviewWheel">
+        <img
+          :src="previewImageUrl"
+          class="image-preview-img"
+          :style="{ transform: 'scale(' + previewScale + ')' }"
+          @click.stop
+        >
+      </div>
+      <!-- 底部提示 -->
+      <div class="preview-footer" @click.stop>
+        <span class="preview-tip">滚轮缩放 · 拖拽平移</span>
+      </div>
     </div>
 
     <!-- 切片列表 - 侧滑抽屉 -->
@@ -433,6 +455,23 @@ const renderedBlocks = ref<ContentBlock[]>([])
 const showChunks = ref(false)
 const chunks = ref<any[]>([])
 const previewImageUrl = ref('')
+const previewScale = ref(1)
+
+function closePreview() {
+  previewImageUrl.value = ''
+  previewScale.value = 1
+}
+function zoomIn() {
+  previewScale.value = Math.min(5, Math.round(previewScale.value * 1.5 * 100) / 100)
+}
+function zoomOut() {
+  previewScale.value = Math.max(0.25, Math.round(previewScale.value / 1.5 * 100) / 100)
+}
+function onPreviewWheel(e: WheelEvent) {
+  e.preventDefault()
+  const delta = e.deltaY > 0 ? 0.9 : 1.1
+  previewScale.value = Math.max(0.25, Math.min(5, Math.round(previewScale.value * delta * 100) / 100))
+}
 
 /** 清洗后的 HTML 内容（TABLE_MARKER 区域替换为 HTML 表格，保留图片和文本） */
 const sanitizedHtml = computed(() => {
@@ -1050,57 +1089,89 @@ onMounted(async () => {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: rgba(0,0,0,0.85);
+  background: rgba(0,0,0,0.88);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  cursor: zoom-out;
+  user-select: none;
 }
 
-.image-preview-img {
-  max-width: 90vw;
-  max-height: 90vh;
-  object-fit: contain;
-  border-radius: 4px;
-  cursor: default;
-  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-}
-
-.image-preview-close {
+.preview-toolbar {
   position: fixed;
-  top: 20px;
-  right: 24px;
-  background: rgba(255,255,255,0.15);
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  padding: 6px 12px;
+  z-index: 10;
+}
+.preview-btn {
+  background: transparent;
   border: none;
-  color: #fff;
-  font-size: 22px;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
+  color: rgba(255,255,255,0.8);
+  font-size: 18px;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  text-decoration: none;
+  transition: background 0.15s;
 }
-.image-preview-close:hover {
-  background: rgba(255,255,255,0.3);
+.preview-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+.preview-btn:disabled { opacity: 0.3; cursor: default; }
+.preview-close-btn { color: #ff6b6b; }
+.preview-close-btn:hover { background: rgba(255,107,107,0.2); color: #ff6b6b; }
+.preview-zoom-level {
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+  min-width: 44px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.preview-sep {
+  width: 1px;
+  height: 20px;
+  background: rgba(255,255,255,0.15);
+  margin: 0 4px;
 }
 
-.image-preview-open {
+.preview-img-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+  padding: 80px 40px 56px;
+}
+
+.image-preview-img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  transition: transform 0.15s ease;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+}
+
+.preview-footer {
   position: fixed;
-  bottom: 24px;
+  bottom: 16px;
   left: 50%;
   transform: translateX(-50%);
-  color: #f5c87a;
-  font-size: 14px;
-  text-decoration: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  background: rgba(255,255,255,0.1);
-  transition: background 0.2s;
 }
-.image-preview-open:hover {
-  background: rgba(255,255,255,0.2);
+.preview-tip {
+  font-size: 12px;
+  color: rgba(255,255,255,0.4);
 }
 </style>
