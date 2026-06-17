@@ -633,6 +633,7 @@ async function confirmExecute() {
   } catch (e: any) {
     if (e !== 'cancel') {
       console.error(e)
+      ElMessage.error(e.message || '执行失败，请检查脚本配置')
     }
   } finally {
     executing.value = false
