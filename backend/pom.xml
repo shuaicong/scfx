@@ -158,6 +158,13 @@
             <artifactId>flyway-mysql</artifactId>
             <version>9.22.3</version>
         </dependency>
+
+        <!-- MinIO 对象存储（知识库图片） -->
+        <dependency>
+            <groupId>io.minio</groupId>
+            <artifactId>minio</artifactId>
+            <version>8.5.12</version>
+        </dependency>
     </dependencies>
 
     <build>

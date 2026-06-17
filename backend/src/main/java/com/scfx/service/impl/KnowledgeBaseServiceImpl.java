@@ -10,6 +10,7 @@ import com.scfx.mapper.KnowledgeCategoryMapper;
 import com.scfx.mapper.KnowledgeChunkMapper;
 import com.scfx.mapper.KnowledgeTaskMapper;
 import com.scfx.service.FileStorageService;
+import com.scfx.service.ImageService;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.VectorStore;
 import lombok.RequiredArgsConstructor;
@@ -43,6 +44,7 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
     private final KnowledgeTaskMapper knowledgeTaskMapper;
     private final DrCoordMapper drCoordMapper;
     private final KnowledgeCategoryMapper knowledgeCategoryMapper;
+    private final ImageService imageService;
     private final RestTemplate restTemplate = new RestTemplate();
 
     @Value("${qdrant.host:127.0.0.1}")
@@ -86,7 +88,10 @@ public class KnowledgeBaseServiceImpl extends ServiceImpl<KnowledgeBaseMapper, K
             new LambdaQueryWrapper<DrCoord>().eq(DrCoord::getKnowledgeId, id));
         knowledgeCategoryMapper.deleteAllByKnowledgeId(id);      // 删除分类关联
 
-        // 5. 逻辑删除主记录
+        // 5. 清理关联图片（MinIO + 数据库记录）
+        imageService.deleteByKnowledgeId(id);
+
+        // 6. 逻辑删除主记录
         return super.removeById(id);
     }
 

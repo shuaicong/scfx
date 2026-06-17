@@ -140,6 +140,12 @@ qdrant:
   port: 6333
   collection: grain_knowledge
 
+# MinIO 对象存储（知识库图片）
+minio:
+  endpoint: http://localhost:9000
+  access-key: admin
+  secret-key: password
+
 # 向量库配置
 vector:
   enabled: true   # true: 使用真实向量库, false: 使用 Mock

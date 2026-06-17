@@ -4,12 +4,15 @@ import com.scfx.common.Result;
 import com.scfx.entity.CollectionScript;
 import com.scfx.entity.ExecutionItem;
 import com.scfx.entity.KnowledgeBase;
+import com.scfx.entity.KnowledgeImage;
 import com.scfx.entity.TaskExecution;
 import com.scfx.mapper.ExecutionItemMapper;
 import com.scfx.mapper.KnowledgeCategoryMapper;
 import com.scfx.mapper.DataSourceMapper;
+import com.scfx.mapper.DataSourceMapper;
 import com.scfx.service.CollectionScriptService;
 import com.scfx.service.DocumentPipeline;
+import com.scfx.service.ImageService;
 import com.scfx.service.KnowledgeBaseService;
 import com.scfx.service.TaskExecutionService;
 import com.scfx.service.VectorTaskService;
@@ -19,7 +22,9 @@ import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.web.bind.annotation.*;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -40,6 +45,8 @@ public class CollectorController {
     private final CollectionScriptService scriptService;
     private final KnowledgeCategoryMapper knowledgeCategoryMapper;
     private final DataSourceMapper dataSourceMapper;
+    private final ImageService imageService;
+    private final ObjectMapper objectMapper;
 
     /**
      * 启动采集任务
@@ -190,6 +197,18 @@ public class CollectorController {
             }
 
             log.info("submitData: 知识库已保存, knowledgeId={}, contentHash={}", kb.getId(), kb.getContentHash());
+
+            // 接收并保存图片明细
+            String imageListJson = (String) request.get("imageList");
+            if (imageListJson != null && !imageListJson.isEmpty()) {
+                try {
+                    List<KnowledgeImage> images = objectMapper.readValue(imageListJson,
+                        new com.fasterxml.jackson.core.type.TypeReference<List<KnowledgeImage>>() {});
+                    imageService.saveImages(kb.getId(), images);
+                } catch (Exception e) {
+                    log.warn("保存图片明细失败: knowledgeId={}", kb.getId(), e);
+                }
+            }
 
             // 写入 t_knowledge_category 关联
             if (kb.getCategoryId() != null && kb.getId() != null) {
