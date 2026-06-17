@@ -283,6 +283,7 @@ class BaseCollector(ABC):
         publish_time: str = "",
         table_meta: str = "",
         image_count: int = 0,
+        image_list: Optional[str] = None,
     ):
         """
         快捷方法：提交报告数据
@@ -298,6 +299,7 @@ class BaseCollector(ABC):
             publish_time: 发布时间
             table_meta: 结构化表格数据 JSON 字符串（由采集器在提取 HTML 时生成）
             image_count: 图片数量
+            image_list: 图片明细 JSON 字符串
         """
         if not content or not content.strip():
             logger.warning(f"报告内容为空，跳过提交: {title}")
@@ -314,6 +316,7 @@ class BaseCollector(ABC):
             publish_time=publish_time,
             table_meta=table_meta,
             image_count=image_count,
+            image_list=image_list,
         )
 
     def get_execution_id(self) -> Optional[str]:

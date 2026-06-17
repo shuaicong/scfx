@@ -60,6 +60,15 @@ class MinioClient:
         try:
             self._client.head_bucket(Bucket=self.bucket)
             logger.info("MinIO 桶已存在: %s", self.bucket)
+
+            # CORS 配置（仅桶已存在时设置）
+            try:
+                self._client.put_bucket_cors(
+                    Bucket=self.bucket, CORSConfiguration=CORS_CONFIG
+                )
+                logger.info("MinIO 桶 CORS 已配置: %s", self.bucket)
+            except Exception as e:
+                logger.warning("MinIO 桶 CORS 配置失败（可忽略）: %s", str(e))
         except ClientError:
             logger.info("MinIO 桶不存在，正在创建: %s", self.bucket)
             self._client.create_bucket(Bucket=self.bucket)
@@ -69,14 +78,14 @@ class MinioClient:
             self._client.put_bucket_policy(Bucket=self.bucket, Policy=policy)
             logger.info("MinIO 桶公开读策略已设置: %s", self.bucket)
 
-        # CORS 配置（独立 try-catch，失败不阻塞主体流程）
-        try:
-            self._client.put_bucket_cors(
-                Bucket=self.bucket, CORSConfiguration=CORS_CONFIG
-            )
-            logger.info("MinIO 桶 CORS 已配置: %s", self.bucket)
-        except Exception as e:
-            logger.warning("MinIO 桶 CORS 配置失败（可忽略，<img> 标签加载不需要 CORS）: %s", str(e))
+            # CORS 配置（新桶，失败不阻塞）
+            try:
+                self._client.put_bucket_cors(
+                    Bucket=self.bucket, CORSConfiguration=CORS_CONFIG
+                )
+                logger.info("MinIO 桶 CORS 已配置: %s", self.bucket)
+            except Exception as e:
+                logger.warning("MinIO 桶 CORS 配置失败（可忽略）: %s", str(e))
         except Exception as e:
             # MinIO 不可用时降级（连接失败等），不阻塞调用方
             logger.warning("MinIO 桶初始化失败（已降级）: %s", str(e))

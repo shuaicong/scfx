@@ -71,6 +71,7 @@ class LiangxinCollector(BaseCollector):
         self._page: Optional[Page] = None
         self._logged_in = False
         self._image_count = 0
+        self._image_details: list[dict] = []
 
     def _create_browser(self):
         """创建浏览器，优先复用已保存的登录状态"""
@@ -618,6 +619,7 @@ class LiangxinCollector(BaseCollector):
 
                     # 处理文章中的图片（替换为 MinIO 本地地址）
                     self._image_count = 0
+                    self._image_details = []
                     try:
                         from collectorsdk.image_processor import process_images
                         from collectorsdk.minio_client import MinioClient
@@ -634,9 +636,11 @@ class LiangxinCollector(BaseCollector):
                             if img_result.success > 0:
                                 content["html"] = processed_html
                             self._image_count = img_result.success
+                            self._image_details = img_result.image_details
                     except Exception as e:
                         logger.warning("图片处理失败（已降级）: %s", str(e))
                         self._image_count = 0
+                        self._image_details = []
 
                     self.submit_report(
                         title=report["title"],
@@ -649,6 +653,7 @@ class LiangxinCollector(BaseCollector):
                         publish_time=report["publish_time"],
                         table_meta=json.dumps(table_meta_raw, ensure_ascii=False),
                         image_count=self._image_count,
+                        image_list=json.dumps(self._image_details) if self._image_details else None,
                     )
                     count += 1
                     self._success_count += 1

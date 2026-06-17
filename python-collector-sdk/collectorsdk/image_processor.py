@@ -109,6 +109,20 @@ class ImageProcessResult:
         self.failed = 0
         self.failures: list[dict] = []
         self.url_mapping: dict[str, str] = {}  # source_url -> minio_url
+        self.image_details: list[dict] = []    # [{sourceUrl, minioPath, minioBucket}, ...]
+
+    def add_image_detail(self, source_url: str, minio_url: str, bucket: str):
+        """添加图片明细记录"""
+        import urllib.parse
+        parsed = urllib.parse.urlparse(minio_url)
+        # URL 格式: http://host:port/bucket/path
+        path_parts = parsed.path.lstrip('/').split('/', 1)
+        object_path = path_parts[1] if len(path_parts) > 1 else ''
+        self.image_details.append({
+            "sourceUrl": source_url,
+            "minioPath": object_path,
+            "minioBucket": bucket,
+        })
 
 
 def process_images(
@@ -183,6 +197,7 @@ def process_images(
                 content_type=image_type,
             )
             result.url_mapping[source_url] = minio_url
+            result.add_image_detail(source_url, minio_url, minio_client.bucket)
             result.success += 1
         except Exception as e:
             result.failed += 1
