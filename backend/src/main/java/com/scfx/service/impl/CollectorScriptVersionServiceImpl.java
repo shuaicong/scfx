@@ -144,8 +144,11 @@ public class CollectorScriptVersionServiceImpl implements CollectorScriptVersion
 
     @Override
     public boolean scriptExists(String datasourceCode) {
-        String filePath = scriptBasePath + "/" + datasourceCode + ".py";
-        return Files.exists(Path.of(filePath));
+        // 查 DB 当前版本记录（与执行采集使用同一来源）
+        CollectorScriptVersion current = scriptVersionMapper.findCurrentByDatasourceCode(datasourceCode);
+        if (current == null) return false;
+        // 验证文件物理存在
+        return Files.exists(Path.of(current.getFilePath()));
     }
 
     @Override

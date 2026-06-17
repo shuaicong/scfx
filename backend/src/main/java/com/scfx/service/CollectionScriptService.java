@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 /**
@@ -67,6 +68,8 @@ public class CollectionScriptService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+
     /**
      * 立即执行脚本
      * 创建待执行记录，由 CollectorAgentService 异步执行 Python 脚本
@@ -87,12 +90,12 @@ public class CollectionScriptService {
             return Result.error("操作频繁，请稍后重试");
         }
         try {
-            // 2. 全局并发拦截：锁内二次校验
-            long runningCount = taskExecutionMapper.selectCount(
+            // 2. 全局并发拦截：锁内二次校验（pending 或 running 均拦截）
+            long concurrentCount = taskExecutionMapper.selectCount(
                 new LambdaQueryWrapper<TaskExecution>()
                     .eq(TaskExecution::getScriptId, id)
-                    .eq(TaskExecution::getStatus, "running"));
-            if (runningCount > 0) {
+                    .in(TaskExecution::getStatus, "pending", "running"));
+            if (concurrentCount > 0) {
                 return Result.error("该任务正在执行中，请等待完成");
             }
 
@@ -107,13 +110,12 @@ public class CollectionScriptService {
                 if (date.length() > 10) {
                     return Result.error("日期格式错误：长度不能超过 10 位");
                 }
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd");
                 try {
-                    LocalDate parsed = LocalDate.parse(date, formatter);
+                    LocalDate parsed = LocalDate.parse(date, DATE_FORMATTER);
                     if (parsed.isAfter(LocalDate.now())) {
                         return Result.error("不能采集未来日期的数据");
                     }
-                    LocalDate minDate = LocalDate.parse(minExecuteDate, formatter);
+                    LocalDate minDate = LocalDate.parse(minExecuteDate, DATE_FORMATTER);
                     if (parsed.isBefore(minDate)) {
                         return Result.error("日期早于最小可采集日期 " + minExecuteDate);
                     }
@@ -144,12 +146,6 @@ public class CollectionScriptService {
                 taskExecutionMapper.updateById(execution);
             }
 
-            // 7. 采集日期写入执行备注
-            if (date != null) {
-                execution.setErrorMessage("采集日期：" + date);
-                taskExecutionMapper.updateById(execution);
-            }
-
             // 8. 更新脚本统计
             script.setLastExecutionTime(LocalDateTime.now());
             script.setNextExecutionTime(calculateNextExecution(script));
@@ -176,11 +172,11 @@ public class CollectionScriptService {
         }
     }
 
-    private final ConcurrentMap<String, java.util.concurrent.locks.ReentrantLock> lockMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ReentrantLock> lockMap = new ConcurrentHashMap<>();
 
     private boolean acquireLock(String key, int seconds) {
-        java.util.concurrent.locks.ReentrantLock lock = lockMap.computeIfAbsent(key,
-            k -> new java.util.concurrent.locks.ReentrantLock());
+        ReentrantLock lock = lockMap.computeIfAbsent(key,
+            k -> new ReentrantLock());
         try {
             return lock.tryLock(seconds, java.util.concurrent.TimeUnit.SECONDS);
         } catch (InterruptedException e) {
@@ -190,7 +186,7 @@ public class CollectionScriptService {
     }
 
     private void releaseLock(String key) {
-        java.util.concurrent.locks.ReentrantLock lock = lockMap.get(key);
+        ReentrantLock lock = lockMap.remove(key);
         if (lock != null && lock.isHeldByCurrentThread()) {
             lock.unlock();
         }
