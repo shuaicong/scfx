@@ -154,10 +154,17 @@
       </div>
 
       <!-- 原始 HTML 内容（含图片） -->
-      <div v-if="knowledge?.contentHtml" class="content-html">
+      <div v-if="knowledge?.contentHtml" class="content-html" @click="onContentClick">
         <div v-html="knowledge.contentHtml"></div>
       </div>
 
+    </div>
+
+    <!-- 图片预览遮罩 -->
+    <div v-if="previewImageUrl" class="image-preview-overlay" @click="previewImageUrl = ''">
+      <img :src="previewImageUrl" class="image-preview-img" @click.stop>
+      <button class="image-preview-close" @click="previewImageUrl = ''">✕</button>
+      <a :href="previewImageUrl" target="_blank" rel="noopener" class="image-preview-open">新窗口打开</a>
     </div>
 
     <!-- 切片列表 - 侧滑抽屉 -->
@@ -428,6 +435,16 @@ const renderedBlocks = ref<ContentBlock[]>([])
 // 切片查看
 const showChunks = ref(false)
 const chunks = ref<any[]>([])
+const previewImageUrl = ref('')
+
+/** 点击内容区的图片时弹出预览 */
+function onContentClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (target.tagName === 'IMG' && target.getAttribute('src')) {
+    e.preventDefault()
+    previewImageUrl.value = target.getAttribute('src') || ''
+  }
+}
 const chunksLoading = ref(false)
 
 const toggleChunks = async () => {
@@ -944,14 +961,70 @@ onMounted(async () => {
   color: var(--text-secondary);
 }
 
-.content-html img {
-  max-width: 100%;
-  height: auto;
-  border-radius: 4px;
-  margin: 8px 0;
-}
-
 .content-html p {
   margin-bottom: 10px;
+}
+
+.content-html img {
+  cursor: zoom-in;
+}
+
+/* 图片预览遮罩 */
+.image-preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: zoom-out;
+}
+
+.image-preview-img {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  border-radius: 4px;
+  cursor: default;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+}
+
+.image-preview-close {
+  position: fixed;
+  top: 20px;
+  right: 24px;
+  background: rgba(255,255,255,0.15);
+  border: none;
+  color: #fff;
+  font-size: 22px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+.image-preview-close:hover {
+  background: rgba(255,255,255,0.3);
+}
+
+.image-preview-open {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: #f5c87a;
+  font-size: 14px;
+  text-decoration: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.1);
+  transition: background 0.2s;
+}
+.image-preview-open:hover {
+  background: rgba(255,255,255,0.2);
 }
 </style>
