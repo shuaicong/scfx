@@ -126,31 +126,33 @@
           <span class="docx-error-text">Word 文档渲染失败，已降级显示文本内容</span>
         </div>
         <div v-if="sanitizedHtml" class="html-content" v-html="sanitizedHtml" @click="onContentClick"></div>
-        <!-- 表格内容（从 content 解析，contentHtml 中 TABLE_MARKER 区域已被去除） -->
-        <div v-for="(block, i) in renderedBlocks" :key="i">
-          <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
-            <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
-            <el-table
-              :data="block.tableData"
-              border
-              stripe
-              size="small"
-              style="width: 100%"
-              @sort-change="(e) => handleSortChange(i, e)"
-            >
-              <el-table-column
-                v-for="(h, j) in block.columns"
-                :key="j"
-                :prop="'col' + j"
-                :label="h"
-                sortable="custom"
-                show-overflow-tooltip
-              />
-            </el-table>
-            <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
+        <!-- 无 contentHtml 时降级使用 content 解析 -->
+        <template v-else>
+          <div v-for="(block, i) in renderedBlocks" :key="i">
+            <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
+              <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
+              <el-table
+                :data="block.tableData"
+                border
+                stripe
+                size="small"
+                style="width: 100%"
+                @sort-change="(e) => handleSortChange(i, e)"
+              >
+                <el-table-column
+                  v-for="(h, j) in block.columns"
+                  :key="j"
+                  :prop="'col' + j"
+                  :label="h"
+                  sortable="custom"
+                  show-overflow-tooltip
+                />
+              </el-table>
+              <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
+            </div>
+            <div v-else v-html="block.html" class="text-block"></div>
           </div>
-          <div v-else-if="!sanitizedHtml" v-html="block.html" class="text-block"></div>
-        </div>
+        </template>
       </div>
 
     </div>
@@ -432,14 +434,56 @@ const showChunks = ref(false)
 const chunks = ref<any[]>([])
 const previewImageUrl = ref('')
 
-/** 清洗后的 HTML 内容（去除 TABLE_MARKER 区域，保留图片和文本） */
+/** 清洗后的 HTML 内容（TABLE_MARKER 区域替换为 HTML 表格，保留图片和文本） */
 const sanitizedHtml = computed(() => {
   let html = knowledge.value?.contentHtml
   if (!html) return ''
-  // 去掉 TABLE_MARKER 区域（注释标记 + 中间的纯文本管道表格）
-  html = html.replace(/<!--TABLE_MARKER_\d+-->[\s\S]*?<!--TABLE_MARKER_END_\d+-->/g, '')
+
+  // 解析 tableMeta
+  let tables: TableMetaEntry[] = []
+  try {
+    const parsed = JSON.parse(knowledge.value?.tableMeta || '[]')
+    if (Array.isArray(parsed)) {
+      tables = parsed
+    }
+  } catch { tables = [] }
+
+  // 把 TABLE_MARKER 区域替换为实际 HTML 表格
+  // 兼容 HTML 注释 <!--N--> 和 HTML 实体转义 &lt;!--N--&gt; 两种格式
+  let markerIdx = 0
+  // 处理 HTML 注释格式
+  html = html.replace(/<!--TABLE_MARKER_\d+-->[\s\S]*?<!--TABLE_MARKER_END_\d+-->/g, () => {
+    return _renderTableHtml(tables[markerIdx++])
+  })
+  // 处理 HTML 实体转义格式
+  html = html.replace(/&lt;!--TABLE_MARKER_\d+--&gt;[\s\S]*?&lt;!--TABLE_MARKER_END_\d+--&gt;/g, () => {
+    return _renderTableHtml(tables[markerIdx++])
+  })
   return html
 })
+
+/** 将 TableMetaEntry 渲染为 HTML 表格字符串 */
+function _renderTableHtml(meta: TableMetaEntry | undefined): string {
+  if (!meta || !meta.headers || !meta.rows) return ''
+  let tableHtml = `<div class="enhanced-table-wrapper"><table class="html-table"><thead><tr>`
+  for (const h of meta.headers) {
+    tableHtml += `<th>${_escHtml(h)}</th>`
+  }
+  tableHtml += `</tr></thead><tbody>`
+  for (const row of meta.rows) {
+    tableHtml += `<tr>`
+    for (const cell of row) {
+      tableHtml += `<td>${_escHtml(cell)}</td>`
+    }
+    tableHtml += `</tr>`
+  }
+  tableHtml += `</tbody></table></div>`
+  return tableHtml
+}
+
+function _escHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
 
 /** 点击内容区的图片时弹出预览 */
 function onContentClick(e: MouseEvent) {
@@ -971,6 +1015,34 @@ onMounted(async () => {
   border-radius: 4px;
   margin: 8px 0;
   cursor: zoom-in;
+}
+
+.html-content .html-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  margin: 12px 0;
+}
+.html-content .html-table th,
+.html-content .html-table td {
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 6px 10px;
+  text-align: left;
+}
+.html-content .html-table th {
+  background: rgba(255,255,255,0.06);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.html-content .html-table td {
+  color: var(--text-secondary);
+}
+.html-content .html-table tr:nth-child(even) td {
+  background: rgba(255,255,255,0.02);
+}
+
+.html-content .enhanced-table-wrapper {
+  margin: 16px 0;
 }
 
 /* 图片预览遮罩 */
