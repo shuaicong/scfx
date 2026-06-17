@@ -66,6 +66,7 @@ from .utils import (
     from_json_file,
     merge_dict,
 )
+from collectorsdk.minio_client import MinioClient
 
 __version__ = "1.0.0"
 __all__ = [
@@ -77,6 +78,7 @@ __all__ = [
     "Dimensions",
     "CollectorReporter",
     "BaseCollector",
+    "MinioClient",
     # utils
     "parse_publish_time",
     "extract_report_type",
