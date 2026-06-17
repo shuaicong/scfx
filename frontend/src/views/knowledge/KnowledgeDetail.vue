@@ -120,42 +120,37 @@
       <div v-show="isDocx && !docxError" class="docx-preview-wrapper">
         <div class="docx-render-area" ref="docxPreviewRef"></div>
       </div>
-      <!-- docx 渲染失败提示条 + 普通文本/表格内容 -->
+      <!-- docx 渲染失败提示条 + 原始 HTML 内容（含图片和文本，TABLE_MARKER 区域会被过滤） -->
       <div class="detail-body" v-show="!isDocx || docxError">
         <div v-if="docxError" class="docx-error-bar">
           <span class="docx-error-text">Word 文档渲染失败，已降级显示文本内容</span>
         </div>
-        <template v-if="!isDocx || docxError">
-          <div v-for="(block, i) in renderedBlocks" :key="i">
-            <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
-              <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
-              <el-table
-                :data="block.tableData"
-                border
-                stripe
-                size="small"
-                style="width: 100%"
-                @sort-change="(e) => handleSortChange(i, e)"
-              >
-                <el-table-column
-                  v-for="(h, j) in block.columns"
-                  :key="j"
-                  :prop="'col' + j"
-                  :label="h"
-                  sortable="custom"
-                  show-overflow-tooltip
-                />
-              </el-table>
-              <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
-            </div>
-            <div v-else v-html="block.html" class="text-block"></div>
+        <div v-if="sanitizedHtml" class="html-content" v-html="sanitizedHtml" @click="onContentClick"></div>
+        <!-- 表格内容（从 content 解析，contentHtml 中 TABLE_MARKER 区域已被去除） -->
+        <div v-for="(block, i) in renderedBlocks" :key="i">
+          <div v-if="block.type === 'table'" class="enhanced-table-wrapper">
+            <div v-if="block.caption" class="table-caption">{{ block.caption }}</div>
+            <el-table
+              :data="block.tableData"
+              border
+              stripe
+              size="small"
+              style="width: 100%"
+              @sort-change="(e) => handleSortChange(i, e)"
+            >
+              <el-table-column
+                v-for="(h, j) in block.columns"
+                :key="j"
+                :prop="'col' + j"
+                :label="h"
+                sortable="custom"
+                show-overflow-tooltip
+              />
+            </el-table>
+            <div class="table-footer" v-if="block.rows">{{ block.rows }} 行数据</div>
           </div>
-        </template>
-      </div>
-
-      <!-- 文章内嵌图片（从 contentHtml 提取） -->
-      <div v-if="imagesFromHtml.length > 0" class="content-images" @click="onContentClick">
-        <img v-for="(url, idx) in imagesFromHtml" :key="idx" :src="url" class="inline-image" alt="文章图片">
+          <div v-else-if="!sanitizedHtml" v-html="block.html" class="text-block"></div>
+        </div>
       </div>
 
     </div>
@@ -437,17 +432,13 @@ const showChunks = ref(false)
 const chunks = ref<any[]>([])
 const previewImageUrl = ref('')
 
-/** 从 contentHtml 中提取所有图片 URL */
-const imagesFromHtml = computed(() => {
-  const html = knowledge.value?.contentHtml
-  if (!html) return []
-  const urls: string[] = []
-  const re = /<img[^>]+src="([^"]+)"/g
-  let m
-  while ((m = re.exec(html)) !== null) {
-    urls.push(m[1])
-  }
-  return urls
+/** 清洗后的 HTML 内容（去除 TABLE_MARKER 区域，保留图片和文本） */
+const sanitizedHtml = computed(() => {
+  let html = knowledge.value?.contentHtml
+  if (!html) return ''
+  // 去掉 TABLE_MARKER 区域（注释标记 + 中间的纯文本管道表格）
+  html = html.replace(/<!--TABLE_MARKER_\d+-->[\s\S]*?<!--TABLE_MARKER_END_\d+-->/g, '')
+  return html
 })
 
 /** 点击内容区的图片时弹出预览 */
@@ -968,17 +959,17 @@ onMounted(async () => {
   background: #0d1117 !important;
 }
 
-.content-images {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  margin: 16px 0;
+.html-content {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary);
 }
 
-.inline-image {
+.html-content img {
   max-width: 100%;
   height: auto;
   border-radius: 4px;
+  margin: 8px 0;
   cursor: zoom-in;
 }
 
