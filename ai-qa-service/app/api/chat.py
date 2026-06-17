@@ -139,7 +139,12 @@ class CoTStreamParser:
                 return events
 
             # 正常推理内容：立即发射 chunk 保持流式
-            if chunk:
+            # 但过滤掉 </reasoning> 标签碎片（跨 chunk 时逐片泄漏）
+            _tag_starts = ('<', '</', '</r', '</re', '</rea', '</reas',
+                           '</reason', '</reasoni', '</reasonin', '</reasoning')
+            if self._tag_window.endswith(_tag_starts):
+                pass  # 当前 chunk 是 </reasoning> 的碎片，不泄漏给用户
+            elif chunk:
                 events.append({"type": "reasoning", "content": chunk})
 
         elif self._state == self.STATE_IN_ANSWER:

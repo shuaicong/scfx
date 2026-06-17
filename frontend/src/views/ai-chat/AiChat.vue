@@ -136,8 +136,8 @@
               <ReasoningPanel
                 v-if="msg.reasoning"
                 :reasoning="msg.reasoning"
-                :collapsed="true"
-                @toggle="() => {}"
+                :collapsed="msg.reasoningCollapsed ?? true"
+                @toggle="msg.reasoningCollapsed = !msg.reasoningCollapsed"
               />
               <MessageContent :content="msg.content" :sources="msg.sources" @source-click="handleSourceClick" />
             </div>
@@ -371,6 +371,7 @@ async function loadHistoryMessages(sid: string) {
       id: `h-${m.message_id || i}`,
       time: m.created_at || '',
       reasoning: m.reasoning_content || '',
+      reasoningCollapsed: true,
       // API 返回的 assistant 消息不含 sources，历史渲染不附带来源卡片
     }))
   } catch {
@@ -443,6 +444,7 @@ interface DisplayMessage {
   sources?: Source[]
   time?: string    // 消息时间（ISO 格式，可选）
   reasoning?: string   // ★ 推理过程（深度思考模式）
+  reasoningCollapsed?: boolean  // ★ 推理面板折叠状态（历史消息独立控制）
 }
 
 /** 格式化 ISO 时间为 HH:mm */
@@ -778,10 +780,9 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
     const data: SSEEvent = JSON.parse(dataLines.join(''))
     switch (eventType) {
       case 'reasoning': {
-        const rawChunk = data.content || ''
-        const chunk = rawChunk.trimStart().trimEnd()
+        const chunk = data.content || ''
         if (chunk) {
-          reasoningContent.value += chunk + '\n'
+          reasoningContent.value += chunk
         }
         break
       }
@@ -807,7 +808,7 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         if (!isArchived.value && lastQuestion.value) {
           const now = Date.now()
           displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
-          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, reasoning: reasoningTrimmed, time: new Date(now).toISOString() })
+          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, reasoning: reasoningTrimmed, reasoningCollapsed: true, time: new Date(now).toISOString() })
           isArchived.value = true
         }
         resetCurrentRound()

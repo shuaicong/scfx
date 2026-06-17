@@ -377,9 +377,10 @@ def build_messages(
             )
 
     # ---- 模块 C: 本次执行指令（system） ----
+    today_str = date.today().isoformat()
     template = templates.get(qtype, templates.get("general", ""))
-    # 注入当前日期，让 LLM 能判断数据是否过时
-    template = f"当前日期：{date.today().isoformat()}\n\n{template}"
+    # 替换 {date} 占位符为今日日期，让 LLM 判断数据是否过时
+    template = template.replace("{date}", today_str)
 
     # 深度思考模式：追加 CoT 指令（放在模块 C 尾部，参考资料之后、问题之前）
     cot_instr = templates.get("deep_thinking_instruction", "")

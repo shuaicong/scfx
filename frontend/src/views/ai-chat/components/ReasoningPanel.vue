@@ -1,6 +1,7 @@
 <template>
   <div class="reasoning-panel">
-    <div class="reasoning-header" @click="$emit('toggle')">
+    <div class="reasoning-header" @click="$emit('toggle')" role="button" tabindex="0"
+      @keydown.enter="$emit('toggle')" @keydown.space.prevent="$emit('toggle')">
       <span class="reasoning-icon">💭</span>
       <span class="reasoning-title">深度思考</span>
       <span class="collapse-icon">
@@ -10,7 +11,6 @@
       </span>
     </div>
     <div class="reasoning-body" :class="{ collapsed }">
-      <div class="reasoning-line"></div>
       <div class="reasoning-content">{{ reasoning }}</div>
     </div>
   </div>
@@ -35,6 +35,8 @@ defineEmits<{
   border-radius: 12px;
   overflow: hidden;
 }
+
+/* 标题栏 — 简洁的金色标签 */
 .reasoning-header {
   display: flex;
   align-items: center;
@@ -42,19 +44,26 @@ defineEmits<{
   padding: 10px 16px;
   cursor: pointer;
   user-select: none;
-  transition: background 0.2s;
+  transition: background 0.15s;
+  outline: none;
 }
 .reasoning-header:hover {
   background: rgba(245, 200, 122, 0.08);
 }
+.reasoning-header:focus-visible {
+  background: rgba(245, 200, 122, 0.12);
+}
+
 .reasoning-icon {
   font-size: 14px;
+  line-height: 1;
 }
 .reasoning-title {
   flex: 1;
   font-size: 13px;
   font-weight: 600;
   color: #f5c87a;
+  letter-spacing: 0.02em;
 }
 .collapse-icon {
   display: flex;
@@ -67,14 +76,26 @@ defineEmits<{
 .collapse-icon svg.rotated {
   transform: rotate(180deg);
 }
+
+/* 推理内容区域 — 左侧金色竖线用 ::before 伪元素实现，消除列感 */
 .reasoning-body {
-  display: flex;
-  gap: 12px;
-  padding: 0 16px 12px;
+  position: relative;
+  padding: 2px 20px 16px 36px;
   transition: all 0.3s ease;
   max-height: 400px;
   opacity: 1;
   overflow-y: auto;
+}
+.reasoning-body::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 4px;
+  bottom: 16px;
+  width: 2px;
+  background: linear-gradient(180deg, #f5c87a, #d4a574);
+  border-radius: 1px;
+  pointer-events: none;
 }
 .reasoning-body.collapsed {
   max-height: 0;
@@ -82,18 +103,17 @@ defineEmits<{
   padding: 0 16px;
   overflow: hidden;
 }
-.reasoning-line {
-  width: 2px;
-  flex-shrink: 0;
-  background: linear-gradient(180deg, #f5c87a, #d4a574);
-  border-radius: 1px;
+.reasoning-body.collapsed::before {
+  display: none;
 }
+
+/* 推理文本 — 舒适阅读宽度 */
 .reasoning-content {
-  flex: 1;
   font-size: 13px;
-  line-height: 1.7;
+  line-height: 1.8;
   color: #8b949e;
   white-space: pre-wrap;
   word-break: break-word;
+  max-width: 72ch;
 }
 </style>
