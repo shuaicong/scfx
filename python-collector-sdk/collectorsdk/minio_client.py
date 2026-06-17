@@ -21,11 +21,13 @@ PUBLIC_READ_POLICY = json.dumps({
 })
 
 # CORS 配置
+# 注意: MinIO RELEASE.2024-01 的 put_bucket_cors API 有兼容性问题
+# 但 <img> 标签加载图片不触发 CORS，暂不配置
+# 如果后续需要 JS fetch 加载图片，再手动设置或升级 MinIO
 CORS_CONFIG = {
     "CORSRules": [{
         "AllowedOrigins": ["http://localhost:3000", "http://localhost:9528"],
-        "AllowedMethods": ["GET"],
-        "AllowedHeaders": ["*"]
+        "AllowedMethods": ["GET"]
     }]
 }
 
