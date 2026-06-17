@@ -155,6 +155,11 @@
 
     </div>
 
+    <!-- 原始 HTML 内容（含图片） -->
+    <div v-if="knowledge.contentHtml" class="content-html">
+      <div v-html="knowledge.contentHtml"></div>
+    </div>
+
     <!-- 切片列表 - 侧滑抽屉 -->
     <el-drawer
       v-model="showChunks"
@@ -931,5 +936,22 @@ onMounted(async () => {
   padding: 16px 20px;
   color: #c9d1d9 !important;
   background: #0d1117 !important;
+}
+
+.content-html {
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+
+.content-html img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+.content-html p {
+  margin-bottom: 10px;
 }
 </style>
