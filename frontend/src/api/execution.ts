@@ -60,8 +60,8 @@ export interface ExecutionItem {
 }
 
 export const executionApi = {
-  execute: (scriptId: number) =>
-    request.post<{ executionId: string }>(`/scripts/${scriptId}/execute`),
+  execute: (scriptId: number, params?: { date?: string }) =>
+    request.post<{ executionId: string }>(`/scripts/${scriptId}/execute`, params),
 
   list: (scriptId: number, params: { page?: number; size?: number; status?: string; triggerType?: string }) =>
     request.get<any>(`/scripts/${scriptId}/executions`, { params }),

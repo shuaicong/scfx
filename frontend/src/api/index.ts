@@ -234,8 +234,8 @@ export const scriptApi = {
     request.put(`/scripts/${id}/disable`),
 
   // 执行脚本
-  execute: (id: number) =>
-    request.post<{ data: any }>(`/scripts/${id}/execute`),
+  execute: (id: number, params?: { date?: string }) =>
+    request.post<{ data: any }>(`/scripts/${id}/execute`, params),
 
   // 获取统计信息
   stats: () =>

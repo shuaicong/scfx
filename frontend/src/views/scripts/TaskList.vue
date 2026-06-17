@@ -286,6 +286,27 @@
       @edit="(script: any) => { detailDialogVisible = false; router.push(`/scripts/${script.id}`) }"
     />
   </div>
+
+    <!-- 日期选择弹窗 -->
+    <el-dialog v-model="executeDialogVisible" title="选择采集日期" width="420px" :close-on-click-modal="false" append-to-body>
+      <div class="date-picker-container">
+        <p class="date-picker-hint">可选范围：{{ minExecuteDate }} ~ 今天；当日日报通常18:00后发布，白天采集今日大概率无数据</p>
+        <el-date-picker
+          v-model="executeDate"
+          type="date"
+          value-format="yyyy-MM-dd"
+          placeholder="选择采集日期"
+          :disabled-date="disabledDate"
+          :editable="false"
+          :clearable="false"
+          style="width: 100%"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="executeDialogVisible = false" :disabled="executing">取消</el-button>
+        <el-button type="primary" @click="confirmExecute" :loading="executing">确认执行</el-button>
+      </template>
+    </el-dialog>
 </template>
 
 <style>
@@ -320,6 +341,28 @@ const detailScriptId = ref<number>(0)
 
 // 进度抽屉
 const progressDrawer = ref<any>(null)
+
+// 日期选择弹窗
+const executeDialogVisible = ref(false)
+const executeDate = ref('')
+const minExecuteDate = ref('2020-01-01')
+const currentScript = ref<CollectionScript | null>(null)
+const executing = ref(false)
+
+const isTodaySelected = computed(() => {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, '0')
+  const d = String(today.getDate()).padStart(2, '0')
+  return executeDate.value === `${y}-${m}-${d}`
+})
+
+function disabledDate(time: Date) {
+  const minDate = new Date(minExecuteDate.value)
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  return time.getTime() < minDate.getTime() || time.getTime() > today.getTime()
+}
 
 // 失败通知
 const failedAlertVisible = ref(sessionStorage.getItem('dismissFailedAlert') !== 'true')
@@ -545,9 +588,44 @@ function handleRecord(id: number) {
 }
 
 async function handleExecute(script: CollectionScript) {
+  currentScript.value = script
+  // 设置默认值
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, '0')
+  const d = String(today.getDate()).padStart(2, '0')
+  const todayStr = `${y}-${m}-${d}`
+  // 默认选中: 如果最小日期<今天则选昨天，否则选今天
+  if (minExecuteDate.value < todayStr) {
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    executeDate.value = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+  } else {
+    executeDate.value = todayStr
+  }
+  executeDialogVisible.value = true
+}
+
+async function confirmExecute() {
+  if (!currentScript.value) return
+  // 选中今天的二次确认
+  if (isTodaySelected.value) {
+    try {
+      await ElMessageBox.confirm(
+        '当前选择采集今日日报，平台一般18点后才会更新当日数据，确定立即执行吗？',
+        '确认执行',
+        { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+      )
+    } catch {
+      return
+    }
+  }
+  const script = currentScript.value
+  executing.value = true
   try {
-    await ElMessageBox.confirm(`确定立即执行脚本"${script.scriptName}"吗？`, '执行确认', { type: 'info' })
-    const res: any = await scriptApi.execute(script.id!)
+    const params = executeDate.value ? { date: executeDate.value } : undefined
+    const res: any = await scriptApi.execute(script.id!, params)
+    executeDialogVisible.value = false
     if (res.data?.executionId) {
       progressDrawer.value?.open(res.data.executionId)
     }
@@ -556,6 +634,8 @@ async function handleExecute(script: CollectionScript) {
     if (e !== 'cancel') {
       console.error(e)
     }
+  } finally {
+    executing.value = false
   }
 }
 

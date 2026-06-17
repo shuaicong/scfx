@@ -616,12 +616,33 @@
       </div>
     </div>
   </div>
+
+    <!-- 日期选择弹窗 -->
+    <el-dialog v-model="executeDialogVisible" title="选择采集日期" width="420px" :close-on-click-modal="false" append-to-body>
+      <div class="date-picker-container">
+        <p class="date-picker-hint">可选范围：{{ minExecuteDate }} ~ 今天；当日日报通常18:00后发布，白天采集今日大概率无数据</p>
+        <el-date-picker
+          v-model="executeDate"
+          type="date"
+          value-format="yyyy-MM-dd"
+          placeholder="选择采集日期"
+          :disabled-date="disabledDate"
+          :editable="false"
+          :clearable="false"
+          style="width: 100%"
+        />
+      </div>
+      <template #footer>
+        <el-button @click="executeDialogVisible = false" :disabled="executing">取消</el-button>
+        <el-button type="primary" @click="confirmExecute" :loading="executing">确认执行</el-button>
+      </template>
+    </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { scriptApi, executionApi } from '@/api'
 import { datasourceApi } from '@/api/datasource'
 import { categoryApi, type Category } from '@/api/category'
@@ -762,6 +783,18 @@ const successRate = computed(() => {
 // Status
 const status = ref('enabled')
 const executing = ref(false)
+
+const executeDialogVisible = ref(false)
+const executeDate = ref('')
+const minExecuteDate = ref('2020-01-01')
+
+const isTodaySelected = computed(() => {
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, '0')
+  const d = String(today.getDate()).padStart(2, '0')
+  return executeDate.value === `${y}-${m}-${d}`
+})
 
 // 是否有正在执行的任务
 const hasRunningExecution = computed(() => {
@@ -1277,9 +1310,71 @@ async function doExecute() {
   }
 }
 
+function disabledDate(time: Date) {
+  const minDate = new Date(minExecuteDate.value)
+  const today = new Date()
+  today.setHours(23, 59, 59, 999)
+  return time.getTime() < minDate.getTime() || time.getTime() > today.getTime()
+}
+
 async function handleExecute() {
   if (executing.value) return
-  showConfirmAction('确认执行', '确认立即执行此脚本？', doExecute)
+  // 设置默认值
+  const today = new Date()
+  const y = today.getFullYear()
+  const m = String(today.getMonth() + 1).padStart(2, '0')
+  const d = String(today.getDate()).padStart(2, '0')
+  const todayStr = `${y}-${m}-${d}`
+  // 默认选中: 如果最小日期<今天则选昨天，否则选今天
+  if (minExecuteDate.value < todayStr) {
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    executeDate.value = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`
+  } else {
+    executeDate.value = todayStr
+  }
+  executeDialogVisible.value = true
+}
+
+async function confirmExecute() {
+  // 选中今天的二次确认
+  if (isTodaySelected.value) {
+    try {
+      await ElMessageBox.confirm(
+        '当前选择采集今日日报，平台一般18点后才会更新当日数据，确定立即执行吗？',
+        '确认执行',
+        { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+      )
+    } catch {
+      return
+    }
+  }
+  await doExecuteWithDate()
+}
+
+async function doExecuteWithDate() {
+  executing.value = true
+  showRealtimeLog.value = true
+  showResultCard.value = false
+  realtimeLogs.value = []
+
+  try {
+    const params = executeDate.value ? { date: executeDate.value } : undefined
+    await scriptApi.execute(scriptId.value, params)
+    executeDialogVisible.value = false
+    setTimeout(() => {
+      loadRecentExecutions().then(() => {
+        if (recentExecutions.value.length > 0) {
+          startLogPolling(recentExecutions.value[0].executionId)
+        }
+      })
+    }, 2000)
+    showConfirmMessage('执行成功', '脚本已触发执行，可在执行记录中查看实时日志', 'success')
+  } catch (e: any) {
+    console.error('执行失败', e)
+    showConfirmMessage('执行失败', e.message || '执行失败，请检查脚本配置', 'error')
+    executing.value = false
+  }
 }
 
 function stopLogPolling() {
