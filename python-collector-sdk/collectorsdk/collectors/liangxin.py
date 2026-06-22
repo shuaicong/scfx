@@ -13,11 +13,21 @@ from collectorsdk.dimensions import Source, Subject, CollectType, CollectObject
 
 logger = logging.getLogger(__name__)
 
+REPORT_TYPE_LABEL = {
+    "morning": "晨报",
+    "evening": "日报",
+    "weekly": "周报",
+}
+
+def _report_type_label(report_type: str) -> str:
+    """报告类型 → 中文标签"""
+    return REPORT_TYPE_LABEL.get(report_type, "日报")
+
 
 class LiangxinCollector(BaseCollector):
     """粮信网采集器
 
-    用于采集粮信网玉米晨报
+    用于采集粮信网玉米晨报/日报/周报
 
     使用方式：
         config = ReporterConfig(api_base="http://localhost:8080/api")
@@ -26,6 +36,7 @@ class LiangxinCollector(BaseCollector):
             task_id=1,
             username="xxx",
             password="xxx",
+            report_type="morning",  # morning / evening / weekly
         )
         result = collector.run()  # 自动管理生命周期
     """
@@ -40,7 +51,7 @@ class LiangxinCollector(BaseCollector):
         task_id: int,
         username: str,
         password: str,
-        report_type: str = "morning",  # morning / evening
+        report_type: str = "morning",  # morning / evening / weekly
         execution_id: str = None,
         target_date: Optional[str] = None,
     ):
@@ -51,7 +62,7 @@ class LiangxinCollector(BaseCollector):
             task_id: 任务ID
             username: 粮信网账号
             password: 粮信网密码
-            report_type: 报告类型 morning=晨报 evening=日报
+            report_type: 报告类型 morning=晨报 evening=日报 weekly=周报
             target_date: 目标采集日期 (yyyy-MM-dd)，不传则默认今天
         """
         super().__init__(
@@ -62,7 +73,7 @@ class LiangxinCollector(BaseCollector):
             subject=Subject.CORN.value,
             coll_type=CollectType.LOGIN_CRAWL.value,
             obj=CollectObject.DAILY_REPORT.value,
-            remark=f"粮信网玉米{'晨报' if report_type == 'morning' else '日报'}采集",
+            remark=f"粮信网玉米{_report_type_label(report_type)}采集",
         )
         self.username = username
         self.password = password
@@ -207,8 +218,8 @@ class LiangxinCollector(BaseCollector):
 
                 for date_format in date_formats:
                     if date_format in text_stripped:
-                        # 按报告类型过滤：morning → 晨报, evening → 日报
-                        type_keyword = "晨报" if self.report_type == "morning" else "日报"
+                        # 按报告类型过滤：morning → 晨报, evening → 日报, weekly → 周报
+                        type_keyword = _report_type_label(self.report_type)
                         if type_keyword not in text_stripped:
                             logger.debug(f"跳过非{type_keyword}: {text_stripped}")
                             continue
@@ -647,7 +658,7 @@ class LiangxinCollector(BaseCollector):
                         source="liangxin",
                         url=report["url"],
                         variety="玉米",
-                        report_type="晨报" if self.report_type == "morning" else "日报",
+                        report_type=_report_type_label(self.report_type),
                         content=content["text"],
                         content_html=content["html"],
                         publish_time=report["publish_time"],
