@@ -26,7 +26,9 @@ onMounted(async () => {
   } catch {
     // 使用默认映射
     datasourceMap.value = {
-      liangxin: '粮信网',
+      liangxin: '粮信网-玉米晨报',
+      'liangxin-daily': '粮信网-玉米日报',
+      'liangxin-weekly': '粮信网-玉米周报',
       mysteel: '我的钢铁网',
       chinagrain: '中华粮网',
       usda: 'USDA',
