@@ -637,16 +637,16 @@ onMounted(async () => {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: #0d1117;
-  color: #c9d1d9;
+  background: #ffffff;
+  color: #333333;
 }
 
 .page-header {
   display: flex;
   align-items: center;
   padding: 16px 24px;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: #fafbfc;
+  border-bottom: 1px solid #e8eaed;
   gap: 16px;
   flex-shrink: 0;
 }
@@ -656,22 +656,22 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #f0f2f5;
+  border: 1px solid #d0d5dd;
   border-radius: 8px;
-  color: #8b949e;
+  color: #666666;
   cursor: pointer;
   transition: all 0.2s;
   font-size: 14px;
 }
 
 .back-btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #e6edf3;
+  background: #e5e8eb;
+  color: #222222;
 }
 
 .loading-text {
-  color: #6e7681;
+  color: #999999;
   font-size: 14px;
 }
 
@@ -682,14 +682,14 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   gap: 16px;
-  color: #6e7681;
+  color: #999999;
 }
 
 .loading-spinner {
   width: 36px;
   height: 36px;
-  border: 3px solid rgba(245, 200, 122, 0.2);
-  border-top-color: #f5c87a;
+  border: 3px solid rgba(212, 160, 23, 0.2);
+  border-top-color: #d4a017;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -721,7 +721,7 @@ onMounted(async () => {
 .detail-title {
   font-size: 26px;
   font-weight: 700;
-  color: #f5c87a;
+  color: #1a1a2e;
   margin: 0 0 20px 0;
   line-height: 1.3;
 }
@@ -732,7 +732,7 @@ onMounted(async () => {
   gap: 20px;
   margin-bottom: 28px;
   padding-bottom: 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid #e8eaed;
 }
 
 .meta-item {
@@ -740,13 +740,13 @@ onMounted(async () => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #6e7681;
+  color: #888888;
 }
 
 .detail-body {
   font-size: 15px;
   line-height: 1.9;
-  color: #c9d1d9;
+  color: #333333;
 }
 
 .detail-body :deep(p) {
@@ -756,16 +756,16 @@ onMounted(async () => {
 .detail-body :deep(h2) {
   font-size: 20px;
   font-weight: 600;
-  color: #f5c87a;
+  color: #1a1a2e;
   margin: 28px 0 14px 0;
   padding-bottom: 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid #e8eaed;
 }
 
 .detail-body :deep(h3) {
   font-size: 17px;
   font-weight: 600;
-  color: #e6edf3;
+  color: #222222;
   margin: 24px 0 10px 0;
 }
 
@@ -780,12 +780,12 @@ onMounted(async () => {
 }
 
 .detail-body :deep(strong) {
-  color: #e6edf3;
+  color: #222222;
   font-weight: 600;
 }
 
 .detail-body :deep(a) {
-  color: #58a6ff;
+  color: #1a73e8;
   text-decoration: none;
 }
 
@@ -796,59 +796,60 @@ onMounted(async () => {
 .detail-body :deep(blockquote) {
   margin: 14px 0;
   padding: 12px 18px;
-  background: rgba(245, 200, 122, 0.06);
-  border-left: 3px solid #f5c87a;
+  background: #fef8e8;
+  border-left: 3px solid #d4a017;
   border-radius: 0 6px 6px 0;
-  color: #c9d1d9;
+  color: #555555;
 }
 
 .detail-body :deep(table) {
   border-collapse: collapse;
   width: 100%;
   margin: 16px 0;
-  background: #161b22;
+  background: #ffffff;
   border-radius: 8px;
   overflow: hidden;
+  border: 1px solid #e0e0e0;
 }
 
 .detail-body :deep(th) {
-  background: rgba(245, 200, 122, 0.15);
-  color: #f5c87a;
+  background: #f5f0e0;
+  color: #333333;
   font-weight: 600;
   padding: 10px 14px;
   text-align: left;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 2px solid #e0e0e0;
 }
 
 .detail-body :deep(td) {
   padding: 8px 14px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid #ececec;
 }
 
 .detail-body :deep(tr:hover td) {
-  background: rgba(245, 200, 122, 0.03);
+  background: #fafaf5;
 }
 
 .detail-body :deep(hr) {
   border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid #e0e0e0;
   margin: 24px 0;
 }
 
 .detail-body :deep(code) {
-  background: rgba(255, 255, 255, 0.06);
+  background: #f0f0f0;
   padding: 2px 6px;
   border-radius: 4px;
   font-size: 13px;
   font-family: 'Fira Code', monospace;
 }
 
-.original-link { color: #58a6ff; text-decoration: none; }
-.original-link:hover { text-decoration: underline; color: #79b8ff; }
-.meta-item.status-pending { color: #e6c384; }
-.meta-item.status-processing { color: #58a6ff; }
-.meta-item.status-vectorized { color: #3fb950; }
-.meta-item.status-failed { color: #f85149; }
+.original-link { color: #1a73e8; text-decoration: none; }
+.original-link:hover { text-decoration: underline; color: #1557b0; }
+.meta-item.status-pending { color: #b8860b; }
+.meta-item.status-processing { color: #1a73e8; }
+.meta-item.status-vectorized { color: #2e7d32; }
+.meta-item.status-failed { color: #d32f2f; }
 
 /* ====== 文章排版 ====== */
 .detail-content { padding: 0 20px; }
@@ -857,23 +858,23 @@ onMounted(async () => {
 .detail-title { text-align: center; font-size: 22px; font-weight: 700; margin: 24px 0 8px; }
 
 /* 来源小字 */
-.source-line { text-align: center; font-size: 13px; color: #6e7681; margin-bottom: 24px; }
+.source-line { text-align: center; font-size: 13px; color: #888888; margin-bottom: 24px; }
 
 /* 版块标题（一、今日行情：等）黄底高亮 */
 .detail-body :deep(p.section-title) {
-  background: #d4a017; color: #0d1117; font-weight: 700; font-size: 15px;
+  background: #d4a017; color: #ffffff; font-weight: 700; font-size: 15px;
   padding: 4px 10px; display: inline-block; margin: 18px 0 10px; border-radius: 2px;
   text-indent: 0;
 }
 
 /* 二级标题（国际期货等）左对齐加粗 */
 .detail-body :deep(p.sub-title) {
-  font-weight: 700; font-size: 15px; margin: 14px 0 8px; color: #e6edf3; text-indent: 0;
+  font-weight: 700; font-size: 15px; margin: 14px 0 8px; color: #222222; text-indent: 0;
 }
 
 /* 正文段落：首行缩进2字符 */
 .detail-body :deep(p) {
-  text-indent: 2em; line-height: 1.8; margin: 8px 0; font-size: 15px; color: #c9d1d9;
+  text-indent: 2em; line-height: 1.8; margin: 8px 0; font-size: 15px; color: #333333;
 }
 
 /* ★ 开头的段落：不缩进 */
@@ -884,34 +885,34 @@ onMounted(async () => {
 /* 表格灰色表头 */
 .enhanced-table-wrapper {
   margin: 16px 0;
-  background: #161b22;
+  background: #ffffff;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid #e0e0e0;
 }
 .table-caption {
   padding: 10px 14px;
   font-size: 14px;
   font-weight: 600;
-  color: #f5c87a;
-  background: rgba(245, 200, 122, 0.08);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: #333333;
+  background: #f5f0e0;
+  border-bottom: 1px solid #e0e0e0;
 }
 .table-footer {
   padding: 6px 14px;
   font-size: 12px;
-  color: #6e7681;
-  background: rgba(255, 255, 255, 0.02);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  color: #888888;
+  background: #fafbfc;
+  border-top: 1px solid #ececec;
 }
 .enhanced-table-wrapper :deep(.el-table) {
   --el-table-bg-color: transparent;
   --el-table-tr-bg-color: transparent;
-  --el-table-header-bg-color: #555;
-  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.05);
-  --el-table-border-color: rgba(255, 255, 255, 0.12);
-  --el-table-text-color: #c9d1d9;
-  --el-table-header-text-color: #e6edf3;
+  --el-table-header-bg-color: #f5f0e0;
+  --el-table-row-hover-bg-color: #fafaf5;
+  --el-table-border-color: #e0e0e0;
+  --el-table-text-color: #333333;
+  --el-table-header-text-color: #222222;
 }
 
 
@@ -921,15 +922,15 @@ onMounted(async () => {
   gap: 16px;
   margin-bottom: 20px;
   padding-bottom: 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid #e8eaed;
 }
 .chunk-summary-item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: #fafbfc;
+  border: 1px solid #e8eaed;
   border-radius: 8px;
   padding: 12px 20px;
   flex: 1;
@@ -937,15 +938,15 @@ onMounted(async () => {
 .summary-value {
   font-size: 20px;
   font-weight: 700;
-  color: #f5c87a;
+  color: #d4a017;
 }
 .summary-label {
   font-size: 11px;
-  color: #6e7681;
+  color: #888888;
 }
 
 .chunks-loading, .chunks-empty {
-  color: #6e7681;
+  color: #888888;
   font-size: 14px;
   padding: 40px 0;
   text-align: center;
@@ -956,8 +957,8 @@ onMounted(async () => {
   gap: 16px;
 }
 .chunk-card {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.06);
+  background: #ffffff;
+  border: 1px solid #e8eaed;
   border-radius: 10px;
   overflow: hidden;
 }
@@ -966,8 +967,8 @@ onMounted(async () => {
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  background: rgba(255,255,255,0.03);
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  background: #fafbfc;
+  border-bottom: 1px solid #ececec;
 }
 .chunk-card-header-left, .chunk-card-header-right {
   display: flex;
@@ -977,8 +978,8 @@ onMounted(async () => {
 .chunk-index {
   font-size: 11px;
   font-weight: 600;
-  color: #6e7681;
-  background: rgba(255,255,255,0.06);
+  color: #888888;
+  background: #f0f0f0;
   padding: 2px 8px;
   border-radius: 4px;
 }
@@ -988,16 +989,16 @@ onMounted(async () => {
   padding: 2px 8px;
   border-radius: 4px;
 }
-.tag-text { background: rgba(88,166,255,0.12); color: #58a6ff; }
-.tag-table { background: rgba(245,200,122,0.12); color: #f5c87a; }
+.tag-text { background: rgba(26,115,232,0.1); color: #1a73e8; }
+.tag-table { background: rgba(212,160,23,0.1); color: #b8860b; }
 .chunk-tokens {
   font-size: 11px;
-  color: #6e7681;
+  color: #888888;
 }
 .chunk-order {
   font-size: 10px;
-  color: #484f58;
-  background: rgba(255,255,255,0.03);
+  color: #aaaaaa;
+  background: #f5f5f5;
   padding: 2px 6px;
   border-radius: 3px;
 }
@@ -1010,13 +1011,13 @@ onMounted(async () => {
   width: 4px;
 }
 .chunk-card-body::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.1);
+  background: #d0d0d0;
   border-radius: 2px;
 }
 .chunk-card-content {
   font-size: 13px;
   line-height: 1.8;
-  color: #c9d1d9;
+  color: #333333;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: inherit;
@@ -1084,7 +1085,7 @@ onMounted(async () => {
 .html-content {
   font-size: 13px;
   line-height: 1.7;
-  color: var(--text-secondary);
+  color: #333333;
 }
 
 .html-content img {
@@ -1103,20 +1104,20 @@ onMounted(async () => {
 }
 .html-content .html-table th,
 .html-content .html-table td {
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid #d0d5dd;
   padding: 6px 10px;
   text-align: left;
 }
 .html-content .html-table th {
-  background: rgba(255,255,255,0.06);
+  background: #f5f0e0;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #222222;
 }
 .html-content .html-table td {
-  color: var(--text-secondary);
+  color: #333333;
 }
 .html-content .html-table tr:nth-child(even) td {
-  background: rgba(255,255,255,0.02);
+  background: #fafbfc;
 }
 
 .html-content .enhanced-table-wrapper {
