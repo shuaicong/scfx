@@ -122,10 +122,14 @@ public class CollectorAgentService {
                 throw new RuntimeException("脚本 " + script.getId() + " 没有关联数据源");
             }
 
-            // 从脚本名称推断报告类型（晨报/日报），通过环境变量传递给采集器
+            // 从脚本名称推断报告类型（晨报/日报/周报），通过环境变量传递给采集器
             String reportType = "morning";
-            if (script.getScriptName() != null && script.getScriptName().contains("日报")) {
-                reportType = "evening";
+            if (script.getScriptName() != null) {
+                if (script.getScriptName().contains("周报")) {
+                    reportType = "weekly";
+                } else if (script.getScriptName().contains("日报")) {
+                    reportType = "evening";
+                }
             }
 
             // 数据源代码归一化（用于环境变量命名）

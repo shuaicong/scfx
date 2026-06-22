@@ -104,13 +104,14 @@ def load_collector_module(code, local=False):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    # 查找第一个非抽象 BaseCollector 子类
+    # 查找第一个非抽象 BaseCollector 子类（仅限当前模块定义的类，排除 import 进来的）
     for attr_name in dir(module):
         cls = getattr(module, attr_name)
         if (isinstance(cls, type)
                 and issubclass(cls, BaseCollector)
                 and cls is not BaseCollector
-                and not inspect.isabstract(cls)):
+                and not inspect.isabstract(cls)
+                and cls.__module__ == module.__name__):
             return module, cls
 
     sys.stderr.write(f"脚本中未找到 BaseCollector 实现类: {module_path}\n")
