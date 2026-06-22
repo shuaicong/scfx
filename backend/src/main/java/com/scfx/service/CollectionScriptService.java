@@ -101,7 +101,7 @@ public class CollectionScriptService {
 
             // 3. 白名单检查
             String source = script.getSource();
-            boolean isWhiteListed = "liangxin".equals(source) || "liangxin-daily".equals(source);
+            boolean isWhiteListed = "liangxin".equals(source) || "liangxin-daily".equals(source) || "liangxin-weekly".equals(source);
 
             // 4. 处理 date 参数
             String date = (req != null && isWhiteListed) ? req.getDate() : null;
