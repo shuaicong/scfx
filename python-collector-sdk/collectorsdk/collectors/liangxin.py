@@ -209,50 +209,57 @@ class LiangxinCollector(BaseCollector):
                 text = link.text_content() or ""
                 text_stripped = text.strip()
 
-                # 判断是否是指定日期的报告
-                # 匹配格式：(2026年5月14日) 或 (2026-05-14)
+                # 提取真实发布时间（所有链接都提取，用于日期匹配兜底和最终上报）
+                publish_time = f"{date_str}T09:00:00"  # 默认兜底
+                try:
+                    time_text = link.evaluate("""(el) => {
+                        const li = el.closest('li');
+                        if (!li) return '';
+                        const span = li.querySelector('span.items-left-space');
+                        return span ? span.textContent.trim() : '';
+                    }""")
+                    import re
+                    time_match = re.search(r'时间：(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', time_text)
+                    if time_match:
+                        publish_time = time_match.group(1).replace(' ', 'T')
+                except Exception as e:
+                    logger.warning(f"提取发布时间失败: {e}")
+
+                # 判断日期是否匹配：标题文字包含目标日期 OR 发布时间匹配目标日期
                 date_formats = [
                     f"{target_year}年{target_month}月{target_day}日",  # 2026年5月14日
                     f"{target_year}-{target_month.zfill(2)}-{target_day.zfill(2)}",  # 2026-05-14
                 ]
+                date_matched = any(fmt in text_stripped for fmt in date_formats)
+                if not date_matched:
+                    # 兜底：通过发布时间匹配（周报标题可能含日期范围而非具体日期）
+                    pub_date = publish_time[:10]  # "2026-06-18T17:00:00" → "2026-06-18"
+                    date_matched = (pub_date == date_str)
 
-                for date_format in date_formats:
-                    if date_format in text_stripped:
-                        # 按报告类型过滤：morning → 晨报, evening → 日报, weekly → 周报
-                        type_keyword = _report_type_label(self.report_type)
-                        if type_keyword not in text_stripped:
-                            logger.debug(f"跳过非{type_keyword}: {text_stripped}")
-                            continue
-                        # 确保 URL 使用 HTTPS（登录 cookie 可能带 Secure 标志）
-                        if href.startswith("http://"):
-                            href = "https://" + href[7:]
-                        elif href.startswith("//"):
-                            href = "https:" + href
+                if not date_matched:
+                    continue
 
-                        # 提取真实发布时间：列表每个条目有 <span class="items-left-space">时间：YYYY-MM-DD HH:mm:ss</span>
-                        publish_time = f"{date_str}T09:00:00"  # 默认兜底
-                        try:
-                            time_text = link.evaluate("""(el) => {
-                                const li = el.closest('li');
-                                if (!li) return '';
-                                const span = li.querySelector('span.items-left-space');
-                                return span ? span.textContent.trim() : '';
-                            }""")
-                            import re
-                            time_match = re.search(r'时间：(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2})', time_text)
-                            if time_match:
-                                publish_time = time_match.group(1).replace(' ', 'T')
-                                logger.info(f"提取到真实发布时间: {publish_time}")
-                        except Exception as e:
-                            logger.warning(f"提取发布时间失败: {e}")
+                # 按报告类型过滤：morning → 晨报, evening → 日报, weekly → 周报
+                type_keyword = _report_type_label(self.report_type)
+                if type_keyword not in text_stripped:
+                    logger.debug(f"跳过非{type_keyword}: {text_stripped}")
+                    continue
 
-                        reports.append({
-                            "title": text_stripped,
-                            "url": href,
-                            "publish_time": publish_time,
-                        })
-                        logger.info(f"找到报告: {text_stripped}")
-                        break
+                # 确保 URL 使用 HTTPS（登录 cookie 可能带 Secure 标志）
+                if href.startswith("http://"):
+                    href = "https://" + href[7:]
+                elif href.startswith("//"):
+                    href = "https:" + href
+
+                if publish_time != f"{date_str}T09:00:00":
+                    logger.info(f"提取到真实发布时间: {publish_time}")
+
+                reports.append({
+                    "title": text_stripped,
+                    "url": href,
+                    "publish_time": publish_time,
+                })
+                logger.info(f"找到报告: {text_stripped}")
 
         except Exception as e:
             logger.error(f"解析报告列表异常: {e}")
