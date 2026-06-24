@@ -278,6 +278,13 @@ public class VectorTaskServiceImpl implements VectorTaskService {
                 }
                 knowledgeMapper.updateById(kb);
 
+                // 同步 chunk_count 为实际切片数（防止异步时序导致的丢失更新）
+                try {
+                    knowledgeMapper.syncChunkCount(kb.getId());
+                } catch (Exception e) {
+                    log.warn("同步 chunk_count 失败（不影响向量化结果）: knowledgeId={}", kb.getId(), e);
+                }
+
                 updateLog(kb.getId(), "success", retrievalResult.getVectorId(), (int) retrievalTime, taskId);
 
                 log.info("BGE-M3 向量化成功: knowledgeId={}, vectorId={}, cost={}ms",
