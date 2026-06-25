@@ -540,22 +540,95 @@ const sanitizedHtml = computed(() => {
   return html
 })
 
-/** 将 TableMetaEntry 渲染为 HTML 表格字符串 */
+/** 将 TableMetaEntry 渲染为 HTML 表格字符串（保留原文 colspan 布局） */
 function _renderTableHtml(meta: TableMetaEntry | undefined): string {
   if (!meta || !meta.headers || !meta.rows) return ''
-  let tableHtml = `<div class="enhanced-table-wrapper"><table class="html-table"><thead><tr>`
-  for (const h of meta.headers) {
-    tableHtml += `<th>${_escHtml(h)}</th>`
-  }
-  tableHtml += `</tr></thead><tbody>`
-  for (const row of meta.rows) {
-    tableHtml += `<tr>`
-    for (const cell of row) {
-      tableHtml += `<td>${_escHtml(cell)}</td>`
+
+  const headers = meta.headers
+  const rows = meta.rows
+  let tableHtml = `<div class="enhanced-table-wrapper"><table class="html-table">`
+
+  // ── 合并连续重复的表头（还原原文 colspan） ──
+  const merged: { text: string; colspan: number }[] = []
+  for (const h of headers) {
+    const last = merged[merged.length - 1]
+    if (last && last.text === h) {
+      last.colspan++
+    } else {
+      merged.push({ text: h, colspan: 1 })
     }
-    tableHtml += `</tr>`
   }
-  tableHtml += `</tbody></table></div>`
+
+  // ── 判断 rows 前几行是否属于表头（非数值内容 → 也是表头行） ──
+  // 规则：如果某行的所有单元格都不含数字（单价/百分数/数字），视为表头行
+  const hasUnit = (s: string) => /[元％%美分美元吨斤公斤]/.test(s)
+  const hasNumber = (s: string) => /\d/.test(s)
+  let headerRowCount = 0
+  for (const row of rows) {
+    const allHeaderLike = row.every((c: string) => {
+      const t = c.trim()
+      if (!t) return true
+      // 短文本或单位说明 → 表头
+      if (t.length <= 8 && (!hasNumber(t) || hasUnit(t))) return true
+      return false
+    })
+    if (allHeaderLike && row.length > 0) {
+      headerRowCount++
+    } else {
+      break
+    }
+  }
+
+  // ── 渲染表头（thead） ──
+  // 第一行：merged headers（含 colspan）
+  tableHtml += '<thead>'
+  // 主标题行（含 colspan）
+  const hasMultiRow = headerRowCount > 0
+  if (!hasMultiRow || merged.some(m => m.colspan > 1)) {
+    // 有 colspan 合并的主标题行
+    tableHtml += '<tr>'
+    for (const m of merged) {
+      const colspanAttr = m.colspan > 1 ? ` colspan="${m.colspan}"` : ''
+      tableHtml += `<th${colspanAttr}>${_escHtml(m.text)}</th>`
+    }
+    tableHtml += '</tr>'
+  }
+
+  // 子表头行（从 rows 前 N 行提取）
+  const headerRows = rows.slice(0, headerRowCount)
+  for (const row of headerRows) {
+    tableHtml += '<tr>'
+    const cellDiff = headers.length - row.length
+    if (cellDiff > 0) {
+      // 首列由上行 rowspan 覆盖，补空单元格
+      for (let k = 0; k < cellDiff; k++) tableHtml += '<th></th>'
+    }
+    for (const cell of row) {
+      tableHtml += `<th>${_escHtml(cell)}</th>`
+    }
+    tableHtml += '</tr>'
+  }
+  tableHtml += '</thead>'
+
+  // ── 渲染数据行（tbody） ──
+  const dataRows = rows.slice(headerRowCount)
+  if (dataRows.length > 0) {
+    tableHtml += '<tbody>'
+    for (const row of dataRows) {
+      tableHtml += '<tr>'
+      const cellDiff = headers.length - row.length
+      if (cellDiff > 0) {
+        for (let k = 0; k < cellDiff; k++) tableHtml += '<td></td>'
+      }
+      for (const cell of row) {
+        tableHtml += `<td>${_escHtml(cell)}</td>`
+      }
+      tableHtml += '</tr>'
+    }
+    tableHtml += '</tbody>'
+  }
+
+  tableHtml += '</table></div>'
   return tableHtml
 }
 
@@ -807,9 +880,7 @@ onMounted(async () => {
   width: 100%;
   margin: 16px 0;
   background: #ffffff;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #d0d5dd;
 }
 
 .detail-body :deep(th) {
@@ -818,12 +889,13 @@ onMounted(async () => {
   font-weight: 600;
   padding: 10px 14px;
   text-align: left;
-  border-bottom: 2px solid #e0e0e0;
+  border: 1px solid #d0d5dd;
 }
 
 .detail-body :deep(td) {
+  background: #ffffff;
   padding: 8px 14px;
-  border-bottom: 1px solid #ececec;
+  border: 1px solid #d0d5dd;
 }
 
 .detail-body :deep(tr:hover td) {
@@ -888,7 +960,7 @@ onMounted(async () => {
   background: #ffffff;
   border-radius: 8px;
   overflow: hidden;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #d0d5dd;
 }
 .table-caption {
   padding: 10px 14px;
@@ -1099,6 +1171,7 @@ onMounted(async () => {
 .html-content .html-table {
   width: 100%;
   border-collapse: collapse;
+  border: 1px solid #d0d5dd;
   font-size: 12px;
   margin: 12px 0;
 }
