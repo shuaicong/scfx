@@ -559,12 +559,18 @@ function _renderTableHtml(meta: TableMetaEntry | undefined): string {
     }
   }
 
-  // ── 判断 rows 前几行是否属于表头（非数值内容 → 也是表头行） ──
-  // 规则：如果某行的所有单元格都不含数字（单价/百分数/数字），视为表头行
+  // ── 判断 rows 前几行是否属于表头 ──
+  // 规则1：行长度与表头不一致 → 子表头行（首列被 rowspan 覆盖）
+  // 规则2：所有单元格为短文本/单位说明 → 子表头行
   const hasUnit = (s: string) => /[元％%美分美元吨斤公斤]/.test(s)
   const hasNumber = (s: string) => /\d/.test(s)
   let headerRowCount = 0
   for (const row of rows) {
+    // 长度不一致 → 子表头行（合约代码行 or 单位行，首列由上行 rowspan 覆盖）
+    if (row.length !== headers.length) {
+      headerRowCount++
+      continue
+    }
     const allHeaderLike = row.every((c: string) => {
       const t = c.trim()
       if (!t) return true
@@ -580,31 +586,67 @@ function _renderTableHtml(meta: TableMetaEntry | undefined): string {
   }
 
   // ── 渲染表头（thead） ──
-  // 第一行：merged headers（含 colspan）
   tableHtml += '<thead>'
-  // 主标题行（含 colspan）
   const hasMultiRow = headerRowCount > 0
-  if (!hasMultiRow || merged.some(m => m.colspan > 1)) {
-    // 有 colspan 合并的主标题行
+  const headerRows = rows.slice(0, headerRowCount)
+
+  // 计算 rowspan 覆盖列数（子表头行比主表头少列时，首列由 rowspan 覆盖）
+  let colDiff = 0
+  if (hasMultiRow && headerRows.length > 0) {
+    const minSubRowLen = Math.min(...headerRows.map(r => r.length))
+    colDiff = Math.max(0, headers.length - minSubRowLen)
+  }
+  const totalHeaderRows = hasMultiRow ? headerRowCount + 1 : 1
+
+  // 主标题行（含 colspan 和 rowspan）
+  if (!hasMultiRow || merged.some(m => m.colspan > 1) || colDiff > 0) {
     tableHtml += '<tr>'
-    for (const m of merged) {
+    // 前 colDiff 列需要 rowspan 覆盖所有子表头行
+    let remainingRowspan = colDiff
+    let mergedIdx = 0
+    for (; mergedIdx < merged.length && remainingRowspan > 0; mergedIdx++) {
+      const m = merged[mergedIdx]
+      const take = Math.min(m.colspan, remainingRowspan)
+      if (take >= m.colspan) {
+        tableHtml += `<th rowspan="${totalHeaderRows}">${_escHtml(m.text)}</th>`
+      } else {
+        tableHtml += `<th rowspan="${totalHeaderRows}" colspan="${take}">${_escHtml(m.text)}</th>`
+        tableHtml += `<th colspan="${m.colspan - take}">${_escHtml(m.text)}</th>`
+      }
+      remainingRowspan -= take
+    }
+    // 剩余主表头（无 rowspan）
+    for (; mergedIdx < merged.length; mergedIdx++) {
+      const m = merged[mergedIdx]
       const colspanAttr = m.colspan > 1 ? ` colspan="${m.colspan}"` : ''
       tableHtml += `<th${colspanAttr}>${_escHtml(m.text)}</th>`
     }
     tableHtml += '</tr>'
   }
 
-  // 子表头行（从 rows 前 N 行提取）
-  const headerRows = rows.slice(0, headerRowCount)
+  // 子表头行（从 rows 前 N 行提取，带 colspan 合并）
   for (const row of headerRows) {
     tableHtml += '<tr>'
-    const cellDiff = headers.length - row.length
-    if (cellDiff > 0) {
-      // 首列由上行 rowspan 覆盖，补空单元格
-      for (let k = 0; k < cellDiff; k++) tableHtml += '<th></th>'
-    }
+    // 合并连续重复值（如：2609|2609 → colspan=2 的 2609）
+    const mergedCells: { text: string; colspan: number }[] = []
     for (const cell of row) {
-      tableHtml += `<th>${_escHtml(cell)}</th>`
+      const last = mergedCells[mergedCells.length - 1]
+      if (last && last.text === cell) {
+        last.colspan++
+      } else {
+        mergedCells.push({ text: cell, colspan: 1 })
+      }
+    }
+    // 补齐缺失列（首列被 rowspan 覆盖时不需要补）
+    const expectedCols = headers.length - colDiff
+    const rowCellDiff = expectedCols - row.length
+    if (rowCellDiff > 0) {
+      for (let k = 0; k < rowCellDiff; k++) tableHtml += '<th></th>'
+    }
+    // 渲染合并后的单元格
+    for (const mc of mergedCells) {
+      const colspanAttr = mc.colspan > 1 ? ` colspan="${mc.colspan}"` : ''
+      tableHtml += `<th${colspanAttr}>${_escHtml(mc.text)}</th>`
     }
     tableHtml += '</tr>'
   }
@@ -1179,7 +1221,7 @@ onMounted(async () => {
 .html-content .html-table td {
   border: 1px solid #d0d5dd;
   padding: 6px 10px;
-  text-align: left;
+  text-align: center;
 }
 .html-content .html-table th {
   background: #f5f0e0;
