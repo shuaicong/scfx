@@ -558,6 +558,15 @@ ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 
 在 `ai-qa-service` 中新增 3 个工具函数，LLM 可在回答问题时调用：
 
+#### 通用约束（所有工具适用）
+
+| 约束 | 规则 |
+|------|------|
+| 日期范围上限 | 单次查询最多 180 天，超限自动截断并提示"仅展示近 180 天数据" |
+| 返回附带信息 | 每条结果附带 `source=粮达网`、`grain_standard=容重二等以上，水分14%`，避免用户误解报价适用粮质 |
+| 空结果处理 | 返回空列表时输出"暂无数据"，不抛异常 |
+| 涨跌格式 | 统一转为 `+10` / `-10` / `持平` 字符串，方便 LLM 直接拼接回答 |
+
 #### 工具 1：query_price — 查当前价格
 
 ```python
@@ -569,7 +578,17 @@ async def query_price(variety: str, region: str) -> dict:
          WHERE variety=%s AND region=%s 
          ORDER BY date DESC LIMIT 7
     """
-    返回: { "dates": [...], "prices": [...], "changes": [...], "unit": "元/吨" }
+    返回: {
+        "variety": "玉米",
+        "region": "海口港",
+        "prices": [
+            {"date": "2026-06-25", "price": 2510, "change": "持平", "remark": "二等散粮"},
+            ...
+        ],
+        "unit": "元/吨",
+        "source": "粮达网",
+        "grain_standard": "容重二等以上，水分14%"
+    }
 ```
 
 **触发场景：**
@@ -582,6 +601,15 @@ async def query_price(variety: str, region: str) -> dict:
 async def query_price_trend(variety: str, region: str, days: int = 30) -> dict:
     """
     查询某个品种在指定区域近 N 天的价格趋势
+    
+    约束：
+    - days 取值范围 [1, 180]，超 180 自动截断
+    - 返回按 date ASC 排序
+    
+    SQL: SELECT * FROM t_price
+         WHERE variety=%s AND region=%s
+           AND date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+         ORDER BY date ASC
     """
 ```
 
@@ -592,9 +620,19 @@ async def query_price_trend(variety: str, region: str, days: int = 30) -> dict:
 #### 工具 3：query_price_comparison — 多港口对比
 
 ```python
-async def query_price_comparison(variety: str, regions: list[str]) -> dict:
+async def query_price_comparison(variety: str, regions: list[str] | None = None) -> dict:
     """
     对比多个区域的同品种价格
+    
+    特殊行为：
+    - regions=None 或空列表时 → 返回当日所有港口价格，按 price ASC 排序
+    - 自动标注最高价和最低价港口
+    - 附带全市场均价
+    
+    SQL: SELECT region, price, change_val, remark, date
+         FROM t_price
+         WHERE variety=%s AND date=CURDATE()
+         ORDER BY price ASC
     """
 ```
 
@@ -628,6 +666,8 @@ async def query_price_comparison(variety: str, regions: list[str]) -> dict:
 06-23  2510  持平
 06-22  2510  持平
 06-18  2510  持平
+━━━━━━━━━━━━━━━━━━
+数据来源：粮达网 ｜ 粮质标准：容重二等以上，水分14%
 ```
 
 ### 5.5 数据可视化页面（远期）
@@ -691,7 +731,57 @@ async def query_price_comparison(variety: str, regions: list[str]) -> dict:
 | 文件 | 说明 |
 |------|------|
 | `python-collector-sdk/collectorsdk/collectors/liangdawang.py` | 采集器主类（httpx API 采集） |
-| `python-collector-sdk/collectorsdk/dimensions.py`（修改） | 新增 `LIANGDAWANG` 和 `PRICE_INDEX` 枚举值 |
+| `python-collector-sdk/collectorsdk/dimensions.py`（修改） | 新增枚举值（见下方枚举规范） |
+
+#### 枚举扩展规范
+
+新增数据源和采集类型枚举时，与现有粮信网枚举风格统一：
+
+**原有枚举（粮信网参考）：**
+
+```python
+# dimensions.py
+class Source(str, Enum):
+    LIANGXIN = "liangxin"          # 粮信网
+    MYSTEEL = "mysteel"            # 我的钢铁网
+    CHINAGRAIN = "chinagrain"      # 中华粮网
+    USDA = "usda"                  # USDA
+    UPLOAD = "upload"              # 人工录入
+
+class Subject(str, Enum):
+    CORN = "corn"                  # 玉米
+
+class CollectType(str, Enum):
+    LOGIN_CRAWL = "login_crawl"    # 登录后爬虫
+    API_CRAWL = "api_crawl"        # API 调用
+
+class CollectObject(str, Enum):
+    DAILY_REPORT = "daily_report"  # 日报
+    WEEKLY_REPORT = "weekly_report" # 周报
+    PRICE_INDEX = "price_index"    # 价格指数（新增）
+```
+
+**新增枚举值：**
+
+```python
+class Source(str, Enum):
+    # ... 保留所有已有枚举值 ...
+    LIANGDAWANG = "liangdawang"    # 粮达网 ← 新增，注释写明数据源全称
+
+class CollectType(str, Enum):
+    # ... 保留所有已有枚举值 ...
+    API_CRAWL = "api_crawl"        # 已有枚举值，粮达网复用此类型
+
+class CollectObject(str, Enum):
+    # ... 保留所有已有枚举值 ...
+    PRICE_INDEX = "price_index"    # 价格指数 ← 新增
+```
+
+**约束：**
+- 枚举值使用**全小写蛇形**（`liangdawang`、`price_index`），与现有枚举风格一致
+- 每个枚举项必须有**中文注释**说明含义
+- 不在现有枚举中间插入新值，统一追加到末尾，避免打乱已有序列化顺序
+- 不修改已有枚举值的名称和值，确保历史数据统计不受影响
 
 ### 7.2 采集调度（修改）
 
