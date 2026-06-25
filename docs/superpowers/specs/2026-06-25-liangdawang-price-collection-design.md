@@ -222,9 +222,62 @@ class LiangdawangCollector(BaseCollector):
 
 - **每日增量**：`INSERT ... ON DUPLICATE KEY UPDATE`
 - **唯一键**：`(date, variety, region, source)` 联合唯一
-- **历史回填**：启动时检查 `t_price` 中 `source=liangdawang` 的记录数，少于预期则执行回填
+- **价格覆盖**：同一 date+variety+region+source 的已有记录仅更新 price/change_val/remark，不新增行
 
-### 3.4 调度配置
+### 3.4 节假日空数据兜底
+
+**现象：** getPriceInfo 在周末/节假日可能返回空列表或前一日数据。
+
+**处理策略：**
+
+| 场景 | 行为 |
+|------|------|
+| 返回空列表 `data: []` | 不写入 t_price，不生成知识库条目 |
+| 返回数据但日期与当日不符 | 写入数据库（价格数据本身有效），但知识库条目 title 使用 API 返回的日期 |
+| 连续 N 天无新数据 | 第 3 天起输出 ERROR 告警日志，推送通知 |
+
+**AI 问答侧：**
+用户查询节假日价格时，SQL 查询自动 `ORDER BY date DESC LIMIT 1`，返回最近一个交易日数据，并在回答中追加提示：
+
+> "当前日期（2026-06-25）为节假日无新数据，以上为最近交易日（2026-06-24）价格。"
+
+### 3.5 历史数据回填（首次运行）
+
+**约束：**
+- **仅首次运行执行一次**，通过标志位控制（检查 `t_price` 中 `source=liangdawang` 记录数是否为 0）
+- 日常定时任务只做当日增量采集，不做历史回填
+
+**回填流程：**
+
+```
+1. 检查 t_price WHERE source='liangdawang' COUNT(*)
+   → 若 > 0，跳过回填（已有历史数据）
+
+2. 获取所有品种 × 区域组合
+   GET /varietyNameAndAreaType
+   → 遍历每个 variety 的 areaTypeList
+
+3. 获取区域下的省份+港口列表
+   GET /getPriceInfo → 从 province+area 提取组合
+   
+4. 遍历每个 province+area，回填历史
+   GET /getPriceChart?varietyName=玉米&areaType=港口&province=南港&area=海口港
+   → 返回该港口的所有历史时间序列
+
+5. 分批写入（每批 500 条）
+   INSERT INTO t_price (date, variety, region, price, change_val, unit, source)
+   VALUES (?, ?, ?, ?, ?, '元/吨', 'liangdawang')
+   ON DUPLICATE KEY UPDATE price=VALUES(price), change_val=VALUES(change_val)
+   每批 batch_size=500，批量提交
+   记录分批进度日志："回填进度：海口港 1200/8500 条"
+
+6. 回填完成后设置标志位
+   → 后续定时任务不再进入回填逻辑
+```
+
+> 防重复：使用唯一键 `ON DUPLICATE KEY UPDATE`，确保重复执行不会产生脏数据。
+
+### 3.6 调度配置
 
 在现有 APScheduler 中新增定时任务：
 
@@ -273,12 +326,27 @@ CREATE TABLE `t_price` (
 | `province` | `province` | 透传（北港/南港） |
 | `area` | `region` | 透传（锦州港/蛇口港） |
 | `price` | `price` | 转 decimal |
-| `priceDif` | `change_val` | "持平"→0, "+10"→10, "-10"→-10, "--"→NULL |
+| `priceDif` | `change_val` | 见下方转换规则表 |
 | `remark` | `remark` | 透传（二等散粮/一等集装箱） |
 | `endDate` | `date` | 转 date |
 | 固定 | `variety` | 从请求参数获取（玉米） |
 | 固定 | `unit` | "元/吨" |
 | 固定 | `source` | "liangdawang" |
+
+**priceDif → change_val 转换规则（全量枚举）：**
+
+| 原始值 | 转换后 | 说明 |
+|--------|--------|------|
+| `"持平"` | `0` | 常见 |
+| `"+10"` 格式（如 +5/+20） | `10` / `5` / `20` | 正涨 |
+| `"10"`（无 + 号） | `10` | 带符号优先，无符号后备 |
+| `"-10"` 格式（如 -5/-20） | `-10` / `-5` / `-20` | 下跌 |
+| `"--"` | `NULL` | 无去年同期对比 |
+| `""`（空字符串） | `NULL` | 缺失 |
+| 其他不可识别值 | `NULL` + 日志告警 | 异常值追踪 |
+
+> 转换日志：每次转换记录 `原始priceDif → 转换后change_val`，
+> 遇到不可识别值时输出 WARN 级别日志，便于追溯 API 格式变更。
 
 ### 4.2 索引优化
 
