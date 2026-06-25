@@ -264,7 +264,7 @@ class LiangdawangCollector(BaseCollector):
    GET /getPriceChart?varietyName=玉米&areaType=港口&province=南港&area=海口港
    → 返回该港口的所有历史时间序列
 
-5. 分批写入（每批 500 条）
+5. 分批写入（每批 500 条，批间间隔 500ms）
    INSERT INTO t_price (date, variety, region, price, change_val, unit, source)
    VALUES (?, ?, ?, ?, ?, '元/吨', 'liangdawang')
    ON DUPLICATE KEY UPDATE price=VALUES(price), change_val=VALUES(change_val)
@@ -325,8 +325,8 @@ CREATE TABLE `t_price` (
 |-------------------|-------------|----------|
 | `province` | `province` | 透传（北港/南港） |
 | `area` | `region` | 透传（锦州港/蛇口港） |
-| `price` | `price` | 转 decimal |
-| `priceDif` | `change_val` | 见下方转换规则表 |
+| `price` | `price` | 转 decimal，异常捕获见下方说明 |
+| `priceDif` / `priceDiff` | `change_val` | 见下方转换规则表；优先取 `priceDif`，不存在时回退 `priceDiff` |
 | `remark` | `remark` | 透传（二等散粮/一等集装箱） |
 | `endDate` | `date` | 转 date |
 | 固定 | `variety` | 从请求参数获取（玉米） |
@@ -344,6 +344,9 @@ CREATE TABLE `t_price` (
 | `"--"` | `NULL` | 无去年同期对比 |
 | `""`（空字符串） | `NULL` | 缺失 |
 | 其他不可识别值 | `NULL` + 日志告警 | 异常值追踪 |
+
+> **字段兼容**：getPriceInfo 使用 `priceDif`，getPriceChart 使用 `priceDiff`，采集器统一先读 `priceDif`，不存在则回退 `priceDiff`。
+> JSON key 严格区分大小写，按 API 实际返回的驼峰命名读取，不做大小写不敏感匹配。
 
 > 转换日志：每次转换记录 `原始priceDif → 转换后change_val`，
 > 遇到不可识别值时输出 WARN 级别日志，便于追溯 API 格式变更。
@@ -854,6 +857,7 @@ class CollectObject(str, Enum):
 
 ### 9.2 注意事项
 
+- **Decimal 安全解析**：`price` 字段从字符串转 Decimal 时使用 `try/except` 包裹，解析失败（如空字符串、非法字符、科学记数法等）直接丢弃本条记录并输出 ERROR 告警日志，标记 `collect_error_count++`，不阻塞整体采集流程
 - **涨跌字段解析**：`priceDif` 可能为"持平""+10""-10""--"，需统一转换为数字（0、10、-10、NULL）
 - **节假日无数据**：getPriceInfo 在节假日可能返回空数据或昨日数据，需要去重判断
 - **等级备注**：remark 字段（如"二等散粮""一等集装箱"）保留在扩展字段中，可用于 AI 回答
