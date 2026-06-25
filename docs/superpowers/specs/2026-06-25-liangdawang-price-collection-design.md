@@ -415,13 +415,121 @@ ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 优点：零前端改动，数据随采集完成自动展现
 缺点：需在后端新增 HTML 拼接逻辑
 
-**方案 B：前端动态查询**
-
-知识详情页加载时，通过 `knowledgeId` 查询关联的 `t_price` 数据，在前端渲染为表格。
-优点：数据新，价格可交互排序
-缺点：需新增 API、增加前端复杂度
-
 **初期选方案 A**，以最小改动快速上线。
+
+#### HTML 生成规范
+
+**1. `content_html` 结构模板：**
+
+```html
+<div class="ldw-price-index">
+  <div class="ldw-header">
+    <h2>粮达网玉米港口价格指数</h2>
+    <span class="ldw-date">2026-06-25</span>
+    <span class="ldw-source">数据来源：粮达网业务员实地采集</span>
+  </div>
+
+  <table class="ldw-table">
+    <thead>
+      <tr>
+        <th>省份</th><th>港口</th><th>价格（元/吨）</th><th>涨跌</th><th>粮质等级</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="group-header"><td colspan="5">北港</td></tr>
+      <tr>
+        <td>北港</td><td>锦州港</td><td>2330</td>
+        <td class="change-flat">持平</td><td>二等散粮</td>
+      </tr>
+      <tr>
+        <td>北港</td><td>鲅鱼圈</td><td>2335</td>
+        <td class="change-flat">持平</td><td>二等散粮</td>
+      </tr>
+      <tr class="group-header"><td colspan="5">南港</td></tr>
+      <tr>
+        <td>南港</td><td>湛江港</td><td>2500</td>
+        <td class="change-down">-10</td><td>一等集装箱</td>
+      </tr>
+      <tr>
+        <td>南港</td><td>海口港</td><td>2510</td>
+        <td class="change-flat">持平</td><td>二等散粮</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="ldw-charts">
+    <p><a href="..." target="_blank">📈 查看完整走势图（粮达网）</a></p>
+  </div>
+
+  <div class="ldw-footer">
+    <p>涨跌：<span class="change-up">红涨</span> <span class="change-down">绿跌</span> <span class="change-flat">灰持平</span></p>
+    <p>* 价格指数为粮达网各区业务员实地采集成交价/收购价，粮质容重二等以上，水分14%</p>
+  </div>
+</div>
+```
+
+**2. 内置 CSS 样式：**
+
+```html
+<style>
+.ldw-price-index {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  max-width: 100%; overflow-x: auto;
+}
+.ldw-header { margin-bottom: 16px; }
+.ldw-header h2 { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+.ldw-date { font-size: 13px; color: #888; margin-right: 12px; }
+.ldw-source { font-size: 12px; color: #aaa; }
+.ldw-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+  margin: 12px 0; min-width: 600px;
+}
+.ldw-table th, .ldw-table td {
+  border: 1px solid #d0d5dd; padding: 8px 12px;
+  text-align: center; white-space: nowrap;
+}
+.ldw-table th { background: #f5f0e0; font-weight: 600; color: #222; }
+.ldw-table tbody tr:nth-child(even) td { background: #fafbfc; }
+.change-up   { color: #d32f2f; font-weight: 600; }
+.change-down { color: #2e7d32; font-weight: 600; }
+.change-flat { color: #888; }
+.group-header td { background: #f0f2f5 !important; font-weight: 700; text-align: left; padding: 6px 12px; color: #333; }
+@media (max-width: 768px) {
+  .ldw-table { font-size: 11px; }
+  .ldw-table th, .ldw-table td { padding: 4px 6px; }
+}
+.ldw-charts img { max-width: 100%; height: auto; display: block; margin: 12px auto; border-radius: 4px; }
+.ldw-footer { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e8eaed; font-size: 12px; color: #888; line-height: 1.6; }
+</style>
+```
+
+**3. 涨跌色标规则：**
+
+| CSS class | 条件 | 颜色 | 示例 |
+|-----------|------|------|------|
+| `change-up` | `change_val > 0` | 红色 `#d32f2f` | +10、+20 |
+| `change-down` | `change_val < 0` | 绿色 `#2e7d32` | -10、-20 |
+| `change-flat` | `change_val = 0` 或 NULL | 灰色 `#888` | 持平、-- |
+
+**4. 知识库标题规范：**
+
+每日条目命名规则：`{品种}{区域类型}{数据源}价格指数（{日期}）`
+示例：`玉米港口粮达网价格指数（2026-06-25）`
+
+结构：品种从 varietyName 取值，区域类型从 areaType 取值，数据源固定`粮达网`，日期 `yyyy-MM-dd`。
+
+**5. 标签字段：**
+
+| 字段 | 值 | 说明 |
+|------|-----|------|
+| `source_type` | `liangdawang` | 与粮信网等区分 |
+| `category` | `价格指数` | 区别于行业报告 |
+
+后期可在 `t_knowledge_base` 扩展 `extra_tags` JSON 字段：
+
+```json
+{"variety": "玉米", "area_type": "港口", "data_type": "price_index"}
+```
 
 ### 5.2 知识库详情页中的走势图
 
