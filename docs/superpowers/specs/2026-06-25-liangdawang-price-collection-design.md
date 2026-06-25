@@ -75,12 +75,10 @@
 | 价格 | decimal | API | 2210 |
 | 涨跌 | string | API | 持平 / +10 / -10 |
 
-#### 2.1.4 页面图片（趋势图截图）
+#### 2.1.4 走势图表（前端 ECharts 渲染，无图片可采集）
 
-| 图片 | 内容 | 采集方式 |
-|------|------|----------|
-| "玉米二等粮走势图" | 当前港口的历史价格折线图 | Playwright 截图 → MinIO |
-| "玉米二等粮季节性走势图" | 同期价格对比图 | Playwright 截图 → MinIO |
+走势图和季节性走势图由前端 ECharts 库通过 `getPriceChart` API 数据动态渲染为 `<canvas>`，页面中不存在任何 `<img>` 标签。
+采集器无需截图，直接通过 API 获取原始数据即可。展示端如需图表，可复用 `getPriceChart` 数据在前端用 ECharts 重新绘制。
 
 ### 2.2 API 清单
 
@@ -175,9 +173,6 @@
 | HTTP 客户端 | `httpx` (async) | 纯 API 调用，无需浏览器渲染 |
 | 采集器基类 | `BaseCollector` | 复用现有 SDK（上报/维度/日志） |
 | 认证 | 无 | 公开 API，无需 cookie/header |
-| 浏览器截图（趋势图图片） | `Playwright` | 复用粮信网现有的 Playwright 截图能力 |
-| 图片存储 | MinIO（复用现有） | 粮信网图片采集已走的路径 |
-| 调度 | APScheduler（复用现有） | 与粮信网采集共用调度 |
 
 ### 3.2 采集器实现
 
@@ -198,47 +193,27 @@ class LiangdawangCollector(BaseCollector):
 **采集流程：**
 
 ```
-Phase A — 结构化价格数据采集（httpx，无需浏览器）
-
 1. GET /varietyNameAndAreaType
    → 获取品种列表 [{varietyName, areaTypeList}]
-   
+
 2. 遍历品种 × 区域类型
    GET /getPriceInfo?varietyName=玉米&areaType=港口
    → 返回该品种在该区域类型下的所有价格数据
-   
+
 3. 遍历 priceInfoList，每条映射为 t_price 记录
    area        → region
+   province    → province（北港/南港分组）
    price       → price
    priceDif    → change_val（"持平"→0, "+10"→10, "-10"→-10）
    endDate     → date
-   remark      → remark 字段（"二等散粮""一等集装箱"）
+   remark      → remark（"二等散粮""一等集装箱"）
    固定值       → variety=玉米, unit=元/吨, source=liangdawang
-   
+
 4. 上报到 Java 后端
    POST /api/collector/report
    { "items": [ { "type": "price", "data": { ... } }, ... ] }
 
-Phase B — 页面趋势图截图（Playwright）
-
-5. 打开浏览器，访问当前品种/区域的价栍指数页面
-   URL: https://www.liangdawang.com/ldw-portal-vue/information/priceIndices
-        ?varietyName=玉米&areaType=港口&province=南港&area=海口港
-   
-6. 定位趋势图 canvas/SVG 元素，截图
-   "玉米二等粮走势图"    → /tmp/liangdawang_trend_海口港_20260625.png
-   "玉米二等粮季节性走势图" → /tmp/liangdawang_seasonal_海口港_20260625.png
-
-7. 图片上传 MinIO，获取访问 URL
-   minio://liangdawang/images/trend_海口港_20260625.png
-   minio://liangdawang/images/seasonal_海口港_20260625.png
-
-8. 图片 URL 随上报数据一起传到后端，存入 t_knowledge_image
-
-Phase C — 历史数据回填（首次运行）
-
-9. 检查 t_price 中 source=liangdawang 的记录数
-   若少于预期 → 执行历史回填
+5. 首次运行：回填历史数据
    GET /getPriceChart?varietyName=玉米&areaType=港口&province=南港&area=海口港
    → 每个港口的历史价格，一次性批量插入 t_price
 ```
@@ -320,18 +295,7 @@ ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 - `WHERE variety='玉米' AND region IN ('锦州港','蛇口港') AND date='2026-06-25'`
 - `WHERE variety='玉米' AND date BETWEEN '2026-06-01' AND '2026-06-25'`
 
-### 4.3 图片存储（MinIO）
-
-趋势图截图复用现有 MinIO 存储方案：
-
-| 目录 | 命名规则 | 示例 |
-|------|----------|------|
-| `liangdawang/images/` | `{type}_{region}_{date}.png` | `trend_海口港_20260625.png` |
-| | | `seasonal_海口港_20260625.png` |
-
-图片元数据记录在 `t_knowledge_image` 表（复用现有表）。
-
-### 4.4 知识库条目
+### 4.3 知识库条目
 
 新增 `t_knowledge_base` 记录，每日一条"粮达网价格指数"：
 
@@ -391,25 +355,23 @@ ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 
 **初期选方案 A**，以最小改动快速上线。
 
-### 5.2 知识库详情页中的趋势图
+### 5.2 知识库详情页中的走势图
 
-`content_html` 中的图片区域使用 `<img>` 标签引用 MinIO 上的趋势图截图：
+走势图由前端 ECharts 通过 `getPriceChart` API 数据动态渲染，页面无静态图片。
+
+**一期**：在 `content_html` 末尾增加原文图表链接，用户点击跳转粮达网原页面查看交互式图表：
 
 ```html
-<div class="price-chart-section">
-  <h3>玉米二等粮走势图（海口港）</h3>
-  <img src="https://minio.liangdawang/images/trend_海口港_20260625.png"
-       alt="玉米二等粮走势图（海口港）"
-       class="price-chart-img" />
-  
-  <h3>玉米二等粮季节性走势图（海口港）</h3>
-  <img src="https://minio.liangdawang/images/seasonal_海口港_20260625.png"
-       alt="玉米二等粮季节性走势图（海口港）"
-       class="price-chart-img" />
-</div>
+<p class="chart-link">
+  <a href="https://www.liangdawang.com/ldw-portal-vue/information/priceIndices?
+     varietyName=玉米&areaType=港口&province=南港&area=海口港" target="_blank">
+    📈 查看完整走势图（粮达网）
+  </a>
+</p>
 ```
 
-> 前端已支持 `v-html` 中的 `<img>` 点击放大预览（`onContentClick` 方法），不需额外开发。
+**二期（可选）**：在后端新增一个 `GET /api/price/chart?variety=玉米&region=海口港` 接口，
+返回 `getPriceChart` 数据，前端在知识详情页中用 ECharts 重新绘制可交互的趋势图。
 
 ### 5.3 价格走势增强（远期，二期）
 
@@ -552,9 +514,8 @@ async def query_price_comparison(variety: str, regions: list[str]) -> dict:
 
 | 文件 | 说明 |
 |------|------|
-| `python-collector-sdk/collectorsdk/collectors/liangdawang.py` | 采集器主类（含 httpx API 采集 + Playwright 趋势图截图） |
+| `python-collector-sdk/collectorsdk/collectors/liangdawang.py` | 采集器主类（httpx API 采集） |
 | `python-collector-sdk/collectorsdk/dimensions.py`（修改） | 新增 `LIANGDAWANG` 和 `PRICE_INDEX` 枚举值 |
-| `python-collector-sdk/collectorsdk/image_helper.py`（复用/修改） | 复用粮信网的 MinIO 图片上传工具 |
 
 ### 7.2 采集调度（修改）
 
