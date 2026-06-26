@@ -271,9 +271,17 @@ class LiangdawangCollector(BaseCollector):
 
 4. 批量提交到 Java 后端
    POST /api/price/batch
-   { "source": "liangdawang", "execution_id": "...", "records": [ {...}, ... ] }
+   {
+     "source": "liangdawang",
+     "execution_id": "...",
+     "daily_run": true,        # true=每日采集, false=历史回填
+     "records": [ {...}, ... ]
+   }
    → 后端 PriceController 接收 → PriceService.batchSave()
    → INSERT ... ON DUPLICATE KEY UPDATE 批量写入 t_price
+   → 若 daily_run=true，自动触发知识库条目生成
+     KnowledgeBaseService.generatePriceIndexEntry(date, source)
+     查 t_price → 拼 HTML 表格 → 保存到 t_knowledge_base
    
    说明：不经过现有的 /collector/exec/{id}/data 接口。
    价格数据是结构化的批量记录，不需要采集器完整生命周期
@@ -1328,6 +1336,7 @@ class CollectObject(str, Enum):
 |------|------|
 | `backend/src/main/java/com/scfx/controller/PriceController.java`（新增） | `POST /api/price/batch` 批量接收价格记录 |
 | `backend/src/main/java/com/scfx/service/PriceService.java`（新增） | `batchSave()` 批量写入+去重 |
+| `backend/src/main/java/com/scfx/service/KnowledgeBaseService.java`（修改） | 新增 `generatePriceIndexEntry()` 自动生成价格指数知识条目 |
 | `backend/src/main/java/com/scfx/entity/Price.java`（修改） | 修正 `change`→`change_val`，新增 `province`/`remark`/`area_type` 字段 |
 | `backend/src/main/java/com/scfx/mapper/PriceMapper.java`（修改） | 新增 `batchInsertOrUpdate` 方法（XML 或注解） |
 | `backend/src/main/resources/db/migration/V6__alter_t_price_add_fields.sql`（新增） | 新增 province/remark/area_type 列和索引 |
@@ -1485,7 +1494,9 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 2. 修正 `Price.java` 实体字段（`change`→`change_val`，新增字段）
 3. 新增 `PriceService.batchSave()`，批量 `INSERT ... ON DUPLICATE KEY UPDATE`
 4. 新增 `PriceController`，`POST /api/price/batch` 端点
-5. 验证数据正确写入 `t_price`
+5. `KnowledgeBaseService` 新增 `generatePriceIndexEntry()`：查 t_price → 拼 HTML → 保存 KB
+6. `PriceService` 在 `daily_run=true` 时自动触发知识库条目生成
+7. 验证数据正确写入 `t_price` 和知识库条目
 
 ### Phase 3：知识库展示（0.5 天）
 
