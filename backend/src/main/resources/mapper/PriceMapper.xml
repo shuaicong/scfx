@@ -3,20 +3,21 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="com.scfx.mapper.PriceMapper">
 
-    <insert id="batchInsertOrUpdate" parameterType="list">
+    <insert id="batchInsertOrUpdate" parameterType="java.util.List">
         INSERT INTO t_price (`date`, variety, region, province, area_type, price, change_val, remark, unit, source)
         VALUES
         <foreach collection="list" item="item" separator=",">
             (#{item.date}, #{item.variety}, #{item.region}, #{item.province}, #{item.areaType},
              #{item.price}, #{item.changeVal}, #{item.remark}, #{item.unit}, #{item.source})
         </foreach>
+        AS new
         ON DUPLICATE KEY UPDATE
-        price = VALUES(price),
-        change_val = VALUES(change_val),
-        remark = VALUES(remark),
-        province = VALUES(province),
-        area_type = VALUES(area_type),
-        unit = VALUES(unit)
+        price = new.price,
+        change_val = new.change_val,
+        remark = new.remark,
+        province = new.province,
+        area_type = new.area_type,
+        unit = new.unit
     </insert>
 
 </mapper>
