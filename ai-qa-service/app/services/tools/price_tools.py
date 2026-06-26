@@ -118,15 +118,13 @@ def _build_source_url(variety: str, region: str) -> str:
 
 def _build_visualization_table(
     title: str,
-    headers: list[str],
-    rows: list[list],
+    rows: list[dict],
 ) -> dict:
     """构建表格可视化数据
 
     Args:
         title: 表格标题
-        headers: 列头列表
-        rows: 数据行列表
+        rows: 数据行列表，每项包含 region/province/price/change/remark
 
     Returns:
         可视化 dict
@@ -134,8 +132,9 @@ def _build_visualization_table(
     return {
         "type": "table",
         "title": title,
-        "headers": headers,
-        "rows": rows,
+        "data": {
+            "rows": rows,
+        },
     }
 
 
@@ -144,6 +143,7 @@ def _build_visualization_line(
     labels: list[str],
     dataset_label: str,
     dataset_data: list,
+    unit: str = "",
 ) -> dict:
     """构建折线图可视化数据
 
@@ -152,6 +152,7 @@ def _build_visualization_line(
         labels: X 轴标签（日期）
         dataset_label: 数据集名称
         dataset_data: Y 轴数据
+        unit: 数据单位
 
     Returns:
         可视化 dict
@@ -159,13 +160,17 @@ def _build_visualization_line(
     return {
         "type": "line",
         "title": title,
-        "labels": labels,
-        "datasets": [
-            {
-                "label": dataset_label,
-                "data": dataset_data,
-            }
-        ],
+        "data": {
+            "xAxis": labels,
+            "series": [
+                {
+                    "name": dataset_label,
+                    "data": dataset_data,
+                    "type": "line",
+                }
+            ],
+            "unit": unit,
+        },
     }
 
 
@@ -173,6 +178,7 @@ def _build_visualization_comparison(
     title: str,
     labels: list[str],
     datasets: list[dict],
+    unit: str = "",
 ) -> dict:
     """构建多系列折线图可视化数据（用于多区域对比）
 
@@ -180,15 +186,23 @@ def _build_visualization_comparison(
         title: 图表标题
         labels: X 轴标签
         datasets: 数据集列表，每项 {"label": str, "data": list}
+        unit: 数据单位
 
     Returns:
         可视化 dict
     """
+    series = [
+        {"name": ds["label"], "data": ds["data"], "type": "line"}
+        for ds in datasets
+    ]
     return {
         "type": "line",
         "title": title,
-        "labels": labels,
-        "datasets": datasets,
+        "data": {
+            "xAxis": labels,
+            "series": series,
+            "unit": unit,
+        },
     }
 
 
@@ -264,27 +278,30 @@ async def query_price(
 
     # 构建来源
     source_url = _build_source_url(variety, region)
+    date_info = date if date else f"{str(records[0].get('date', ''))}等{len(records)}天"
     sources = [
         {
-            "title": f"粮达网 - {variety} {region}",
+            "type": "sql",
+            "query_summary": f"{variety} {region} 共{len(records)}条",
+            "source_name": "粮达网",
+            "date": date_info,
             "url": source_url,
             "grain_standard": GRAIN_STANDARD,
-            "source": "粮达网",
         }
     ]
 
     # 构建表格可视化
     table_rows = []
     for p in prices:
-        table_rows.append([
-            p["date"],
-            str(p["price"]) if p["price"] is not None else "--",
-            p["change"],
-            p["remark"],
-        ])
+        table_rows.append({
+            "region": p["date"],
+            "province": "",
+            "price": p["price"],
+            "change": p["change"],
+            "remark": p["remark"],
+        })
     visualization = _build_visualization_table(
         title=f"{variety} — {region} 价格",
-        headers=["日期", f"价格（{unit}）", "涨跌", "备注"],
         rows=table_rows,
     )
 
@@ -409,12 +426,15 @@ async def query_price_trend(
 
     # 构建来源
     source_url = _build_source_url(variety, region)
+    date_info = f"{start_date} ~ {end_date}" if start_date and end_date else f"近{days}天"
     sources = [
         {
-            "title": f"粮达网 - {variety} {region} 价格走势",
+            "type": "sql",
+            "query_summary": f"{variety} {region} 共{len(records)}条",
+            "source_name": "粮达网",
+            "date": date_info,
             "url": source_url,
             "grain_standard": GRAIN_STANDARD,
-            "source": "粮达网",
         }
     ]
 
@@ -426,6 +446,7 @@ async def query_price_trend(
         labels=labels,
         dataset_label=f"{region} {variety}",
         dataset_data=data,
+        unit=unit,
     )
 
     return {
@@ -553,28 +574,30 @@ async def query_price_comparison(
 
     # 构建来源
     source_url = _build_source_url(variety, "")
+    date_info = str(records[0].get("date", "")) if records else (date or "")
     sources = [
         {
-            "title": f"粮达网 - {variety} 区域对比",
+            "type": "sql",
+            "query_summary": f"{variety} 多区域对比 共{len(records)}条",
+            "source_name": "粮达网",
+            "date": date_info,
             "url": source_url,
             "grain_standard": GRAIN_STANDARD,
-            "source": "粮达网",
         }
     ]
 
     # 构建表格可视化
     table_rows = []
     for it in items:
-        table_rows.append([
-            it["region"],
-            it.get("province", ""),
-            str(it["price"]) if it["price"] is not None else "--",
-            it["change"],
-            it["remark"],
-        ])
+        table_rows.append({
+            "region": it["region"],
+            "province": it.get("province", ""),
+            "price": it["price"],
+            "change": it["change"],
+            "remark": it["remark"],
+        })
     visualization = _build_visualization_table(
         title=f"{variety} 区域价格对比（{query_date}）",
-        headers=["区域", "省份", f"价格（{unit}）", "涨跌", "备注"],
         rows=table_rows,
     )
 
