@@ -269,9 +269,15 @@ class LiangdawangCollector(BaseCollector):
    unit        → 按品种固定：粮食品种"元/吨"，生猪"元/斤"
    source      → "liangdawang"
 
-4. 上报到 Java 后端
-   POST /api/collector/report
-   { "items": [ { "type": "price", "data": { ... } }, ... ] }
+4. 批量提交到 Java 后端
+   POST /api/price/batch
+   { "source": "liangdawang", "execution_id": "...", "records": [ {...}, ... ] }
+   → 后端 PriceController 接收 → PriceService.batchSave()
+   → INSERT ... ON DUPLICATE KEY UPDATE 批量写入 t_price
+   
+   说明：不经过现有的 /collector/exec/{id}/data 接口。
+   价格数据是结构化的批量记录，不需要采集器完整生命周期
+   （start→progress→data→complete），独立接口更干净。
 
 5. 首次运行：回填历史数据（仅 isChart=true 的组合）
    GET /getPriceChart?varietyName=玉米&areaType=港口&province=北港&area=锦州港
@@ -1306,9 +1312,10 @@ class CollectObject(str, Enum):
 
 | 文件 | 说明 |
 |------|------|
-| `backend/src/main/java/com/scfx/service/PriceDataService.java`（新增） | 处理 t_price 入库和去重 |
-| `backend/src/main/java/com/scfx/service/CollectionScriptService.java`（修改） | 处理 price 类型的上报 |
-| `backend/src/main/java/com/scfx/mapper/PriceMapper.java`（新增） | t_price 的 MyBatis 映射 |
+| `backend/src/main/java/com/scfx/controller/PriceController.java`（新增） | `POST /api/price/batch` 批量接收价格记录 |
+| `backend/src/main/java/com/scfx/service/PriceService.java`（新增） | `batchSave()` 批量写入+去重 |
+| `backend/src/main/java/com/scfx/entity/Price.java`（修改） | 修正 `change`→`change_val`，新增 `province`/`remark`/`area_type` 字段 |
+| `backend/src/main/java/com/scfx/mapper/PriceMapper.java`（修改） | 新增 `batchInsertOrUpdate` 方法（XML 或注解） |
 | `backend/src/main/resources/db/migration/V6__alter_t_price_add_fields.sql`（新增） | 新增 province/remark/area_type 列和索引 |
 
 ### 7.4 AI 问答服务（修改）
@@ -1344,10 +1351,11 @@ class CollectObject(str, Enum):
 
 ### Phase 2：后端存储（1 天）
 
-1. 新增 `PriceDataService`，处理 `type=price` 的上报
-2. 实现去重逻辑（`INSERT ... ON DUPLICATE KEY UPDATE`）
-3. Flyway 迁移：新增索引
-4. 验证数据正确写入 `t_price`
+1. Flyway 迁移：`t_price` 新增 `province`/`remark`/`area_type` 列和索引
+2. 修正 `Price.java` 实体字段（`change`→`change_val`，新增字段）
+3. 新增 `PriceService.batchSave()`，批量 `INSERT ... ON DUPLICATE KEY UPDATE`
+4. 新增 `PriceController`，`POST /api/price/batch` 端点
+5. 验证数据正确写入 `t_price`
 
 ### Phase 3：知识库展示（0.5 天）
 
