@@ -325,14 +325,18 @@ class LiangdawangCollector(BaseCollector):
         varieties = ["玉米", "小麦", "进口粮", "国产大豆", "生猪"]
         total = 0
         for variety in varieties:
+            self.log_info(f"开始采集品种: {variety}")
             records = await self._fetch_variety_prices(variety)
             if not records:
+                self.log_warn(f"{variety} 无数据，跳过")
                 continue
             self._variety_stats[variety] = {"count": len(records), "success": len(records), "error": 0}
             success = await self._batch_write_prices(records, variety)
             if success:
                 total += len(records)
+                self.log_info(f"{variety} {len(records)}条已写入 t_price")
             else:
+                self.log_error(f"{variety} 写入 t_price 失败")
                 self._variety_stats[variety]["error"] = len(records)
                 self._variety_stats[variety]["success"] = 0
         return total
@@ -392,6 +396,9 @@ class LiangdawangCollector(BaseCollector):
         for idx, combo in enumerate(combinations):
             if combo["key"] in completed:
                 continue
+            if self._circuit_breaker_tripped:
+                self.log_warn("全局熔断已触发，终止回填")
+                break
             try:
                 chart_data = await self._api_get(
                     f"{API_BASE}/getPriceChart",
