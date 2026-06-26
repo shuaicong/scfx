@@ -297,10 +297,24 @@ class LiangdawangCollector(BaseCollector):
       POST /collector/exec/{executionId}/complete
       body: {"status": "success", "collectedCount": 224, "successCount": 224}
 
-   f. ⚠️ 完整执行流程：report_start → 采集 → batch 写入 → 只有 batch 成功才 complete
-      如果 batch 失败（HTTP 非 200 或超时），不调用 complete，改为调用 report_error：
-      POST /collector/exec/{executionId}/error  body: {"message": "价格数据批量写入失败"}
-      采集器返回非零退出码，cron 下次重试。
+   f. ⚠️ 按品种分批写入，非全量一次性提交
+      for variety in ["玉米", "小麦", "进口粮", "国产大豆", "生猪"]:
+          data = fetch_variety(variety)
+          if data:
+              POST /api/price/batch { records: data }    # 每个品种单独提交
+              reporter.report_log(f"{variety} {len(data)}条已写入")
+          else:
+              reporter.report_log(f"{variety} 采集失败", level="WARN")
+              # 继续采下一个，不阻塞整体流程
+      
+      reporter.report_complete(collectedCount=成功条数)
+      # 即使某个品种失败，已写入的其他品种数据不丢失
+
+   g. 429 Too Many Requests 处理
+      如果粮达网返回 HTTP 429（限流），区别于普通网络错误：
+      ├─ 读取 Retry-After 响应头，按服务端要求等待（优先）
+      └─ 无 Retry-After 头时，固定等待 30s 后重试，最多 2 次
+      普通网络错误维持现有重试策略（3 次，1s→3s→9s）
 
    说明：/api/price/batch 只负责写 t_price（结构化数据），
    不负责知识库条目（知识库不做价格指数条目，见 5.2 节）。
@@ -502,7 +516,8 @@ python-collector-sdk/
 
 | 场景 | 策略 |
 |------|------|
-| 网络故障 | 自动重试 3 次，指数退避（1s→3s→9s） |
+| 网络故障（超时/5xx） | 自动重试 3 次，指数退避（1s→3s→9s） |
+| **429 Too Many Requests** | 读取 `Retry-After` 头按服务端要求等待；无该头时固定等待 30s 后重试，最多 2 次 |
 | 空数据 | 当天跳过，不计入失败 |
 | 连续失败 | 3 天以上 ERROR 告警 + 推送通知 |
 
