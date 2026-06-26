@@ -318,6 +318,8 @@ class LiangdawangCollector(BaseCollector):
 
    说明：/api/price/batch 只负责写 t_price（结构化数据），
    不负责知识库条目（知识库不做价格指数条目，见 5.2 节）。
+   强制拦截：所有 `source=liangdawang` 的写入请求，无论来自每日增量还是历史回填，
+   均跳过知识库创建逻辑。在 `PriceController` 入口处加校验：`if (source.equals("liangdawang")) { kbCreation=false; }`
    采集执行记录由标准生命周期管理，前端 TaskList 直接可见。
 
 5. 首次运行：回填历史数据（仅 isChart=true 的组合）
@@ -365,10 +367,49 @@ class LiangdawangCollector(BaseCollector):
 | B：DB `t_backfill_progress` 表 | 独立的进度追踪表，每组合一条记录 | 适合多实例，但要新建表 |
 | C：纯靠 `ON DUPLICATE KEY` | 重新拉取所有 API，已存在的跳过写入 | 最笨但可行——但浪费 API 请求，增加 IP 封禁风险 |
 
-**推荐方案 A**，理由：
-- 采集器是单机 cron 触发，不需要多实例协调
-- JSON 文件读写简单，不引入额外依赖
-- 每个组合完成后立即写盘，即使进程 kill 也不丢进度
+**推荐方案：首次实施用方案 A（本地 JSON 文件），后续集群扩容时迁移到方案 B（DB 表）。**
+
+**方案 A 适用场景：** 单机 cron 部署，JSON 文件即可满足需求。
+
+**方案 B 迁移时机：** 当采集器需要多实例部署（如 2 台以上机器同时执行回填）时，将进度存储切换到 DB `t_backfill_progress` 表：
+
+```sql
+CREATE TABLE t_backfill_progress (
+  id bigint AUTO_INCREMENT PRIMARY KEY,
+  source varchar(50) NOT NULL,           -- 数据源（liangdawang）
+  combination_key varchar(200) NOT NULL,  -- 组合 key
+  variety varchar(50) NOT NULL,
+  area_type varchar(50) NOT NULL,
+  province varchar(50) NOT NULL,
+  area varchar(50) NOT NULL,
+  status varchar(20) DEFAULT 'pending',  -- pending/running/completed/failed
+  total_records int DEFAULT 0,
+  error_message text,
+  created_at timestamp DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_combination (source, combination_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+多实例互斥：使用 `SELECT ... FOR UPDATE` 或乐观锁（`WHERE status='pending' LIMIT 1 FOR UPDATE SKIP LOCKED`）避免多个实例抢同一个组合。
+
+> 线上只需要一个实例执行每日回填，暂时不需要方案 B。此方案作为可扩展设计保留。
+
+#### 回填进度前端可观测性
+
+方案 B 实施后，后端提供 REST 接口供前端查看回填进度：
+
+```
+GET /api/price/backfill/progress?source=liangdawang
+→ { total: 150, completed: 120, failed: 2, pending: 28 }
+
+GET /api/price/backfill/failed-list?source=liangdawang
+→ [{ combinationKey: "...", error: "429 Too Many Requests", retryCount: 3 }]
+```
+
+前端可在任务详情页或独立页面展示回填进度条 + 失败点位列表。
+
+> 一期不做前端可视化和 DB 进度表，保持方案 A。后续需要时再扩展。
 
 **回填流程：**
 
@@ -518,6 +559,8 @@ python-collector-sdk/
 |------|------|
 | 网络故障（超时/5xx） | 自动重试 3 次，指数退避（1s→3s→9s） |
 | **429 Too Many Requests** | 读取 `Retry-After` 头按服务端要求等待；无该头时固定等待 30s 后重试，最多 2 次 |
+| **429 熔断** | 同一品种采集过程中**连续 2 次 429** → 立即终止该品种采集，记录 ERROR 日志，跳过该品种继续采下一个 |
+| **IP 封禁防护** | 同一 execution 累计 5 次 429 → 标记 execution 为 failed，触发告警通知，避免持续重试导致 IP 被永久封禁 |
 | 空数据 | 当天跳过，不计入失败 |
 | 连续失败 | 3 天以上 ERROR 告警 + 推送通知 |
 
@@ -571,7 +614,13 @@ CREATE TABLE `t_price` (
 ```
 
 > **扩展说明：** 新增 `province` 字段记录省份/大区分组（北港/南港），
-> 新增 `remark` 字段记录粮质等级备注。当前 API 暂未提供细粒度粮质指标
+> 新增 `remark` 字段记录粮质等级备注。
+>
+> **数据库约束：** 虽然 MySQL 枚举/CHECK 约束在 MyBatis-Plus 下兼容性不佳，但通过以下手段兜底：
+> - 应用层（Java `PriceService`）写入前校验 `area_type` 和 `unit` 的合法性
+> - 定时任务（如每日凌晨）扫描 `t_price` 中 `source=liangdawang` 的记录，检查是否有非法 `area_type`/`unit`/`variety` 值
+> - 非法数据输出告警 + 人工清洗，不自动删除
+> - 后续可考虑使用 MyBatis-Plus 的 `@TableField(insertStrategy = ...)` + 自定义 Validator 做写入拦截当前 API 暂未提供细粒度粮质指标
 >（水分、容重、霉变、赤霉），页面描述中提及的"容重二等以上，水分14%"为
 > 所有港口的统一标准，非每条行情独立指标。未来若 API 扩展了粒度字段，
 > 再通过 Flyway 迁移新增列。
@@ -619,6 +668,28 @@ CREATE TABLE `t_price` (
 
 > 转换日志：每次转换记录 `原始priceDif → 转换后change_val`，
 > 遇到不可识别值时输出 WARN 级别日志，便于追溯 API 格式变更。
+
+#### 省份/区域映射字典
+
+`province` 字段包含混合类型（行政省、港口分组、原产国、大区），需要归一化映射字典支持 AI 模糊搜索：
+
+| 粮达网原始值 | 映射为 | 类型 | 说明 |
+|-------------|--------|------|------|
+| 北港 | 北港 | 港口分组 | 非行政省，保留原值 |
+| 南港 | 南港 | 港口分组 | 非行政省，保留原值 |
+| 黑龙江 | 黑龙江省 | 行政省 | 标准省名 |
+| 吉林 | 吉林省 | 行政省 | 带省后缀 |
+| 山东 | 山东省 | 行政省 | 同上 |
+| 内蒙古 | 内蒙古自治区 | 自治区 | 同上 |
+| 四川 | 四川省 | 行政省 | 同上 |
+| 美湾 | 美国 | 原产国 | 进口粮专用 |
+| 法国 | 法国 | 原产国 | 进口粮专用 |
+| 东北 | 东北 | 大区名 | 生猪/大豆大区 |
+| 西南 | 西南 | 大区名 | 生猪大区 |
+| 其他 | 其他 | 汇总 | 全国均价等 |
+
+> 映射字典在 AI 工具的 `query_price` 中应用：用户输入"广东玉米"时，LLM 根据映射找到南港分组下的湛江港/蛇口港等 → 正确返回价格。
+> 字典不修改数据库存储值，仅在查询时做映射转换。
 
 ### 4.3 索引优化
 
@@ -1945,6 +2016,10 @@ API 异常情况（粮达网挂/采集失败/无当日数据）：
 | | 敏感信息不落库 | 请求 URL 和响应 body 不写入 INFO 级别日志 | 避免 URL 中的查询参数被日志系统采集泄露 |
 | | 输入校验 | varietyName 和 areaType 从 API 返回的枚举列表中取值，不拼接用户输入 | 防注入攻击 |
 | **监控** | 采集指标暴露 | 暴露指标：采集成功/失败计数、耗时、记录数 | Grafana 可观测 |
+| | 每日数据量校验 | 预设各品种预期条数（玉米≥106、小麦≥53、进口粮≥20、国产大豆≥17、生猪≥28），偏差超 20% 触发告警 | 漏采、接口字段缺失及时发现 |
+| | 价格异常值拦截 | price=0 或 price>99999 或 change_val 绝对值>1000（生猪>5）时丢弃该条记录 + 输出 ERROR 日志 | 脏数据不入库，不影响 AI 趋势分析 |
+| | 回填进度可视化 | 方案 B 实施后 `GET /api/price/backfill/progress` 提供进度数据供前端展示 | 运维无需登录服务器查 JSON 文件 |
+| | 点位缺失告警 | 当日采集点数明显少于历史均值（如玉米从 106 降到 50）触发 WARN 告警 | API 部分字段缺失时可及时发现 |
 | | 数据一致性校验 | 每日采集完成后 COUNT 对比：当日记录数 vs 预期数（玉米≥106） | 差值超过 20% 触发告警 |
 | | 涨跌异常告警 | 单品种日涨跌绝对值超过 5% 时输出 WARN 日志 | 可能为数据源错误或行情异动 |
 | | 节假日空数据告警 | 连续 3 天空数据 → ERROR 告警 + 推送通知 | 区分节假日无数据和采集故障 |
