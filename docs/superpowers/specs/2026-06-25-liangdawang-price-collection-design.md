@@ -147,6 +147,7 @@
 | 1 | `/ldw-portal-mer/v1/infoCenter/varietyNameAndAreaType` | GET | 无 | 获取品种列表 |
 | 2 | `/ldw-portal-mer/v1/infoCenter/getPriceInfo` | GET | `varietyName`, `areaType` | 当前价格表 |
 | 3 | `/ldw-portal-mer/v1/infoCenter/getPriceChart` | GET | `varietyName`, `areaType`, `province`, `area` | 历史走势 |
+| — | `/api/datasource/{code}/active-script` | GET | 无 | 后端新增：获取数据源的启用任务（用于 main.py 自动获取 task_id） |
 
 ### 2.3 数据模型
 
@@ -1338,6 +1339,42 @@ UPDATE t_data_source SET collect_target='database' WHERE code='liangdawang';
 | 粮达网 | `liangdawang` | `LiangdawangCollector` | ✅ 预置，无需脚本 |
 | 粮信网 | `liangxin` | `LiangxinCollector` | ✅ 预置，可编辑脚本 |
 
+#### task_id 获取方式
+
+采集器运行时不需要手动传 `--task_id`，`main.py` 自动从后端获取：
+
+```
+# 定时任务 crontab
+0 9 * * * cd /app && python main.py run liangdawang
+                                          ↑ 不传 task_id
+```
+
+`main.py` 内部：
+
+```python
+def run(code):
+    # 1. 从后端获取该数据源的启用任务
+    resp = api_get(f"{api_base}/datasource/{code}/active-script")
+    # GET /api/datasource/liangdawang/active-script
+    # → { id: 17, scriptName: "粮达网价格指数采集", ... }
+    
+    task_id = resp["id"]
+    # 2. 正常启动采集器
+    collector = LiangdawangCollector(task_id=task_id, ...)
+    collector.run()
+```
+
+需要后端新增一个接口（在 `DataSourceController` 或 `CollectionScriptController`）：
+
+```
+GET /api/datasource/{code}/active-script
+→ 返回 t_collection_script 中 source={code} 且 status=enabled 的第一个任务
+→ 如果找不到（未创建任务），返回 404
+```
+
+这样 crontab 只需要写 `python main.py run liangdawang`，不需要知道 task_id 具体是多少。
+用户在前端创建/编辑任务后，cron 命令无需修改。
+
 #### 数据源注册
 
 在 `t_data_source` 表中新增一条粮达网数据源记录，前端下拉列表才能出现"粮达网"选项：
@@ -1540,6 +1577,7 @@ class CollectObject(str, Enum):
 | 文件 | 说明 |
 |------|------|
 | `backend/src/main/java/com/scfx/controller/PriceController.java`（新增） | `POST /api/price/batch` 批量接收价格记录 |
+| `backend/src/main/java/com/scfx/controller/DataSourceController.java`（修改） | 新增 `GET /api/datasource/{code}/active-script` 返回启用的任务 ID |
 | `backend/src/main/java/com/scfx/service/PriceService.java`（新增） | `batchInsertOrUpdate()` 批量写入+去重 + `generateDailySummary()` 触发知识库条目 |
 | `backend/src/main/java/com/scfx/service/KnowledgeBaseService.java`（修改） | 新增 `createPriceIndexEntry()` 生成每日汇总条目 |
 
