@@ -1318,12 +1318,128 @@ class CollectObject(str, Enum):
 | `backend/src/main/java/com/scfx/mapper/PriceMapper.java`（修改） | 新增 `batchInsertOrUpdate` 方法（XML 或注解） |
 | `backend/src/main/resources/db/migration/V6__alter_t_price_add_fields.sql`（新增） | 新增 province/remark/area_type 列和索引 |
 
-### 7.4 AI 问答服务（修改）
+### 7.4 AI 问答服务（修改/新增）
 
 | 文件 | 说明 |
 |------|------|
-| `ai-qa-service/app/services/llm.py`（修改） | 新增 query_price 等 3 个工具 |
-| `ai-qa-service/app/api/chat.py`（修改） | 工具路由注册 |
+| `ai-qa-service/app/services/tools/__init__.py`（新增） | 工具注册入口，导出所有工具函数和 schemas |
+| `ai-qa-service/app/services/tools/price_tools.py`（新增） | 三个价格工具实现：query_price / query_price_trend / query_price_comparison |
+| `ai-qa-service/app/services/tools/schema.py`（新增） | 工具 JSON Schema 定义（OpenAI function calling 格式） |
+| `ai-qa-service/app/services/tools/db.py`（新增） | t_price 数据库查询封装（MySQL 直连） |
+| `ai-qa-service/app/services/llm.py`（修改） | `generate_answer_stream` 新增 tools 参数；调用时注入工具 schema |
+| `ai-qa-service/app/api/chat.py`（修改） | 流式响应中处理 tool_call 回执，执行工具→回填 LLM→返回 visualization 事件 |
+
+**工具注册架构：**
+
+```
+chat.py (SSE 流)
+  │
+  ├─ build_messages(question, history, sources)         ← 现有，不改
+  │
+  ├─ generate_answer_stream(messages, tools=price_tools) ← 新增 tools 参数
+  │   │
+  │   ├─ 第一轮请求: POST /v1/chat/completions (messages + tools)
+  │   │   ↓
+  │   ├─ LLM 返回 finish_reason = "tool_calls"
+  │   │   ↓
+  │   ├─ 解析 tool_call: name + arguments
+  │   │   ↓
+  │   ├─ execute_tool(name, arguments) → 查询 t_price → 结构化结果 + visualization 数据
+  │   │   ↓
+  │   ├─ 第二轮请求: POST /v1/chat/completions (messages + tool_result)
+  │   │   ↓
+  │   └─ LLM 返回文本 → yield 给前端
+  │
+  └─ yield visualization 事件 + sources 标签
+```
+
+**工具函数执行流程（price_tools.py）：**
+
+```python
+TOOL_REGISTRY = {
+    "query_price": {
+        "handler": query_price,          # 执行函数
+        "schema": QUERY_PRICE_SCHEMA,    # JSON Schema
+    },
+    "query_price_trend": {
+        "handler": query_price_trend,
+        "schema": QUERY_PRICE_TREND_SCHEMA,
+    },
+    "query_price_comparison": {
+        "handler": query_price_comparison,
+        "schema": QUERY_PRICE_COMPARISON_SCHEMA,
+    },
+}
+
+async def query_price(variety: str, region: str, date: str | None = None) -> dict:
+    """查 t_price → 返回 {content, sources, visualization}"""
+    records = await db.query(variety, region, date)
+    return {
+        "content": format_text_answer(records),     # LLM 可读的文本
+        "sources": [SqlSource(...)],                  # 来源标签
+        "visualization": build_visualization(records), # 图表数据
+    }
+```
+
+**第一次 LLM 调用携带的 tools 参数（OpenAI 兼容格式）：**
+
+```json
+[
+  {
+    "type": "function",
+    "function": {
+      "name": "query_price",
+      "description": "查询某个品种在指定区域的当前价格。"
+                     "适合：海口港玉米多少钱、锦州港今天价格",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "variety": {"type": "string", "enum": ["玉米", "小麦", "进口粮", "国产大豆", "生猪"]},
+          "region": {"type": "string", "description": "港口名/企业名/省份/船期"},
+          "date": {"type": "string", "description": "yyyy-MM-dd，不传查最近"}
+        },
+        "required": ["variety", "region"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_price_trend",
+      "description": "查询某个品种在指定区域的价格趋势。"
+                     "适合：最近一周玉米走势、今年海口港价格变化",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "variety": {"type": "string", "enum": ["玉米", "小麦", "进口粮", "国产大豆", "生猪"]},
+          "region": {"type": "string"},
+          "days": {"type": "integer", "description": "近N天，默认30，最大180"},
+          "start_date": {"type": "string", "description": "绝对起始日期 yyyy-MM-dd"},
+          "end_date": {"type": "string", "description": "绝对截止日期 yyyy-MM-dd"}
+        },
+        "required": ["variety", "region"]
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "query_price_comparison",
+      "description": "对比多个区域的同品种价格。"
+                     "适合：哪个港口最便宜、北港南港价差",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "variety": {"type": "string", "enum": ["玉米", "小麦", "进口粮", "国产大豆", "生猪"]},
+          "regions": {"type": "array", "items": {"type": "string"}, "description": "区域列表，空=全部"},
+          "date": {"type": "string", "description": "对比日期 yyyy-MM-dd"}
+        },
+        "required": ["variety"]
+      }
+    }
+  }
+]
+```
 
 ### 7.5 前端（新增/修改）
 
