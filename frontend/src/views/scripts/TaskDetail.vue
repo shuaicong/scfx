@@ -542,19 +542,31 @@
           <div class="section-card">
             <div class="section-header">
               <div class="section-title">
-                <span class="icon">📄</span>
-                脚本内容预览
+                <span class="icon">{{ isDatabaseCollect ? '📡' : '📄' }}</span>
+                {{ isDatabaseCollect ? '采集配置' : '脚本内容预览' }}
               </div>
             </div>
             <div class="config-form">
-              <div class="script-preview-container">
-                <pre class="code-block" v-if="scriptContent"><code class="python" v-html="highlightedCode"></code></pre>
-                <div class="script-empty" v-else>
-                  <div class="script-empty-icon">📄</div>
-                  <div class="script-empty-text">暂无脚本内容</div>
-                  <div class="script-empty-hint">请先在左侧选择数据源以加载对应的 Python 采集脚本</div>
+              <template v-if="isDatabaseCollect">
+                <div class="collect-config-card">
+                  <div class="config-item"><label>采集方式：</label><span>API 接口采集</span></div>
+                  <div class="config-item"><label>API 端点：</label><span>ldw-portal-mer/v1/infoCenter</span></div>
+                  <div class="config-item"><label>品种：</label><span>玉米/小麦/进口粮/国产大豆/生猪</span></div>
+                  <div class="config-item"><label>每日数据量：</label><span>~224 条</span></div>
+                  <div class="config-item"><label>采集频率：</label><span>每日 9:00</span></div>
+                  <div class="config-item"><label>数据存储：</label><span>t_price（结构化数据库）</span></div>
                 </div>
-              </div>
+              </template>
+              <template v-else>
+                <div class="script-preview-container">
+                  <pre class="code-block" v-if="scriptContent"><code class="python" v-html="highlightedCode"></code></pre>
+                  <div class="script-empty" v-else>
+                    <div class="script-empty-icon">📄</div>
+                    <div class="script-empty-text">暂无脚本内容</div>
+                    <div class="script-empty-hint">请先在左侧选择数据源以加载对应的 Python 采集脚本</div>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
         </div>
@@ -640,7 +652,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { scriptApi, executionApi } from '@/api'
-import { datasourceApi } from '@/api/datasource'
+import { datasourceApi, type DataSource } from '@/api/datasource'
 import { categoryApi, type Category } from '@/api/category'
 import type { CollectionScript } from '@/api'
 import hljs from 'highlight.js/lib/core'
@@ -721,7 +733,7 @@ function clearCategory() {
 }
 
 // Datasource list
-const datasourceList = ref<{ code: string; name: string }[]>([])
+const datasourceList = ref<DataSource[]>([])
 const formTriggerType = ref('once')
 const triggerTypeText = computed(() => {
   const map: Record<string, string> = {
@@ -884,6 +896,8 @@ const sourceName = computed(() => {
   const ds = datasourceList.value.find(d => d.code === form.source)
   return ds?.name || form.source || '-'
 })
+const currentDatasource = computed(() => datasourceList.value.find(d => d.code === form.source))
+const isDatabaseCollect = computed(() => currentDatasource.value?.collectTarget === 'database' || script.value?.collObject === 'price_index')
 const nextExecutionText = computed(() => {
   if (!script.value?.nextExecutionTime) return '-'
   const date = new Date(script.value.nextExecutionTime)
@@ -3181,6 +3195,33 @@ textarea.auto-height {
 .code-block :deep(.hljs) {
   background: transparent;
   padding: 0;
+}
+
+/* Collect config card */
+.collect-config-card {
+  padding: 20px;
+  background: linear-gradient(135deg, rgba(88, 166, 255, 0.05), rgba(163, 113, 247, 0.05));
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.config-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 14px;
+}
+.config-item label {
+  color: var(--text-muted);
+  min-width: 90px;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.config-item span {
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 /* Script empty state */

@@ -14,6 +14,9 @@ export interface DataSource {
   updatedAt?: string
   // 前端扩展字段
   hasScript?: boolean
+
+  /** 采集目标类型: database=数据库采集, knowledge_base=知识库采集（默认） */
+  collectTarget?: string
 }
 
 export interface ScriptVersion {

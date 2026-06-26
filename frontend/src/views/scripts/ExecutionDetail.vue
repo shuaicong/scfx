@@ -33,6 +33,23 @@
       </el-descriptions>
     </el-card>
 
+    <!-- Variety-Level Stats Card -->
+    <el-card v-if="execution?.collectTarget === 'database'" class="stats-card" shadow="never">
+      <template #header>
+        <span class="card-title">📊 品种级采集统计</span>
+      </template>
+      <div class="variety-stats">
+        <div v-for="(stats, variety) in varietyStats" :key="variety" class="variety-item">
+          <span class="variety-icon">{{ varietyIcon(variety) }}</span>
+          <span class="variety-name">{{ variety }}</span>
+          <span class="variety-count">{{ stats.count }}条</span>
+          <span :class="stats.error > 0 ? 'variety-error' : 'variety-success'">
+            {{ stats.error > 0 ? `❌ ${stats.error}条失败` : '✅ 全部成功' }}
+          </span>
+        </div>
+      </div>
+    </el-card>
+
     <!-- Stats Cards -->
     <el-card v-if="hasStats" class="stats-card" shadow="never">
       <template #header>
@@ -223,6 +240,45 @@ const execution = ref<ExecutionDetail>()
 const logs = ref<LogEntry[]>([])
 const items = ref<ExecutionItem[]>([])
 const logContainer = ref<HTMLElement | null>(null)
+
+// 品种识别关键词
+const varietyKeywords: Record<string, string[]> = {
+  '玉米': ['玉米', 'corn', 'maize', '玉'],
+  '小麦': ['小麦', 'wheat', '麦'],
+  '进口粮': ['进口', '大麦', '高粱', 'import', 'barley', 'sorghum'],
+  '国产大豆': ['大豆', '黄豆', 'soybean', 'soy'],
+  '生猪': ['生猪', '猪', 'pig', 'hog', '猪肉'],
+}
+const varietyNames = Object.keys(varietyKeywords)
+
+function determineVariety(title: string): string | null {
+  for (const variety of varietyNames) {
+    if (varietyKeywords[variety].some(kw => title.includes(kw))) return variety
+  }
+  return null
+}
+
+const varietyStats = computed<Record<string, { count: number; error: number }>>(() => {
+  const stats: Record<string, { count: number; error: number }> = {}
+  for (const v of varietyNames) {
+    stats[v] = { count: 0, error: 0 }
+  }
+  if (items.value.length > 0) {
+    for (const item of items.value) {
+      const variety = determineVariety(item.title || '')
+      if (variety && stats[variety]) {
+        stats[variety].count++
+        if (item.action === 'error') stats[variety].error++
+      }
+    }
+  }
+  return stats
+})
+
+function varietyIcon(variety: string): string {
+  const icons: Record<string, string> = { '玉米': '🌽', '小麦': '🌾', '进口粮': '🚢', '国产大豆': '🫘', '生猪': '🐷' }
+  return icons[variety] || '📊'
+}
 const autoScroll = ref(true)
 const logFilterPhase = ref('')
 const logFilterLevel = ref('')
@@ -526,6 +582,15 @@ function getTriggerText(trigger?: string) {
 .preview-empty { text-align: center; color: #c0c4cc; padding: 40px 0; }
 .preview-dialog-footer { display: flex; align-items: center; gap: 8px; }
 .preview-position { font-size: 13px; color: #909399; margin: 0 4px; }
+
+/* Variety Stats */
+.variety-stats { display: flex; flex-direction: column; gap: 8px; }
+.variety-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 8px; border: 1px solid #ebeef5; background: #fafafa; }
+.variety-icon { font-size: 20px; }
+.variety-name { font-size: 14px; font-weight: 600; color: #303133; min-width: 70px; }
+.variety-count { font-size: 14px; color: #409eff; font-weight: 600; min-width: 60px; }
+.variety-success { font-size: 12px; color: #67c23a; }
+.variety-error { font-size: 12px; color: #f56c6c; }
 
 /* Log */
 .log-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }

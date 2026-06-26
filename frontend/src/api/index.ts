@@ -165,6 +165,9 @@ export interface CollectionScript {
 
   /** 关联分类ID */
   categoryId?: number
+
+  /** 采集目标类型: database=数据库采集, knowledge_base=知识库采集（默认） */
+  collectTarget?: string
 }
 
 export interface ScriptStats {

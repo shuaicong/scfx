@@ -14,6 +14,8 @@ export interface ExecutionDetail {
   errorMessage?: string
   collectedCount?: number
   source?: string
+  // 采集目标类型
+  collectTarget?: string
   // 执行统计
   totalCount?: number
   successCount?: number

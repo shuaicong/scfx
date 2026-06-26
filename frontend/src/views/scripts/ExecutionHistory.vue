@@ -74,12 +74,13 @@
               <th>ID</th>
               <th>状态</th>
               <th>触发方式</th>
+              <th>类型</th>
               <th>版本</th>
               <th>开始时间</th>
               <th>结束时间</th>
               <th>耗时</th>
               <th>采集数量</th>
-              <th>知识库</th>
+              <th>数据统计</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -105,6 +106,11 @@
                 </span>
               </td>
               <td>
+                <span class="type-badge" :class="exec.collectTarget === 'database' ? 'db' : 'kb'">
+                  {{ exec.collectTarget === 'database' ? '数据库' : '知识库' }}
+                </span>
+              </td>
+              <td>
                 <span class="version-num">v{{ exec.versionNum ?? exec.versionId ?? '-' }}</span>
               </td>
               <td>
@@ -120,7 +126,8 @@
                 <span>{{ exec.collectedCount ?? '-' }}</span>
               </td>
               <td>
-                <button class="action-btn primary" @click="viewKnowledge(exec.executionId)">查看</button>
+                <button v-if="exec.collectTarget === 'database'" class="action-btn primary" @click="showStats(exec)">📊查看</button>
+                <button v-else class="action-btn primary" @click="viewKnowledge(exec.executionId)">查看</button>
               </td>
               <td>
                 <div class="action-buttons">
@@ -129,7 +136,7 @@
               </td>
             </tr>
             <tr v-if="executions.length === 0">
-              <td colspan="10" class="empty-cell">暂无执行记录</td>
+              <td colspan="11" class="empty-cell">暂无执行记录</td>
             </tr>
           </tbody>
         </table>
@@ -153,6 +160,43 @@
         </div>
       </div>
     </div>
+
+    <!-- Stats Dialog -->
+    <el-dialog v-model="statsDialogVisible" title="📊 采集统计" width="480px" :close-on-click-modal="false" append-to-body>
+      <div v-if="statsExecution" class="stats-dialog-body">
+        <div class="stats-dialog-grid">
+          <div class="stats-dialog-item">
+            <div class="stats-dialog-value">{{ statsExecution.totalCount ?? '-' }}</div>
+            <div class="stats-dialog-label">总处理</div>
+          </div>
+          <div class="stats-dialog-item">
+            <div class="stats-dialog-value success">{{ statsExecution.successCount ?? '-' }}</div>
+            <div class="stats-dialog-label">成功</div>
+          </div>
+          <div class="stats-dialog-item">
+            <div class="stats-dialog-value skip">{{ statsExecution.skipCount ?? '-' }}</div>
+            <div class="stats-dialog-label">去重跳过</div>
+          </div>
+          <div class="stats-dialog-item">
+            <div class="stats-dialog-value error">{{ statsExecution.errorCount ?? '-' }}</div>
+            <div class="stats-dialog-label">失败</div>
+          </div>
+        </div>
+        <div class="stats-dialog-row" v-if="statsExecution.collectedCount != null">
+          <label>采集数量：</label><span>{{ statsExecution.collectedCount }} 条</span>
+        </div>
+        <div class="stats-dialog-row" v-if="statsExecution.durationMs">
+          <label>执行时长：</label><span>{{ (statsExecution.durationMs / 1000).toFixed(1) }} 秒</span>
+        </div>
+        <div class="stats-dialog-row" v-if="statsExecution.dataSizeMb != null">
+          <label>数据量：</label><span>{{ statsExecution.dataSizeMb.toFixed(2) }} MB</span>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="statsDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="viewDetail(statsExecution?.executionId)">查看详情</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -177,6 +221,9 @@ const executions = ref<any[]>([])
 const loading = ref(false)
 const hoveredRow = ref<string | null>(null)
 const totalRecords = ref(0)
+
+const statsDialogVisible = ref(false)
+const statsExecution = ref<any>(null)
 
 const filters = reactive({
   status: '',
@@ -294,6 +341,11 @@ function goToDetail() {
 
 function viewKnowledge(executionId: string) {
   router.push(`/knowledge?executionId=${executionId}`)
+}
+
+function showStats(exec: any) {
+  statsExecution.value = exec
+  statsDialogVisible.value = true
 }
 
 onMounted(() => {
@@ -596,6 +648,37 @@ onMounted(() => {
   font-family: 'JetBrains Mono', monospace;
   color: var(--text-secondary);
 }
+
+/* Type Badge */
+.type-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.type-badge.db {
+  background: rgba(240, 136, 62, 0.15);
+  color: var(--accent-orange);
+}
+.type-badge.kb {
+  background: rgba(88, 166, 255, 0.1);
+  color: var(--accent-blue);
+}
+
+/* Stats Dialog */
+.stats-dialog-body { padding: 8px 0; }
+.stats-dialog-grid { display: flex; gap: 12px; margin-bottom: 20px; }
+.stats-dialog-item { flex: 1; text-align: center; padding: 16px 8px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); }
+.stats-dialog-value { font-size: 24px; font-weight: 700; color: var(--text-primary); }
+.stats-dialog-value.success { color: var(--accent-green); }
+.stats-dialog-value.skip { color: var(--accent-orange); }
+.stats-dialog-value.error { color: var(--accent-red); }
+.stats-dialog-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+.stats-dialog-row { display: flex; align-items: center; gap: 8px; padding: 8px 4px; font-size: 14px; border-bottom: 1px solid var(--border-color); }
+.stats-dialog-row:last-child { border-bottom: none; }
+.stats-dialog-row label { color: var(--text-muted); min-width: 80px; }
+.stats-dialog-row span { color: var(--text-primary); font-weight: 500; }
 
 /* Action Buttons */
 .action-buttons {
