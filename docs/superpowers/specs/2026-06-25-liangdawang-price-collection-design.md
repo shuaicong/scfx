@@ -400,6 +400,32 @@ class LiangdawangCollector(BaseCollector):
 
 > **核心保障：** `ON DUPLICATE KEY UPDATE` 唯一键 `(date, variety, region, source)` 确保即使同一个组合被执行多次也不会产生重复行。
 
+**回填的执行记录：回填不走 collector 生命周期，不创建执行记录。**
+
+回填由 JSON 进度文件（方案 A）管理进度，不调用 `report_start/report_complete`，因此不会在 `t_task_execution` 和前端 TaskList 中产生执行记录。每日增量采集（~224 条）的正常执行记录不受影响。
+
+| 场景 | 走执行记录？ | 进度追踪方式 |
+|------|------------|------------|
+| 每日增量采集 | ✅ `start→batch→complete` | `t_task_execution` 表 + 前端 TaskList |
+| 首次历史回填 | ❌ 不走 | JSON 进度文件 `liangdawang_backfill_progress.json` |
+| 回填中断 | ❌ 不记录 | 进度文件中断点续传 |
+
+```python
+# 采集器逻辑示意
+def collect(self):
+    reporter.report_start(task_id)  # 每日采集走执行记录
+    
+    # 1. 每日增量
+    data = self._fetch_all_varieties()
+    requests.post("/api/price/batch", json={"records": data})
+    
+    # 2. 回填检查（不走执行记录）
+    if self._is_first_run():
+        self._backfill_with_progress_file()  # 只写进度文件
+    
+    reporter.report_complete(collectedCount=224)  # 只含当日增量
+```
+
 ### 3.6 部署架构与调度
 
 #### 部署方式：与现有采集器共用同一 SDK 和部署环境
