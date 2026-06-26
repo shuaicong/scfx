@@ -351,7 +351,28 @@ class LiangdawangCollector(BaseCollector):
 
 ## 4. 存储设计
 
-### 4.1 核心表 `t_price`（扩展字段）
+### 4.1 表结构设计决策：统一表 vs 每数据源一表
+
+**决策：统一存储在 `t_price` 一张表中。**
+
+| 维度 | 统一表（选此方案） | 每数据源一表 |
+|------|-----------------|-------------|
+| AI 查询 | ✅ `SELECT WHERE variety=玉米 AND region=海口港` 一条 SQL | ❌ 需 UNION ALL 或应用层聚合 |
+| 跨源对比 | ✅ 同一 SQL 拿到全部来源报价 | ❌ 需跨表 JOIN |
+| 维护成本 | ✅ 一套 Mapper/迁移/索引 | ❌ 每个源一套 |
+| 扩展新源 | ✅ 加 `source` 枚举值即可 | ❌ 新建表+Mapper+代码 |
+| 数据隔离 | ✅ `WHERE source=liangdawang` 过滤 | ✅ 天然隔离 |
+| 字段适配 | ⚠️ 需品种特殊处理表覆盖差异 | ✅ 每表自由定义 |
+
+**关键理由：**
+1. **AI 查询是核心场景** — 统一表让 SQL 最简洁，`"海口港玉米多少钱"` 无需跨表
+2. **数据量极小** — 年增 ~56K 条/~11MB，一张表完全撑得住
+3. **`source` 字段天然隔离** — 查某个源加 `WHERE source='liangdawang'` 即可
+4. **品种字段差异已在设计文档中覆盖**（见"品种特殊处理"表），不会混淆
+
+> 如果未来某数据源字段与 `t_price` 结构完全无法兼容（概率极低），届时再单独建表。
+
+### 4.2 核心表 `t_price`（扩展字段）
 
 现有 `t_price` 表已有基础字段，需要扩展 `remark` 列存储粮质等级：
 
@@ -391,7 +412,6 @@ CREATE TABLE `t_price` (
 | `remark` | `remark` | 透传（二等散粮/一等集装箱） |
 | `endDate` | `date` | 转 date |
 | `varietyName` | `variety` | 从 API 响应透传（玉米/小麦/进口粮/国产大豆/生猪） |
-| `endDate` | `date` | 转 date |
 | 固定 | `unit` | 按品种映射：玉米/小麦/进口粮/国产大豆→"元/吨"，生猪→"元/斤" |
 | 固定 | `source` | "liangdawang" |
 
@@ -423,7 +443,7 @@ CREATE TABLE `t_price` (
 > 转换日志：每次转换记录 `原始priceDif → 转换后change_val`，
 > 遇到不可识别值时输出 WARN 级别日志，便于追溯 API 格式变更。
 
-### 4.2 索引优化
+### 4.3 索引优化
 
 为支持 AI 问答和趋势查询，新增索引：
 
@@ -438,7 +458,7 @@ ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 - `WHERE variety='玉米' AND region IN ('锦州港','蛇口港') AND date='2026-06-25'`
 - `WHERE variety='玉米' AND date BETWEEN '2026-06-01' AND '2026-06-25'`
 
-### 4.3 知识库条目
+### 4.4 知识库条目
 
 新增 `t_knowledge_base` 记录，每日一条"粮达网价格指数"：
 
