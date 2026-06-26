@@ -24,11 +24,21 @@ public class Price {
 
     private String region;
 
+    /** 省份/大区分组（北港/黑龙江/美湾/东北等） */
+    private String province;
+
+    /** region 分类: port/enterprise/region/shipping/origin */
+    private String areaType;
+
     private String contract;
 
     private BigDecimal price;
 
-    private BigDecimal change;
+    /** 涨跌值 */
+    private BigDecimal changeVal;
+
+    /** 备注（粮质等级/蛋白含量/关税信息/品种说明） */
+    private String remark;
 
     private String unit;
 
