@@ -1367,6 +1367,60 @@ LiangxinCollector:
 
 点击"📊查看"弹出各品种统计详情（同 5.7 节执行详情页的品种级统计）。
 
+#### 创建/编辑任务（TaskDetail.vue 创建/编辑模式）
+
+对于数据库类型采集器，创建/编辑流程简化：
+
+| 表单字段 | 数据库类型行为 | 知识库类型行为 |
+|---------|--------------|--------------|
+| 数据源下拉 | 选择"粮达网"后触发预设 | 选择后加载脚本模板 |
+| 任务名称 | 自动填入"粮达网价格指数采集"，可修改 | 用户自定义 |
+| 任务描述 | 自动填入默认描述，可修改 | 用户自定义 |
+| 关联分类 | 用户选择（同现有） | 用户选择 |
+| 仅采集不进知识库 | **自动勾选+禁用**（价格数据不进知识库） | 用户可选 |
+| 脚本内容预览 | **隐藏**，显示"预置采集器，无需脚本"提示 | 显示 Python 代码 |
+| 触发方式 | 默认 Cron `0 9 * * *`（工作日 9:00） | 用户配置 |
+| 保存 | 同现有逻辑 | 同现有 |
+
+**选择粮达网数据源后的表单效果：**
+
+```
+┌─────────────────────┬─────────────────────────────┐
+│ 📋 任务信息          │ 📡 采集配置                  │
+│                      │                             │
+│ 任务名称: [粮达网价格]│ 采集方式：API 接口采集        │
+│           [指数采集] │ API 端点：ldw-portal...      │
+│ 数据源: [粮达网 ▼]  │ 品种：5个（玉米/小麦...）     │
+│ 描述: [自动填入]    │ 每日数据量：~224 条           │
+│ 分类: [用户选择]    │                             │
+│ ☑ 仅采集不进知识库  │                             │
+│ （已勾选+禁用）     │                             │
+├─────────────────────┤                             │
+│ ⏰ 触发配置          │                             │
+│ ● 单次触发          │                             │
+│ ○ 周期触发          │                             │
+│   ┌──────────────┐  │                             │
+│   │ Cron: 0 9 * * │  │                             │
+│   └──────────────┘  │                             │
+└─────────────────────┴─────────────────────────────┘
+```
+
+**预置采集器的 source 映射关系：**
+
+选择数据源时，根据 `source` 自动关联 `collectorsdk` 中预置的采集器，不再需要用户上传或编辑脚本。
+
+| 数据源 | source 值 | 采集器类 | 是否预置 |
+|--------|----------|---------|---------|
+| 粮达网 | `liangdawang` | `LiangdawangCollector` | ✅ 预置，无需脚本 |
+| 粮信网 | `liangxin` | `LiangxinCollector` | ✅ 预置，可编辑脚本 |
+| ... | ... | ... | ... |
+
+**实现改动清单：**
+
+| 文件 | 改动 |
+|------|------|
+| `TaskDetail.vue` | 数据源选择"粮达网"时：隐藏脚本预览、自动勾选"仅采集"、预设 Cron、右侧显示采集配置信息 |
+
 ## 6. 系统架构
 
 ```
@@ -1625,6 +1679,9 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 | `frontend/src/views/ai-chat/components/PriceTable.vue`（新增） | 价格表格组件（el-table） |
 | `frontend/src/views/ai-chat/AiChat.vue`（修改） | SSE 增加 visualization 事件处理 |
 | `frontend/src/views/ai-chat/components/MessageContent.vue`（修改） | 引入 VisualizationRenderer，渲染 `type=sql` 来源标签 |
+| `frontend/src/views/scripts/TaskDetail.vue`（修改） | 数据库类型隐藏脚本预览，显示采集配置 |
+| `frontend/src/views/scripts/ExecutionHistory.vue`（修改） | 新增类型列/数据统计列 |
+| `frontend/src/views/scripts/ExecutionDetail.vue`（修改） | 数据库类型展示品种级统计 |
 
 > 知识库展示方案 A（后端生成 HTML）无需前端改动，`content_html` 直接 `v-html` 渲染。
 
@@ -1648,11 +1705,12 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 4. 新增 `PriceController`，`POST /api/price/batch` 端点
 5. 验证数据正确写入 `t_price`
 
-### Phase 3：知识库展示（0.5 天）
+### Phase 3：执行页面适配（1 天）
 
-1. 后端生成 `content_html` 表格字符串
-2. 存入 `t_knowledge_base`
-3. 打开前端知识详情页验证显示
+1. `TaskDetail.vue`：数据源选择"粮达网"时隐藏脚本预览，显示采集配置信息
+2. `TaskDetail.vue`：执行历史列表新增"数据统计"列弹窗
+3. `ExecutionHistory.vue`：新增"类型"列，替换"知识库"为"数据统计"
+4. `ExecutionDetail.vue`：数据库类型展示品种级统计
 
 ### Phase 4：AI 回答内联图表（2 天）
 
