@@ -338,14 +338,65 @@ class LiangdawangCollector(BaseCollector):
 
 > 防重复：使用唯一键 `ON DUPLICATE KEY UPDATE`，确保重复执行不会产生脏数据。
 
-### 3.6 调度配置
+### 3.6 部署架构与调度
 
-在现有 APScheduler 中新增定时任务：
+#### 部署方式：与现有采集器共用同一 SDK 和部署环境
 
-| 品种 | 采集时间 | 重试策略 |
-|------|----------|----------|
-| 玉米 | 每日 9:00 | 9:30、10:00 各重试一次 |
-| 小麦（后续） | 每日 9:00 | 同上 |
+```
+python-collector-sdk/
+├── collectorsdk/
+│   ├── base.py                # BaseCollector（复用）
+│   ├── reporter.py            # CollectorReporter（复用）
+│   ├── dimensions.py          # 枚举（新增 LIANGDAWANG/PRICE_INDEX）
+│   └── collectors/
+│       ├── liangxin.py        # 粮信网（已有）
+│       ├── mysteel.py         # 我的钢铁（已有）
+│       ├── liangdawang.py     # 粮达网 ← 新增
+│       └── ...
+├── dev/collectors/
+│   ├── liangxin.py            # 粮信网入口脚本（已有）
+│   ├── liangdawang.py         # 粮达网入口脚本 ← 新增
+│   └── ...
+```
+
+**理由：**
+
+| 维度 | 共用方案 | 单独部署方案 |
+|------|---------|-------------|
+| SDK 依赖 | 直接复用 BaseCollector/ReporterConfig/dimensions | 同样要装 SDK，或抽成 pip 包 |
+| 上报接口 | 都走 `POST /api/collector/report`，一套配置 | 各自配 API_BASE，重复工作 |
+| 部署运维 | 一套 cron、一套日志、一套监控 | 多进程就要多管健康检查 |
+| 依赖差异 | 粮达网只需 httpx，与 playwright 不冲突 | pip 依赖相同，分开也省不了 |
+| 故障隔离 | 脚本级隔离——各自独立进程 cron 触发 | 进程级隔离，但效果一样 |
+| 扩缩容 | 不能单独扩某个采集器 | 可以，但 224 条/日无性能瓶颈 |
+
+#### 调度方式：cron 触发独立脚本
+
+每个采集器有独立的入口脚本，由 cron 定时触发，互不依赖：
+
+```
+# crontab 示例
+0 9 * * * cd /app && python main.py run liangdawang       # 粮达网 每日 9:00
+0 9 * * * cd /app && python main.py run liangxin-morning   # 粮信网晨报 9:00
+30 9 * * * cd /app && python main.py run liangxin-daily    # 粮信网日报 9:30
+```
+
+#### 并发策略
+
+| 策略 | 规则 | 理由 |
+|------|------|------|
+| 品种间 | 串行采集，统一个品种×区域类型 | 全品种 ~20 次 API 调用，总量小无需并行 |
+| 回填 | 串行遍历 province+area，每请求间隔 ≥ 1s | 防 IP 封禁 |
+| 品种间隔离 | 不同品种的采集在同一个 collector 内顺序执行 | 5 个品种总耗时 ~2min，在 9:00 一个 cron 任务内完成 |
+| 跨采集器 | 粮达网和粮信网互不影响（不同 cron 任务、不同进程） | 天然隔离 |
+
+#### 重试策略
+
+| 场景 | 策略 |
+|------|------|
+| 网络故障 | 自动重试 3 次，指数退避（1s→3s→9s） |
+| 空数据 | 当天跳过，不计入失败 |
+| 连续失败 | 3 天以上 ERROR 告警 + 推送通知 |
 
 ---
 
@@ -1209,11 +1260,12 @@ class CollectObject(str, Enum):
 - 不在现有枚举中间插入新值，统一追加到末尾，避免打乱已有序列化顺序
 - 不修改已有枚举值的名称和值，确保历史数据统计不受影响
 
-### 7.2 采集调度（修改）
+### 7.2 采集入口与调度（新增）
 
 | 文件 | 说明 |
 |------|------|
-| `python-collector-sdk/dev/scheduler.py`（或现有调度配置） | 新增每日 9:00 定时任务 |
+| `python-collector-sdk/dev/collectors/liangdawang.py` | 采集器入口脚本（cron 触发） |
+| crontab | 新增一行 `0 9 * * * python main.py run liangdawang` |
 
 ### 7.3 Java 后端（修改/新增）
 
