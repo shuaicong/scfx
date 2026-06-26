@@ -297,7 +297,7 @@ class LiangdawangCollector(BaseCollector):
       body: {"status": "success", "collectedCount": 224, "successCount": 224}
 
    说明：/api/price/batch 只负责写 t_price（结构化数据），
-   不负责知识库条目（知识库不做价格指数条目，见 5.6 节）。
+   不负责知识库条目（知识库不做价格指数条目，见 5.2 节）。
    采集执行记录由标准生命周期管理，前端 TaskList 直接可见。
 
 5. 首次运行：回填历史数据（仅 isChart=true 的组合）
@@ -588,198 +588,14 @@ ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 - `WHERE variety='玉米' AND region IN ('锦州港','蛇口港') AND date='2026-06-25'`
 - `WHERE variety='玉米' AND date BETWEEN '2026-06-01' AND '2026-06-25'`
 
-### 4.4 知识库条目
+### 4.4 价格数据与知识库的关系
 
-价格数据不生成知识库条目。详见 5.6 节。
-
-| 字段 | 值 |
-|------|-----|
-| `title` | `粮达网价格指数（2026-06-25）` |
-| `source` | `liangdawang` |
-| `source_type` | `liangdawang` |
-| `content_html` | 采集统计 + 各品种价格表格（见 5.6 节 HTML 模板） |
-| `publish_time` | 采集日期 |
-| `category` | 价格指数 |
+价格数据是结构化数字，不是可阅读的报告，不在 `t_knowledge_base` 中创建条目。
+用户通过 AI 问答或执行历史页面查看价格数据。详见 5.2 节。
 
 ---
 
 ## 5. 展示设计
-
-### 5.1 知识库展示
-
-**形式：** 每日生成一条价格指数知识条目，内容为 HTML 表格
-
-**布局：**
-
-```
-┌──────────────────────────────────────────────────┐
-│  粮达网玉米港口价格指数（2026-06-25）             │
-│  来源：粮达网 · 更新于 09:00                      │
-├──────────────────────────────────────────────────┤
-│  北港                             南港            │
-│  ┌───────┬───────┬──────┐  ┌───────┬──────┬──────┐│
-│  │ 港口   │ 价格  │ 涨跌 │  │ 港口   │ 价格 │ 涨跌 ││
-│  ├───────┼───────┼──────┤  ├───────┼──────┼──────┤│
-│  │锦州港  │ 2330  │ 持平 │  │湛江港  │ 2500 │ -10  ││
-│  │鲅鱼圈  │ 2335  │ 持平 │  │蛇口港  │ 2450 │ 持平 ││
-│  │北良港  │ 2345  │ 持平 │  │海口港  │ 2510 │ 持平 ││
-│  │葫芦岛港│ 2340  │ 持平 │  │广州港  │ 2480 │ 持平 ││
-│  └───────┴───────┴──────┘  └───────┴──────┴──────┘│
-│                                                    │
-│  * 涨跌红色=上涨 绿色=下跌 灰色=持平               │
-│  * 数据来源：粮达网业务员实地采集                    │
-└──────────────────────────────────────────────────┘
-```
-
-**实现方案：**
-
-**方案 A（推荐）：后端生成 HTML**
-
-后端 Java 在处理采集上报时，从 `t_price` 读取当日数据，拼接 HTML 表格字符串，存入 `t_knowledge_base.content_html`。前端直接 `v-html` 渲染（复用现有 `sanitizedHtml` 路径）。
-
-优点：零前端改动，数据随采集完成自动展现
-缺点：需在后端新增 HTML 拼接逻辑
-
-**初期选方案 A**，以最小改动快速上线。
-
-#### HTML 生成规范
-
-**1. `content_html` 结构模板：**
-
-```html
-<div class="ldw-price-index">
-  <div class="ldw-header">
-    <h2>粮达网玉米港口价格指数</h2>
-    <span class="ldw-date">2026-06-25</span>
-    <span class="ldw-source">数据来源：粮达网业务员实地采集</span>
-  </div>
-
-  <table class="ldw-table">
-    <thead>
-      <tr>
-        <th>省份</th><th>港口</th><th>价格（元/吨）</th><th>涨跌</th><th>粮质等级</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr class="group-header"><td colspan="5">北港</td></tr>
-      <tr>
-        <td>北港</td><td>锦州港</td><td>2330</td>
-        <td class="change-flat">持平</td><td>二等散粮</td>
-      </tr>
-      <tr>
-        <td>北港</td><td>鲅鱼圈</td><td>2335</td>
-        <td class="change-flat">持平</td><td>二等散粮</td>
-      </tr>
-      <tr class="group-header"><td colspan="5">南港</td></tr>
-      <tr>
-        <td>南港</td><td>湛江港</td><td>2500</td>
-        <td class="change-down">-10</td><td>一等集装箱</td>
-      </tr>
-      <tr>
-        <td>南港</td><td>海口港</td><td>2510</td>
-        <td class="change-flat">持平</td><td>二等散粮</td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="ldw-charts">
-    <p><a href="..." target="_blank">📈 查看完整走势图（粮达网）</a></p>
-  </div>
-
-  <div class="ldw-footer">
-    <p>涨跌：<span class="change-up">红涨</span> <span class="change-down">绿跌</span> <span class="change-flat">灰持平</span></p>
-    <p>* 价格指数为粮达网各区业务员实地采集成交价/收购价，粮质容重二等以上，水分14%</p>
-  </div>
-</div>
-```
-
-**2. 内置 CSS 样式：**
-
-```html
-<style>
-.ldw-price-index {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  max-width: 100%; overflow-x: auto;
-}
-.ldw-header { margin-bottom: 16px; }
-.ldw-header h2 { font-size: 18px; font-weight: 700; margin: 0 0 4px; }
-.ldw-date { font-size: 13px; color: #888; margin-right: 12px; }
-.ldw-source { font-size: 12px; color: #aaa; }
-.ldw-table {
-  width: 100%; border-collapse: collapse; font-size: 13px;
-  margin: 12px 0; min-width: 600px;
-}
-.ldw-table th, .ldw-table td {
-  border: 1px solid #d0d5dd; padding: 8px 12px;
-  text-align: center; white-space: nowrap;
-}
-.ldw-table th { background: #f5f0e0; font-weight: 600; color: #222; }
-.ldw-table tbody tr:nth-child(even) td { background: #fafbfc; }
-.change-up   { color: #d32f2f; font-weight: 600; }
-.change-down { color: #2e7d32; font-weight: 600; }
-.change-flat { color: #888; }
-.group-header td { background: #f0f2f5 !important; font-weight: 700; text-align: left; padding: 6px 12px; color: #333; }
-@media (max-width: 768px) {
-  .ldw-table { font-size: 11px; }
-  .ldw-table th, .ldw-table td { padding: 4px 6px; }
-}
-.ldw-charts img { max-width: 100%; height: auto; display: block; margin: 12px auto; border-radius: 4px; }
-.ldw-footer { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e8eaed; font-size: 12px; color: #888; line-height: 1.6; }
-</style>
-```
-
-**3. 涨跌色标规则：**
-
-| CSS class | 条件 | 颜色 | 示例 |
-|-----------|------|------|------|
-| `change-up` | `change_val > 0` | 红色 `#d32f2f` | +10、+20 |
-| `change-down` | `change_val < 0` | 绿色 `#2e7d32` | -10、-20 |
-| `change-flat` | `change_val = 0` 或 NULL | 灰色 `#888` | 持平、-- |
-
-**4. 知识库标题规范：**
-
-每日条目命名规则：`{品种}{区域类型}{数据源}价格指数（{日期}）`
-示例：`玉米港口粮达网价格指数（2026-06-25）`
-
-结构：品种从 varietyName 取值，区域类型从 areaType 取值，数据源固定`粮达网`，日期 `yyyy-MM-dd`。
-
-**5. 标签字段：**
-
-| 字段 | 值 | 说明 |
-|------|-----|------|
-| `source_type` | `liangdawang` | 与粮信网等区分 |
-| `category` | `价格指数` | 区别于行业报告 |
-
-后期可在 `t_knowledge_base` 扩展 `extra_tags` JSON 字段：
-
-```json
-{"variety": "玉米", "area_type": "港口", "data_type": "price_index"}
-```
-
-### 5.2 知识库详情页中的走势图
-
-走势图由前端 ECharts 通过 `getPriceChart` API 数据动态渲染，页面无静态图片。
-
-**一期**：在 `content_html` 末尾增加原文图表链接，用户点击跳转粮达网原页面查看交互式图表：
-
-```html
-<p class="chart-link">
-  <a href="https://www.liangdawang.com/ldw-portal-vue/information/priceIndices?
-     varietyName=玉米&areaType=港口&province=南港&area=海口港" target="_blank">
-    📈 查看完整走势图（粮达网）
-  </a>
-</p>
-```
-
-**二期（可选）**：在后端新增一个 `GET /api/price/chart?variety=玉米&region=海口港` 接口，
-返回 `getPriceChart` 数据，前端在知识详情页中用 ECharts 重新绘制可交互的趋势图。
-
-### 5.3 价格走势增强（远期，二期）
-
-在知识详情页底部，增加一个 ECharts 趋势图区块，根据 `t_price` 历史数据在前端动态绘制（不做截图）。
-复用后端 `getPriceChart` API 数据 + 前端 ECharts 渲染，可与静态截图互补。
-
-### 5.4 AI 问答展示
 
 在 `ai-qa-service` 中新增 3 个工具函数，LLM 可在回答问题时调用：
 
@@ -1024,7 +840,7 @@ interface SqlSource {
 📊 结构化数据 · 粮达网 · 2026-06-25 ｜ 玉米 海口港 近7天 共5条  [查看来源] ↗
 ```
 
-### 5.5 AI 回答内联图表
+### 5.1 AI 回答内联图表
 
 价格走势图、热力图、对比图**直接在 AI 回答消息中渲染**，不跳转独立页面。
 
@@ -1230,7 +1046,7 @@ MessageContent.vue（现有）
 
 ---
 
-### 5.6 价格数据不进知识库
+### 5.2 价格数据不进知识库
 
 价格数据是结构化数字，不是可阅读的报告。不在 `t_knowledge_base` 创建条目。
 
@@ -1242,7 +1058,7 @@ MessageContent.vue（现有）
 | 执行历史 | `/scripts/{id}/executions` | 采集统计 + 各品种数据量 |
 | 执行详情 | 点击某次执行 | 品种级统计 + 采集日志 |
 
-### 5.7 执行页面优化
+### 5.3 执行页面优化
 
 现有的执行历史页和执行详情页需要区分"知识库采集"和"数据库采集"两种类型，展示不同信息。
 
@@ -1365,7 +1181,7 @@ LiangxinCollector:
 └──────────┴────────┴──────┴──────┴──────────┘
 ```
 
-点击"📊查看"弹出各品种统计详情（同 5.7 节执行详情页的品种级统计）。
+点击"📊查看"弹出各品种统计详情（同 5.3 节执行详情页的品种级统计）。
 
 #### 创建/编辑任务（TaskDetail.vue 创建/编辑模式）
 
