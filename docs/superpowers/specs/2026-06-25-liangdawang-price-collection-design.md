@@ -745,18 +745,75 @@ async def query_price_comparison(variety: str, regions: list[str] | None = None)
 - "哪个省大豆价格最低"
 - "北港和南港玉米价差多少"
 
-#### 工具接入流程
+#### 路由决策：RAG 路径 vs SQL 路径
+
+LLM 根据问题语义和工具描述，**自主决定**走哪条管道：
 
 ```
-用户："海口港玉米今天多少钱"
-  ↓ UI 流式请求 → POST /api/chat
-  ↓ LLM: 调用 query_price(variety="玉米", region="海口港")
-  ↓ SQL: SELECT * FROM t_price WHERE ...
-  ↓ LLM: 结构化结果 → 自然语言回答
-  ↓ UI 展示：文字回答 + 价格表格
+用户："锦州港玉米多少钱"
+  │
+  ▼
+LLM 收到：问题 + [query_price, query_price_trend, query_price_comparison] 工具列表
+  │
+  ├─ LLM 判断"需要精确价格"
+  │   → 调用 query_price(variety="玉米", region="锦州港")
+  │   → SQL 路径：查 t_price → 结构化 JSON →
+  │   → LLM 拼接回答 + 来源标签 📊 结构化数据
+  │
+  ├─ LLM 判断"不需要工具"（市场分析/行情解读类）
+  │   → RAG 路径：向量搜索 Qdrant → 文本片段 →
+  │   → LLM 归纳回答 + 来源标签 📄 知识库
+  │
+  └─ LLM 判断"既要价格又要分析"（如"海口港玉米为什么涨价"）
+      → 调用 query_price 获取价格 + 同时 RAG 搜索行情分析
+      → 两条管道并行 → LLM 融合回答 + 两种来源标签
 ```
 
-**回答格式示例：**
+**判断依据（tool description 中写明）：**
+
+| 工具 | description 关键词 | LLM 匹配场景 |
+|------|-------------------|-------------|
+| query_price | "精确价格""当前价格" | "多少钱""什么价""价格多少" |
+| query_price_trend | "走势趋势""近 N 天" | "走势""趋势""变化""最近" |
+| query_price_comparison | "对比""最低""价差" | "最便宜""对比""价差""哪个贵" |
+| 无匹配 | — | "行情怎么样""后市分析""市场解读"→ 走 RAG |
+
+#### 用户感知设计
+
+用户通过 **来源标签（sources）** 感知哪条管道提供了答案，不需要暴露 SQL 或内部路由细节：
+
+**来源类型扩展：**
+
+```typescript
+// 现有 RAG sources
+interface RagSource {
+  type: 'rag'
+  title: string           // 报告标题
+  publish_time: string    // 发布时间
+  similarity: number      // 相似度
+  url?: string            // 原文链接
+}
+
+// 新增 SQL sources  
+interface SqlSource {
+  type: 'sql'
+  query_summary: string   // 查询概要："玉米 海口港 近7天 共5条"
+  source_name: string     // 数据来源："粮达网"
+  date: string            // 数据日期："2026-06-25"
+}
+
+type Source = RagSource | SqlSource
+```
+
+**UI 展示效果：**
+
+```
+RAG 路径 → 📄 粮信网 · 玉米晨报 2026-06-24  | 相似度 0.85
+SQL 路径 → 📊 结构化数据 · 粮达网 · 2026-06-25 · 玉米海口港近7天 · 5条
+混合路径 → 同时显示两类标签
+```
+
+**回答格式示例（含来源标签）：**
 
 ```
 📊 海口港玉米价格（2026-06-25）
@@ -771,8 +828,22 @@ async def query_price_comparison(variety: str, regions: list[str] | None = None)
 06-23  2510  持平
 06-22  2510  持平
 06-18  2510  持平
-━━━━━━━━━━━━━━━━━━
-数据来源：粮达网 ｜ 粮质标准：容重二等以上，水分14%
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 结构化数据 · 粮达网 · 2026-06-25 ｜ 玉米 海口港 近7天 共5条
+```
+
+**混合场景（同时走两条管道）：**
+
+```
+📊 海口港玉米 2510 元/吨，较上周持平
+
+📄 粮信网周报指出，南方港口玉米到货量增加，
+近期饲用需求转淡，预计短期价格以稳为主。
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📄 粮信网 · 玉米晨报 2026-06-24  | 相似度 0.85
+📊 结构化数据 · 粮达网 · 2026-06-25 ｜ 玉米 海口港 近7天 共5条
 ```
 
 ### 5.5 数据可视化页面（远期）
