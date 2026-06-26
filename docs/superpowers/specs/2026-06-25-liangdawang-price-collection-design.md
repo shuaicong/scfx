@@ -665,19 +665,31 @@ ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 | 空结果处理 | 返回空列表时输出"暂无数据"，不抛异常 |
 | 涨跌格式 | 统一转为 `+10` / `-10` / `持平` 字符串，方便 LLM 直接拼接回答 |
 
-#### 工具 1：query_price — 查当前价格
+#### 工具 1：query_price — 查价格
 
 ```python
-async def query_price(variety: str, region: str) -> dict:
+async def query_price(
+    variety: str,
+    region: str,
+    date: str | None = None
+) -> dict:
     """
-    查询某个品种在指定区域的最新价格
+    查询某个品种在指定区域的价格
     
     variety 取值: 玉米/小麦/进口粮/国产大豆/生猪
     region: 港口名/企业名/省份名/原产国/船期
+    date: 可选，日期（yyyy-MM-dd）。不传则返回最近 7 天。
+          由 LLM 根据用户问题自动推算：
+          - "今天" → date=CURDATE()
+          - "昨天" → date=CURDATE() - 1
+          - "本月" → 由 LLM 换算为"2026-06-01"传入
+          - "今年" → 由 LLM 换算为"2026-01-01"传入
     
-    SQL: SELECT * FROM t_price 
-         WHERE variety=%s AND region=%s 
-         ORDER BY date DESC LIMIT 7
+    SQL(date有值): SELECT * FROM t_price 
+                   WHERE variety=%s AND region=%s AND date=%s
+    SQL(date为空): SELECT * FROM t_price 
+                   WHERE variety=%s AND region=%s 
+                   ORDER BY date DESC LIMIT 7
     """
     返回: {
         "variety": "玉米",
@@ -699,19 +711,43 @@ async def query_price(variety: str, region: str) -> dict:
 #### 工具 2：query_price_trend — 查趋势
 
 ```python
-async def query_price_trend(variety: str, region: str, days: int = 30) -> dict:
+async def query_price_trend(
+    variety: str,
+    region: str,
+    days: int = 30,
+    start_date: str | None = None,
+    end_date: str | None = None
+) -> dict:
     """
-    查询某个品种在指定区域近 N 天的价格趋势
+    查询某个品种在指定区域的价格趋势
     
     variety 取值: 玉米/小麦/进口粮/国产大豆/生猪
+    
+    两种调用方式：
+    方式 A（相对天数）: days=30 → 近 30 天
+      适用："最近一周""近一个月""近三个月"
+      LLM 转换: "最近一周" → days=7
+               "近三个月" → days=90
+    
+    方式 B（绝对日期）: start_date + end_date
+      适用："今年""本月""6月份""2025年全年"
+      LLM 转换: "今年" → start_date="2026-01-01", end_date="2026-06-26"
+               "本月" → start_date="2026-06-01", end_date="2026-06-26"
+               "6月份" → start_date="2026-06-01", end_date="2026-06-30"
+    
     约束：
     - days 取值范围 [1, 180]，超 180 自动截断
+    - start_date 与 end_date 间隔最多 365 天
     - 返回按 date ASC 排序
     
-    SQL: SELECT * FROM t_price
-         WHERE variety=%s AND region=%s
-           AND date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
-         ORDER BY date ASC
+    SQL(days): SELECT * FROM t_price
+               WHERE variety=%s AND region=%s
+                 AND date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+               ORDER BY date ASC
+    SQL(绝对日期): SELECT * FROM t_price
+                  WHERE variety=%s AND region=%s
+                    AND date BETWEEN %s AND %s
+                  ORDER BY date ASC
     """
 ```
 
@@ -722,21 +758,33 @@ async def query_price_trend(variety: str, region: str, days: int = 30) -> dict:
 #### 工具 3：query_price_comparison — 多港口对比
 
 ```python
-async def query_price_comparison(variety: str, regions: list[str] | None = None) -> dict:
+async def query_price_comparison(
+    variety: str,
+    regions: list[str] | None = None,
+    date: str | None = None
+) -> dict:
     """
     对比多个区域的同品种价格
     
     variety 取值: 玉米/小麦/进口粮/国产大豆/生猪
+    date: 可选，对比日期。不传则查最新一日。
+          由 LLM 根据问题自动推算：
+          "今天各港口价格" → date=CURDATE()
+          "昨天各港口对比" → date=CURDATE() - 1
     
     特殊行为：
     - regions=None 或空列表时 → 返回当日全部区域价格，按 price ASC 排序
     - 自动标注最高价和最低价区域
     - 附带全市场均价
     
-    SQL: SELECT region, price, change_val, remark, date
-         FROM t_price
-         WHERE variety=%s AND date=CURDATE()
-         ORDER BY price ASC
+    SQL(date有值): SELECT region, price, change_val, remark, date
+                   FROM t_price
+                   WHERE variety=%s AND date=%s
+                   ORDER BY price ASC
+    SQL(date为空): SELECT region, price, change_val, remark, date
+                   FROM t_price
+                   WHERE variety=%s AND date=CURDATE()
+                   ORDER BY price ASC
     """
 ```
 
