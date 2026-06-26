@@ -22,6 +22,7 @@ class Source(Enum):
     GOV_BR = "gov_br"  # 巴西政府网
     WEATHER = "weather"  # 气象数据
     CUSTOM = "custom"  # 自定义数据源
+    LIANGDAWANG = "liangdawang"  # 粮达网
 
     @classmethod
     def values(cls):
@@ -42,6 +43,8 @@ class Subject(Enum):
     PRICE = "price"  # 价格
     INVENTORY = "inventory"  # 库存
     SHIP = "ship"  # 船期
+    IMPORTED_GRAIN = "imported_grain"  # 进口粮
+    LIVE_PIG = "live_pig"  # 生猪
 
     @classmethod
     def values(cls):
@@ -77,6 +80,7 @@ class CollectObject(Enum):
     SHIP_SCHEDULE = "ship_schedule"  # 船期
     POLICY_DOC = "policy_doc"  # 政策文件
     WEATHER_DATA = "weather_data"  # 气象数据
+    PRICE_INDEX = "price_index"  # 价格指数
 
     @classmethod
     def values(cls):
