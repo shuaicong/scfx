@@ -67,8 +67,8 @@
 
     <!-- 主内容区 -->
     <div class="chat-content">
-      <!-- 欢迎信息（无历史且无当前对话时显示） -->
-      <div v-if="displayMessages.length === 0 && !currentAnswer && !isLoading" class="welcome-section">
+      <!-- 欢迎信息（无历史、无当前对话、无错误时显示） -->
+      <div v-if="displayMessages.length === 0 && !currentAnswer && !isLoading && !errorMessage && !lastQuestion" class="welcome-section">
         <div class="welcome-icon">
           <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
             <circle cx="32" cy="32" r="30" stroke="url(#welcome-gradient)" stroke-width="2" opacity="0.3"/>
@@ -140,6 +140,7 @@
                 @toggle="msg.reasoningCollapsed = !msg.reasoningCollapsed"
               />
               <MessageContent :content="msg.content" :sources="msg.sources" @source-click="handleSourceClick" />
+              <VisualizationRenderer v-if="msg.visualization" :visualization="msg.visualization" />
             </div>
           </div>
         </template>
@@ -189,6 +190,7 @@
               :sources="sources"
               @source-click="handleSourceClick"
             />
+            <VisualizationRenderer v-if="currentVisualization" :visualization="currentVisualization" />
 
             <!-- 错误信息 -->
             <div v-if="errorMessage" class="error-message">
@@ -319,6 +321,7 @@ import DocumentPreview from './components/DocumentPreview.vue'
 import SessionDrawer from './components/SessionDrawer.vue'
 import MessageContent from './components/MessageContent.vue'
 import ReasoningPanel from './components/ReasoningPanel.vue'
+import VisualizationRenderer from './components/VisualizationRenderer.vue'
 
 const router = useRouter()
 
@@ -345,7 +348,7 @@ function handleSwitchSession(sid: string) {
     const now = Date.now()
     displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
     if (currentAnswer.value) {
-      displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, sources: sources.value, id: `a-${now}-1` })
+      displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, sources: sources.value, visualization: currentVisualization.value, id: `a-${now}-1` })
     }
   }
   // 关闭抽屉，切换到新会话
@@ -428,6 +431,7 @@ const lastQuestion = ref('')
 
 // SSE 状态
 const sources = ref<Source[]>([])
+const currentVisualization = ref<any>(null)
 const thoughts = ref<string[]>([])
 const currentAnswer = ref('')
 const deepThinkingEnabled = ref(false)
@@ -442,6 +446,7 @@ interface DisplayMessage {
   content: string
   id: string       // q-{ts}-0 / a-{ts}-1（同轮共用 ts）
   sources?: Source[]
+  visualization?: any  // visualization data block
   time?: string    // 消息时间（ISO 格式，可选）
   reasoning?: string   // ★ 推理过程（深度思考模式）
   reasoningCollapsed?: boolean  // ★ 推理面板折叠状态（历史消息独立控制）
@@ -465,6 +470,7 @@ function resetCurrentRound() {
   currentAnswer.value = ''
   sources.value = []
   thoughts.value = []
+  currentVisualization.value = null
   isArchived.value = false
 }
 
@@ -518,14 +524,41 @@ function clearHeartbeatTimer() {
   }
 }
 
-onMounted(() => {
-  // 如果是从 HistoryPage 选了会话跳转回来，加载历史消息
+onMounted(async () => {
+  // 如果已经有 currentSessionId（从历史页跳转），直接加载
   if (chatStore.currentSessionId) {
     const sid = chatStore.currentSessionId
     sessionId.value = sid
-    loadHistoryMessages(sid)
-  } else {
-    sessionId.value = crypto.randomUUID()
+    await loadHistoryMessages(sid)
+    return
+  }
+  // 首次打开：尝试自动加载最近一个会话
+  try {
+    await chatStore.fetchSessions({ page: 1, size: 1 })
+    const latest = chatStore.sessions[0]
+    if (latest) {
+      chatStore.setCurrentSessionId(latest.id)
+      sessionId.value = latest.id
+      await loadHistoryMessages(latest.id)
+      return
+    }
+  } catch {
+    // 静默失败，显示欢迎页
+  }
+  // 无历史会话，生成新会话 ID（展示欢迎页）
+  sessionId.value = crypto.randomUUID()
+})
+
+onActivated(async () => {
+  // KeepAlive 缓存恢复：如果用户从历史页切换了会话，加载新会话
+  if (chatStore.currentSessionId && chatStore.currentSessionId !== sessionId.value) {
+    const sid = chatStore.currentSessionId
+    sessionId.value = sid
+    displayMessages.value = []
+    resetCurrentRound()
+    errorMessage.value = ''
+    await loadHistoryMessages(sid)
+    nextTick(() => throttleScrollToBottom())
   }
 })
 
@@ -649,7 +682,7 @@ async function askQuestion(q: string) {
     const now = Date.now()
     displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
     if (currentAnswer.value) {
-      displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, sources: sources.value, id: `a-${now}-1` })
+      displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, sources: sources.value, visualization: currentVisualization.value, id: `a-${now}-1` })
     }
     resetCurrentRound()
   }
@@ -808,7 +841,7 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         if (!isArchived.value && lastQuestion.value) {
           const now = Date.now()
           displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
-          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, reasoning: reasoningTrimmed, reasoningCollapsed: true, time: new Date(now).toISOString() })
+          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, visualization: currentVisualization.value, reasoning: reasoningTrimmed, reasoningCollapsed: true, time: new Date(now).toISOString() })
           isArchived.value = true
         }
         resetCurrentRound()
@@ -819,11 +852,11 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         break
       case 'error':
         flushContentBuffer()
-        resetCurrentRound()   // 异常不归档，仅清临时状态
         isLoading.value = false
         clearHeartbeatTimer()
         errorMessage.value = data.message || '服务异常'
         clearTimeout(globalTimeout.value)
+        // 不调用 resetCurrentRound()，保留 lastQuestion 以便展示上下文
         break
       case 'heartbeat':
         // ★ 心跳保活 — 不渲染 UI，resetHeartbeatTimer() 已在外层循环调用
@@ -832,10 +865,20 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         flushContentBuffer()
         appendContent(data.partial_content || '')
         flushContentBuffer()
-        resetCurrentRound()   // abort 不归档，仅清临时状态
         isLoading.value = false
         clearHeartbeatTimer()
         clearTimeout(globalTimeout.value)
+        // 不调用 resetCurrentRound()，保留 lastQuestion 以便展示上下文
+        break
+      case 'visualization':
+        try {
+          currentVisualization.value = data
+        } catch { /* ignore malformed visualization data */ }
+        break
+      case 'sources':
+        try {
+          sources.value = data
+        } catch { /* ignore */ }
         break
     }
   } catch (e) {

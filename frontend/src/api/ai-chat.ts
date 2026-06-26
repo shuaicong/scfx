@@ -105,7 +105,7 @@ export interface ChatV2StreamParams {
 }
 
 export interface SSEEvent {
-  type: 'thought' | 'source' | 'content' | 'done' | 'error' | 'abort'
+  type: 'thought' | 'source' | 'sources' | 'content' | 'done' | 'error' | 'abort' | 'visualization' | 'reasoning' | 'heartbeat'
   content?: string
   sources?: Source[]
   code?: string
@@ -116,6 +116,7 @@ export interface SSEEvent {
   partial_content?: string
   retry_after?: number
   request_id?: string
+  visualization?: any
 }
 
 // ==================== AI Chat V2 API ====================
