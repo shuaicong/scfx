@@ -1414,6 +1414,25 @@ LiangxinCollector:
 | 粮达网 | `liangdawang` | `LiangdawangCollector` | ✅ 预置，无需脚本 |
 | 粮信网 | `liangxin` | `LiangxinCollector` | ✅ 预置，可编辑脚本 |
 
+#### 数据源注册
+
+在 `t_data_source` 表中新增一条粮达网数据源记录，前端下拉列表才能出现"粮达网"选项：
+
+```sql
+INSERT INTO t_data_source (code, name, description, enabled, sort_order, config)
+VALUES ('liangdawang', '粮达网', '粮达网玉米、小麦、进口粮、国产大豆、生猪价格指数采集', 1, 10, '{}');
+```
+
+| 字段 | 值 | 说明 |
+|------|-----|------|
+| `code` | `liangdawang` | 与 Source.LIANGDAWANG 枚举值一致 |
+| `name` | `粮达网` | 前端下拉菜单显示名称 |
+| `description` | `粮达网...价格指数采集` | 提示文本 |
+| `enabled` | `1` | 启用 |
+| `config` | `{}` | 无需登录配置 |
+
+> 在 Phase 1 实施时执行此 INSERT，同时新增 `dev/collectors/liangdawang.py` 入口脚本。
+
 #### 采集器与后端的绑定机制
 
 ```
@@ -1751,9 +1770,10 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 
 1. 新增 `collectorsdk/collectors/liangdawang.py` 采集器，实现 `collect()` 方法
 2. 新增 `dev/collectors/liangdawang.py` 入口脚本
-3. 配置定时任务，每日 9:00 执行
-4. 手动运行一次，验证数据采集成功
-5. 首次运行自动回填历史数据
+3. `t_data_source` 插入粮达网数据源记录
+4. 配置定时任务，每日 9:00 执行
+5. 手动运行一次，验证数据采集成功
+6. 首次运行自动回填历史数据
 
 ### Phase 2：后端存储（1 天）
 
