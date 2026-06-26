@@ -590,7 +590,7 @@ ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 
 ### 4.4 知识库条目
 
-每日生成**一条**知识库汇总条目（详见 5.6 节）：
+价格数据不生成知识库条目。详见 5.6 节。
 
 | 字段 | 值 |
 |------|-----|
@@ -1230,79 +1230,94 @@ MessageContent.vue（现有）
 
 ---
 
-### 5.6 每日知识库汇总条目
+### 5.6 价格数据不进知识库
 
-每天生成**一条**知识库条目，标题 `粮达网价格指数（2026-06-25）`，包含：
-- 各品种采集统计（总条数、各品种条数）
-- 各品种价格汇总表格
-- 来源链接
+价格数据是结构化数字，不是可阅读的报告。不在 `t_knowledge_base` 创建条目。
 
-#### 内容结构
+用户通过以下方式查看价格数据：
 
-```
-粮达网价格指数（2026-06-25）
-━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📊 采集统计
-  今日采集：224 条
-  ├─ 玉米 106 条
-  ├─ 小麦 53 条
-  ├─ 进口粮 20 条
-  ├─ 国产大豆 17 条
-  └─ 生猪 28 条
+| 方式 | 入口 | 展示内容 |
+|------|------|---------|
+| AI 问答 | 对话窗口 | 文本回答 + 内联图表 |
+| 执行历史 | `/scripts/{id}/executions` | 采集统计 + 各品种数据量 |
+| 执行详情 | 点击某次执行 | 品种级统计 + 采集日志 |
 
-📋 玉米港口价格
-┌──────────┬───────┬────────┬──────────┐
-│ 港口     │ 价格  │ 涨跌   │ 等级     │
-├──────────┼───────┼────────┼──────────┤
-│ 锦州港   │ 2330  │ 持平   │ 二等散粮 │
-│ ...      │       │        │          │
-│ 海口港   │ 2510  │ 持平   │ 二等散粮 │
-└──────────┴───────┴────────┴──────────┘
-▶ 查看全部品种数据（展开）
-```
+### 5.7 执行页面优化
 
-#### 采集统计数据透传
+现有的执行历史页和执行详情页需要区分"知识库采集"和"数据库采集"两种类型，展示不同信息。
+
+#### 执行历史列表页（ExecutionHistory.vue）
+
+增加"类型"列，替换"知识库"列：
 
 ```
-采集器 POST /api/price/batch
+┌─────┬──────┬──────┬────────┬──────────┬────────┬────────┬──────┬──────────┬──────┐
+│ ID  │ 状态 │ 触发 │ 类型   │ 开始时间 │ 结束   │ 耗时   │ 数量 │ 数据统计 │ 操作 │
+├─────┼──────┼──────┼────────┼──────────┼────────┼────────┼──────┼──────────┼──────┤
+│ a1b │ ✅   │ 定时 │ 知识库  │ 09:30    │ 09:31  │ 65s    │ 1    │ 查看     │ 详情 │
+│ a2c │ ✅   │ 定时 │ 数据库  │ 09:00    │ 09:01  │ 38s    │ 224  │ 📊查看   │ 详情 │
+└─────┴──────┴──────┴────────┴──────────┴────────┴────────┴──────┴──────────┴──────┘
+```
+
+| 改动 | 说明 |
+|------|------|
+| 新增"类型"列 | 根据 `source` 字段判断：`liangdawang`→"数据库"，其他→"知识库" |
+| "知识库"列改为"数据统计" | 数据库类型显示"📊查看"按钮，弹窗展示各品种统计 |
+| 列宽调整 | "知识库"→"数据统计"后列宽略增 |
+
+#### 执行详情页（ExecutionDetail.vue）
+
+**数据库类型**展示与知识库类型不同的信息：
+
+```
+┌────────────────────────────────────────────┐
+│  📊 采集统计                               │
+│                                            │
+│  总条数: 224                                │
+│  ├─ 🌽 玉米       106 条   ✅ 全部成功     │
+│  ├─ 🌾 小麦        53 条   ✅ 全部成功     │
+│  ├─ 🚢 进口粮      20 条   ✅ 全部成功     │
+│  ├─ 🫘 国产大豆    17 条   ✅ 全部成功     │
+│  └─ 🐷 生猪        28 条   ✅ 全部成功     │
+│                                            │
+│  各品种详情:                               │
+│  🌽 玉米: 港口22 东北28 华北37 其他19      │
+│  🌾 小麦: 港口3 华北37 华东4 华中9         │
+└────────────────────────────────────────────┘
+```
+
+| 卡片 | 知识库类型 | 数据库类型 |
+|------|-----------|-----------|
+| 基本信息 | 显示 | 显示（同现有） |
+| 采集统计 | 总数/成功/跳过/失败/数据量 | **品种级统计**（总条数+各品种明细） |
+| 阶段耗时 | 展示 | 展示（简化：只有 crawl 阶段） |
+| 采集日志 | 显示 | 显示（同现有） |
+
+**判断逻辑：** 后端在返回执行详情时携带 `collectTarget` 字段：
+
+```json
 {
-  "execution_id": "...",
-  "source": "liangdawang",
-  "total_records": 224,
-  "records": [...],
+  "executionId": "...",
+  "collectTarget": "database",     // "knowledge_base" 或 "database"
   "stats": {
-    "玉米": 106, "小麦": 53, "进口粮": 20,
-    "国产大豆": 17, "生猪": 28
+    "玉米": {"count": 106, "success": 106, "error": 0, "regions": {"港口": 22, "东北": 28, "华北": 37, "其他": 19}},
+    "小麦": {"count": 53, "success": 53, "error": 0, "regions": {"港口": 3, "华北": 37, "华东": 4, "华中": 9}},
+    ...
   }
 }
-  ↓
-PriceController → PriceService.batchInsertOrUpdate()
-  ↓ 写入 t_price 完成后
-PriceService.generateDailySummary(date, stats)
-  ↓
-KnowledgeBaseService
-  → 查 t_price 获取各品种当日价格
-  → 拼 HTML：统计摘要 + 品种表格
-  → 保存到 t_knowledge_base（幂等：同日期已存在则跳过）
 ```
 
-#### 知识库条目字段
+**`collectTarget` 来源：** 从 `t_collection_script` 表的 `collect_object` 字段推断。
+`PRICE_INDEX` → `database`，其他 → `knowledge_base`。
 
-| 字段 | 值 |
-|------|-----|
-| `title` | `粮达网价格指数（2026-06-25）` |
-| `source_type` | `liangdawang` |
-| `category` | `价格指数` |
-| `content_html` | 采集统计 + 各品种价格表格（含涨跌色标 CSS） |
-| `publish_time` | 采集日期 |
-
-#### 实现
-- `PriceService` 新增 `generateDailySummary()` 方法
-- `KnowledgeBaseService` 新增 `createPriceIndexEntry()` 方法
-- 幂等：当日已生成则跳过（title 唯一）
-- 仅在每日采集时触发，历史回填不触发
-
-### 5.7 数据可视化页面（远期）
+```python
+# 采集器创建时自动确定
+LiangdawangCollector:
+    obj=CollectObject.PRICE_INDEX  # → collectTarget = "database"
+    
+LiangxinCollector:
+    obj=CollectObject.DAILY_REPORT  # → collectTarget = "knowledge_base"
+```
 
 新增独立页面 `/price-index`，以 ECharts 展示：
 - 热力图：品种×区域×日期 的价格矩阵
@@ -1587,10 +1602,9 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 
 1. Flyway 迁移：`t_price` 新增 `province`/`remark`/`area_type` 列和索引
 2. 修正 `Price.java` 实体字段（`change`→`change_val`，新增字段）
-3. 新增 `PriceService.batchInsertOrUpdate()` + `generateDailySummary()`
-4. 新增 `KnowledgeBaseService.createPriceIndexEntry()` 生成每日汇总知识条目
-5. 新增 `PriceController`，`POST /api/price/batch` 端点（含 stats 统计）
-6. 验证数据正确写入 `t_price` 和知识库条目
+3. 新增 `PriceService.batchInsertOrUpdate()` 批量写入+去重
+4. 新增 `PriceController`，`POST /api/price/batch` 端点
+5. 验证数据正确写入 `t_price`
 
 ### Phase 3：知识库展示（0.5 天）
 
