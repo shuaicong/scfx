@@ -303,40 +303,75 @@ class LiangdawangCollector(BaseCollector):
 
 ### 3.5 历史数据回填（首次运行）
 
+**断点续传设计：** 按 province+area 组合粒度追踪进度，超时中断后重新运行自动跳过已完成组合。
+
 **约束：**
-- **仅首次运行执行一次**，通过标志位控制（检查 `t_price` 中 `source=liangdawang` 记录数是否为 0）
 - 日常定时任务只做当日增量采集，不做历史回填
-- 预估总量约 **136,000 条**（106 个 province+area 组合 × 平均约 1,200 条/组合），耗材约 5-6 分钟
+- 预估总量约 **194,000 条**（全品种约 150 个 province+area 组合 × 平均约 1,300 条/组合），全量约 6 分钟
+- 超时中断不丢进度——已完成的组合不会重复拉取
+
+**状态追踪方式（选型对比）：**
+
+| 方案 | 实现 | 优劣 |
+|------|------|------|
+| **A：本地 JSON 进度文件**（推荐） | `liangdawang_backfill_progress.json` 记录已完成的组合列表 | 最简单，无需改 DB 表；缺点是多实例部署需共享存储 |
+| B：DB `t_backfill_progress` 表 | 独立的进度追踪表，每组合一条记录 | 适合多实例，但要新建表 |
+| C：纯靠 `ON DUPLICATE KEY` | 重新拉取所有 API，已存在的跳过写入 | 最笨但可行——但浪费 API 请求，增加 IP 封禁风险 |
+
+**推荐方案 A**，理由：
+- 采集器是单机 cron 触发，不需要多实例协调
+- JSON 文件读写简单，不引入额外依赖
+- 每个组合完成后立即写盘，即使进程 kill 也不丢进度
 
 **回填流程：**
 
 ```
-1. 检查 t_price WHERE source='liangdawang' COUNT(*)
-   → 若 > 0，跳过回填（已有历史数据）
-
-2. 获取所有品种 × 区域组合
+1. 读取进度文件 liangdawang_backfill_progress.json
+   {"completed": ["玉米+港口+北港+锦州港", "玉米+港口+北港+鲅鱼圈", ...]}
+   
+2. 获取所有品种 × 区域类型组合
    GET /varietyNameAndAreaType
    → 遍历每个 variety 的 areaTypeList
-
+   → 仅 isChart=true 的组合才回填
+   
 3. 获取区域下的省份+港口列表
    GET /getPriceInfo → 从 province+area 提取组合
    
-4. 遍历每个 province+area，回填历史
-   GET /getPriceChart?varietyName=玉米&areaType=港口&province=南港&area=海口港
-   → 返回该港口的所有历史时间序列
-
-5. 分批写入（每批 500 条，批间间隔 500ms）
-   INSERT INTO t_price (date, variety, region, price, change_val, unit, source)
-   VALUES (?, ?, ?, ?, ?, '元/吨', 'liangdawang')
+4. 遍历每个组合 {variety, areaType, province, area}：
+   a. 生成唯一 key: "{variety}+{areaType}+{province}+{area}"
+   b. 检查 key 是否已在 completed 列表中
+      → 已在 → 跳过（断点续传） 
+      → 不在 → 执行回填
+   
+5. 回填单个组合
+   GET /getPriceChart?varietyName={品种}&areaType={区域}&province={省份}&area={地点}
+   → 返回该组合的所有历史时间序列
+   
+6. 分批写入（每批 500 条，批间间隔 500ms）
+   INSERT INTO t_price (date, variety, region, price, change_val, unit, source, area_type)
+   VALUES (?, ?, ?, ?, ?, ?, ?, ?)
    ON DUPLICATE KEY UPDATE price=VALUES(price), change_val=VALUES(change_val)
-   每批 batch_size=500，批量提交
-   记录分批进度日志："回填进度：海口港 1200/8500 条"
+   每批 batch_size=500
+   进度日志："回填进度：海口港 1200/8500 条"
 
-6. 回填完成后设置标志位
-   → 后续定时任务不再进入回填逻辑
+7. 单个组合完成后立即更新进度文件
+   将 key 追加到 completed 列表，写入 JSON
+   日志："回填完成：玉米+港口+南港+海口港（1274条）| 总进度：23/150"
+
+8. 全量完成后记录结束日志＋进度文件保留用于下次检查
+   "全量历史回填完成：150个组合，共计194,000条，耗时368秒"
 ```
 
-> 防重复：使用唯一键 `ON DUPLICATE KEY UPDATE`，确保重复执行不会产生脏数据。
+**中断恢复场景：**
+
+| 场景 | 表现 | 处理方式 |
+|------|------|----------|
+| 回填运行到第 30/150 组合时超时（10min） | 进度文件有 30 个 key | 下次运行跳过 30 个，从第 31 个继续 |
+| 回填到一半进程被 kill | 正在写入的组合未写入完成，但该组合的 key 未记入文件 | 下一轮会拉取该组合重做，ON DUPLICATE KEY 防重复 |
+| 某个组合 getPriceChart 返回空 | 该组合无历史数据，直接记入 completed 跳过 | 避免每次回填都重新尝试空组合 |
+| 已完成 150/150，再次运行 | 150 个 key 全部在 completed 中，跳过全部 | 不产生任何 API 请求 |
+
+> **核心保障：** `ON DUPLICATE KEY UPDATE` 唯一键 `(date, variety, region, source)` 确保即使同一个组合被执行多次也不会产生重复行。
 
 ### 3.6 部署架构与调度
 
@@ -1377,13 +1412,14 @@ class CollectObject(str, Enum):
 
 | 约束 | 规则 | 目的 |
 |------|------|------|
-| 仅执行一次 | 检查 `source=liangdawang` COUNT(*)=0 时才执行 | 避免重复回填 |
-| 只回填有图表的组合 | 仅 `isChart=true` 的品种×区域类型才调 getPriceChart | 进口粮/大豆/生猪等无图表的品种跳过 |
+| 断点续传 | 使用进度 JSON 文件按 province+area 组合粒度追踪，已完成组合自动跳过 | 超时/中断不丢进度 |
+| 只回填有图表的组合 | 仅 `isChart=true` 的品种×区域才调 getPriceChart | 进口粮/大豆/生猪等无图表的不浪费 API |
 | 分批写入 | 每批 500 条，批间间隔 500ms | 防止单条大事务锁表，降低主从延迟 |
 | API 限流 | 请求间隔 ≥ 1s，信号量限制并发 ≤ 3 | 防 IP 封禁 |
-| 进度日志 | 每批输出日志："回填进度：海口港 1200/8500 条" | 可观测性 |
+| 进度日志 | 每组合完成后输出："回填完成：玉米+港口+南港+海口港（1274条）\| 总进度：23/150" | 可观测性 |
 | 防重复 | `INSERT ... ON DUPLICATE KEY UPDATE` 唯一键 `(date, variety, region, source)` | 重复执行不产生脏数据 |
-| 可中断恢复 | 中断后重新运行，COUNT(*)>0 自动跳过回填 | 无需人工清理 |
+| 组合级原子性 | 每个组合拉取完成后立即更新进度文件，即使进程 kill 也只丢失当前正在写入的一个组合 | 无需人工清理 |
+| 空组合跳过 | getPriceChart 返回空的组合直接记入 completed，避免每次回填都重试 | 节省 API 请求 |
 
 ### 10.3 AI 工具调用边界约束
 
