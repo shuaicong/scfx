@@ -1272,14 +1272,32 @@ LiangxinCollector:
 | 数据库采集 | 粮达网（仅一个，后续可扩展） |
 | 知识库采集 | 粮信网、我的钢铁网、中华粮网…… |
 
-**采集类型的判定依据（后端存储）：**
+**采集类型的判定依据：加到 `t_data_source` 表上。**
 
-在 `t_collection_script` 表中新增或复用字段记录采集类型：
+同一数据源的采集目标类型永远一致（粮达网→database，粮信网→knowledge_base），不需要每个任务单独设置。
 
-| 方案 | 实现 |
-|------|------|
-| 复用 `coll_object` | `coll_object = "price_index"` → 数据库采集，其他 → 知识库采集 |
-| 新增 `collect_target` 字段 | 明确标记 `database` / `knowledge_base`，更清晰 |
+```sql
+ALTER TABLE t_data_source
+ADD COLUMN `collect_target` varchar(20) DEFAULT 'knowledge_base'
+COMMENT '采集目标: database=数据库, knowledge_base=知识库（默认）';
+
+UPDATE t_data_source SET collect_target='database' WHERE code='liangdawang';
+```
+
+**前端流转：**
+
+```
+创建任务
+  → 选择数据源
+  → 前端读取 datasource.collect_target
+     ├─ database → 显示简化表单（隐藏脚本/自动仅采集/默认Cron）
+     └─ knowledge_base → 显示完整表单（有脚本/仅采选项/自由Cron）
+  → 保存时 collect_target 从数据源继承写入 t_collection_script
+```
+
+**为什么不加到 `t_collection_script`：** 冗余。同一数据源下所有任务的目标类型都一样，每个任务重复存一个相同的值没有意义。
+
+**为什么不两个都加：** 过度设计。没有"同一数据源既走 database 又走 knowledge_base"的场景。
 | 任务名称 | 自动填入"粮达网价格指数采集"，可修改 | 用户自定义 |
 | 任务描述 | 自动填入默认描述，可修改 | 用户自定义 |
 | 关联分类 | 用户选择（同现有） | 用户选择 |
@@ -1528,6 +1546,7 @@ class CollectObject(str, Enum):
 | `backend/src/main/java/com/scfx/entity/Price.java`（修改） | 修正 `change`→`change_val`，新增 `province`/`remark`/`area_type` 字段 |
 | `backend/src/main/java/com/scfx/mapper/PriceMapper.java`（修改） | 新增 `batchInsertOrUpdate` 方法（XML 或注解） |
 | `backend/src/main/resources/db/migration/V6__alter_t_price_add_fields.sql`（新增） | 新增 province/remark/area_type 列和索引 |
+| `backend/src/main/resources/db/migration/V7__add_collect_target.sql`（新增） | `t_data_source` 新增 collect_target 字段 |
 
 ### 7.4 AI 问答服务（修改/新增）
 
@@ -1683,7 +1702,7 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 
 ### Phase 2：后端存储（1 天）
 
-1. Flyway 迁移：`t_price` 新增 `province`/`remark`/`area_type` 列和索引
+1. Flyway 迁移：`V6` `t_price` 新增 `province`/`remark`/`area_type` 列和索引；`V7` `t_data_source` 新增 `collect_target` 列
 2. 修正 `Price.java` 实体字段（`change`→`change_val`，新增字段）
 3. 新增 `PriceService.batchInsertOrUpdate()` 批量写入+去重
 4. 新增 `PriceController`，`POST /api/price/batch` 端点
