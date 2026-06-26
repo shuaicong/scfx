@@ -1076,6 +1076,8 @@ interface VisualizationBlock {
 色阶规则：每列（每天）独立计算色阶范围，反映当日港口间价差。
 颜色映射：绿（低）→ 黄（中）→ 红（高），纯数值映射无倾斜。
 
+全局色阶：一次性覆盖全部列统一色阶范围。前端热力图右上角提供"单列色阶/全局色阶"切换开关，默认单列色阶。
+
 #### 折线对比图
 
 用户问"北港哪些港口价格有差异"时触发：
@@ -1336,6 +1338,38 @@ LiangxinCollector:
 
 **重复任务防护：** 创建数据库采集任务时，检查 `source=liangdawang AND status=enabled` 是否已存在，存在则提示"该数据源已有启用任务"。
 每个数据源只允许一个启用中的数据库采集任务，避免 cron 触发时 task_id 冲突。
+
+#### 任务操作审计日志
+
+所有针对数据库采集任务的操作（创建/编辑/删除/启用/禁用）均记录审计日志：
+
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| user_id | 操作人 | admin |
+| action | 操作类型 | delete / edit / create / disable |
+| target_id | 操作对象 | 17 |
+| detail | 操作详情 | 删除了粮达网价格指数采集任务 |
+| timestamp | 操作时间 | 2026-06-26 10:00:00 |
+
+审计日志独立存储（如 t_operation_log），不随业务数据删除。
+
+#### 时区兼容
+
+所有日期字段强制绑定东八区（Asia/Shanghai）：
+
+```python
+import os
+os.environ["TZ"] = "Asia/Shanghai"
+time.tzset()
+```
+
+```yaml
+spring:
+  jackson:
+    time-zone: Asia/Shanghai
+```
+
+服务器时区异常不影响行情日期。
 
 #### 删除任务是否删除数据
 
@@ -1923,6 +1957,7 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 | 大小写严格 | JSON key 严格区分大小写，按 API 实际驼峰命名读取 | 不做 `lower()/upper()` 不区分匹配，避免误读同名字段 |
 | area_type 必填 | 每条记录必须有 `area_type` 分类值，由品种+区域类型映射 | region 字段语义歧义，AI 查询结果不准 |
 | unit 按品种固定 | 粮食品种→"元/吨"，生猪→"元/斤"，不允许空值 | AI 回答单位错误 |
+| unit 未定义兜底 | 若品种映射 unit 失败，默认填入"元/吨"并输出 ERROR 日志 | 避免 AI 回答出现无单位 |
 | 空数据不回退 | getPriceInfo 返回空列表 `data: []` → 不写入 t_price，不生成知识条目 | 节假日脏数据污染 |
 | 连续 N 天空数据 | 第 3 天起 ERROR 告警+推送通知 | 静默故障不被发现 |
 
@@ -1952,6 +1987,7 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 | 空结果处理 | 返回空列表时输出"暂无数据"，不抛异常，不编造数据 | 用户看到"暂无数据"而非幻觉报价 |
 | 涨跌格式 | 统一转为 `+10` / `-10` / `持平` 字符串 | 方便 LLM 直接拼接回答 |
 | 返回数量上限 | `query_price` 最多 7 条，`query_price_trend` 最多 180 条，`query_price_comparison` 最多 30 条 | 超限截断并在结果末尾标注"共 X 条，仅展示前 N 条" |
+| 操作审计日志 | 每次工具调用记录 user_id/session_id/tool_name/params/timestamp | 追溯谁查了什么价格 |
 | 生猪单位换算 | 生猪 price 为元/斤，回答中需显式标注单位 | LLM 默认理解为元/吨时数据差了 2000 倍 |
 | API 降级策略 | 粮达网 API 异常时，按 B+C 组合降级（见下方说明） | 采集故障时用户仍能看到数据 |
 
