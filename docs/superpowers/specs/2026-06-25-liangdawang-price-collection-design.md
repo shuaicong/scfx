@@ -297,6 +297,11 @@ class LiangdawangCollector(BaseCollector):
       POST /collector/exec/{executionId}/complete
       body: {"status": "success", "collectedCount": 224, "successCount": 224}
 
+   f. ⚠️ 完整执行流程：report_start → 采集 → batch 写入 → 只有 batch 成功才 complete
+      如果 batch 失败（HTTP 非 200 或超时），不调用 complete，改为调用 report_error：
+      POST /collector/exec/{executionId}/error  body: {"message": "价格数据批量写入失败"}
+      采集器返回非零退出码，cron 下次重试。
+
    说明：/api/price/batch 只负责写 t_price（结构化数据），
    不负责知识库条目（知识库不做价格指数条目，见 5.2 节）。
    采集执行记录由标准生命周期管理，前端 TaskList 直接可见。
