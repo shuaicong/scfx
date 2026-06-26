@@ -177,7 +177,7 @@ class LiangdawangCollector(BaseCollector):
             )
         return self._httpx_client
 
-    async def _api_get(self, url: str, params: dict = None) -> dict:
+    async def _api_get(self, url: str, params: dict = None, variety: str = "") -> dict:
         async with self._semaphore:
             client = await self._get_client()
             for attempt in range(3):
@@ -187,6 +187,16 @@ class LiangdawangCollector(BaseCollector):
                         retry_after = resp.headers.get("Retry-After", "30")
                         wait = int(retry_after) if retry_after.isdigit() else 30
                         await asyncio.sleep(wait)
+                        # 429 熔断计数
+                        if variety:
+                            self._variety_429_count[variety] = self._variety_429_count.get(variety, 0) + 1
+                            self._total_429_count += 1
+                            if self._total_429_count >= 5:
+                                self._circuit_breaker_tripped = True
+                                logger.warning("[Liangdawang] [ALERT] global_circuit_breaker_tripped total_429=%d", self._total_429_count)
+                            elif self._variety_429_count[variety] >= 2:
+                                logger.warning("[Liangdawang] [WARN] variety_circuit_breaker variety=%s consecutive_429=%d",
+                                               variety, self._variety_429_count[variety])
                         continue
                     resp.raise_for_status()
                     data = resp.json()
@@ -256,6 +266,7 @@ class LiangdawangCollector(BaseCollector):
                 data = await self._api_get(
                     f"{API_BASE}/getPriceInfo",
                     params={"varietyName": variety, "areaType": area_type_name},
+                    variety=variety,
                 )
             except Exception as e:
                 logger.error("[Liangdawang] [ERROR] fetch_failed variety=%s areaType=%s error=%s",
@@ -361,6 +372,7 @@ class LiangdawangCollector(BaseCollector):
                     data = await self._api_get(
                         f"{API_BASE}/getPriceInfo",
                         params={"varietyName": variety, "areaType": area_type_name},
+                        variety=variety,
                     )
                 except Exception:
                     continue
@@ -384,6 +396,7 @@ class LiangdawangCollector(BaseCollector):
                 chart_data = await self._api_get(
                     f"{API_BASE}/getPriceChart",
                     params={k: combo[k] for k in ("variety", "area_type", "province", "area")},
+                    variety=combo["variety"],
                 )
             except Exception:
                 completed.add(combo["key"])
