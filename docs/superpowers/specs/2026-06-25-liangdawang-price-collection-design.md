@@ -269,23 +269,36 @@ class LiangdawangCollector(BaseCollector):
    unit        → 按品种固定：粮食品种"元/吨"，生猪"元/斤"
    source      → "liangdawang"
 
-4. 批量提交到 Java 后端
-   POST /api/price/batch
-   {
-     "source": "liangdawang",
-     "execution_id": "...",
-     "daily_run": true,        # true=每日采集, false=历史回填
-     "records": [ {...}, ... ]
-   }
-   → 后端 PriceController 接收 → PriceService.batchSave()
-   → INSERT ... ON DUPLICATE KEY UPDATE 批量写入 t_price
-   → 若 daily_run=true，自动触发知识库条目生成
-     KnowledgeBaseService.generatePriceIndexEntry(date, source)
-     查 t_price → 拼 HTML 表格 → 保存到 t_knowledge_base
+4. 走标准采集生命周期，执行记录写入 t_task_execution
    
-   说明：不经过现有的 /collector/exec/{id}/data 接口。
-   价格数据是结构化的批量记录，不需要采集器完整生命周期
-   （start→progress→data→complete），独立接口更干净。
+   a. 启动执行
+      POST /collector/exec/start  body: {"taskId": ${TASK_ID}}
+      ← 返回 execution_id（如粮信网一样）
+   
+   b. httpx 调粮达网 API 采集数据（品种串行+1s间隔+信号量≤3）
+   
+   c. 上报日志和进度
+      POST /collector/exec/{executionId}/log
+      body: {"level": "INFO", "message": "玉米港口22条已采集", "phase": "crawl"}
+   
+   d. 批量写入 t_price
+      POST /api/price/batch
+      {
+        "execution_id": "${executionId}",
+        "source": "liangdawang",
+        "total_records": 224,
+        "records": [ {...}, ... ]
+      }
+      → PriceController → PriceService.batchInsertOrUpdate()
+      → INSERT ... ON DUPLICATE KEY UPDATE
+   
+   e. 完成执行
+      POST /collector/exec/{executionId}/complete
+      body: {"status": "success", "collectedCount": 224, "successCount": 224}
+
+   说明：/api/price/batch 只负责写 t_price（结构化数据），
+   不负责知识库条目（知识库不做价格指数条目，见 5.6 节）。
+   采集执行记录由标准生命周期管理，前端 TaskList 直接可见。
 
 5. 首次运行：回填历史数据（仅 isChart=true 的组合）
    GET /getPriceChart?varietyName=玉米&areaType=港口&province=北港&area=锦州港
@@ -1217,6 +1230,27 @@ MessageContent.vue（现有）
 
 ---
 
+### 5.6 知识库不做价格指数条目
+
+价格数据仅存储在 `t_price` 中，不在 `t_knowledge_base` 创建"粮达网价格指数"条目。
+理由：
+- 价格数据是结构化数字，不是可阅读的报告
+- 用户通过 AI 问答查价，不会去知识库翻静态表格
+- 避免知识库列表被每日重复的价格条目刷屏
+
+用户获取价格数据的两种方式：
+1. **AI 问答**：直接问"海口港玉米多少钱" → 即时回答 + 内联图表
+2. **前端 TaskList**：查看采集执行状态 → 确认数据已更新
+
+### 5.7 数据可视化页面（远期）
+
+新增独立页面 `/price-index`，以 ECharts 展示：
+- 热力图：品种×区域×日期 的价格矩阵
+- 折线图：选定港口的历史走势
+- 对比图：多港口价格对比
+
+一期不做，留作扩展。
+
 ## 6. 系统架构
 
 ```
@@ -1335,8 +1369,8 @@ class CollectObject(str, Enum):
 | 文件 | 说明 |
 |------|------|
 | `backend/src/main/java/com/scfx/controller/PriceController.java`（新增） | `POST /api/price/batch` 批量接收价格记录 |
-| `backend/src/main/java/com/scfx/service/PriceService.java`（新增） | `batchSave()` 批量写入+去重 |
-| `backend/src/main/java/com/scfx/service/KnowledgeBaseService.java`（修改） | 新增 `generatePriceIndexEntry()` 自动生成价格指数知识条目 |
+| `backend/src/main/java/com/scfx/service/PriceService.java`（新增） | `batchInsertOrUpdate()` 批量写入+去重 |
+
 | `backend/src/main/java/com/scfx/entity/Price.java`（修改） | 修正 `change`→`change_val`，新增 `province`/`remark`/`area_type` 字段 |
 | `backend/src/main/java/com/scfx/mapper/PriceMapper.java`（修改） | 新增 `batchInsertOrUpdate` 方法（XML 或注解） |
 | `backend/src/main/resources/db/migration/V6__alter_t_price_add_fields.sql`（新增） | 新增 province/remark/area_type 列和索引 |
@@ -1492,11 +1526,9 @@ async def query_price(variety: str, region: str, date: str | None = None) -> dic
 
 1. Flyway 迁移：`t_price` 新增 `province`/`remark`/`area_type` 列和索引
 2. 修正 `Price.java` 实体字段（`change`→`change_val`，新增字段）
-3. 新增 `PriceService.batchSave()`，批量 `INSERT ... ON DUPLICATE KEY UPDATE`
+3. 新增 `PriceService.batchInsertOrUpdate()`，批量 `ON DUPLICATE KEY UPDATE`
 4. 新增 `PriceController`，`POST /api/price/batch` 端点
-5. `KnowledgeBaseService` 新增 `generatePriceIndexEntry()`：查 t_price → 拼 HTML → 保存 KB
-6. `PriceService` 在 `daily_run=true` 时自动触发知识库条目生成
-7. 验证数据正确写入 `t_price` 和知识库条目
+5. 验证数据正确写入 `t_price`
 
 ### Phase 3：知识库展示（0.5 天）
 
