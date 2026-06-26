@@ -277,9 +277,10 @@ class LiangdawangCollector(BaseCollector):
             if not price_data_list:
                 continue
 
-            area_type_enum = AREA_TYPE_MAP.get(area_type_name)
+            # 优先按品种固定映射（生猪→region, 国产大豆→region），再按区域类型名称映射
+            area_type_enum = VARIETY_DEFAULT_AREA_TYPE.get(variety)
             if not area_type_enum:
-                area_type_enum = VARIETY_DEFAULT_AREA_TYPE.get(variety, "port")
+                area_type_enum = AREA_TYPE_MAP.get(area_type_name, "port")
 
             for province_group in price_data_list:
                 province = province_group.get("province", "")
@@ -429,8 +430,8 @@ class LiangdawangCollector(BaseCollector):
                     "variety": combo["variety"],
                     "region": combo["area"],
                     "province": combo["province"],
-                    "area_type": AREA_TYPE_MAP.get(combo["area_type"],
-                                                    VARIETY_DEFAULT_AREA_TYPE.get(combo["variety"], "port")),
+                    "area_type": VARIETY_DEFAULT_AREA_TYPE.get(combo["variety"],
+                                                    AREA_TYPE_MAP.get(combo["area_type"], "port")),
                     "price": price,
                     "change_val": parse_price_dif(str(change_raw)),
                     "remark": "",
