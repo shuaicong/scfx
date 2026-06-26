@@ -1,4 +1,3 @@
-from sentence_transformers import SentenceTransformer
 import os
 import numpy as np
 import logging
@@ -10,9 +9,18 @@ MODEL_NAME = os.getenv("BGE_MODEL", "BAAI/bge-large-zh-v1.5")
 _model = None
 _use_mock = False
 
+# sentence_transformers 可能因 torch 缺失而不可用，降级处理
+try:
+    from sentence_transformers import SentenceTransformer
+    _sentence_transformers_available = True
+except ImportError:
+    SentenceTransformer = None  # type: ignore
+    _sentence_transformers_available = False
+    logger.warning("[EMBED] sentence_transformers 不可用，将使用 mock 嵌入")
+
 def get_model():
     global _model, _use_mock
-    if _use_mock:
+    if _use_mock or not _sentence_transformers_available:
         return None
     if _model is None:
         # 检查模型是否已缓存到本地

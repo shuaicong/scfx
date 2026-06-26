@@ -1,8 +1,11 @@
 import uuid
 import re
+import requests
+import os
 from app.db.qdrant import get_client, ensure_collection
 
 COLLECTION_NAME = "grain_knowledge"
+QDRANT_URL = f"http://{os.getenv('QDRANT_HOST', 'localhost')}:{os.getenv('QDRANT_PORT', '6333')}"
 
 def store_vectors(kb_id: int, title: str, chunks: list, source: str, source_type: str, publish_time: str = None, chunk_types: list = None):
     """存储向量到 Qdrant"""
@@ -40,29 +43,49 @@ def store_vectors(kb_id: int, title: str, chunks: list, source: str, source_type
     return ",".join(vector_ids)
 
 def search_vectors(query: str, top_k: int = 5, source_filter: str = None) -> list:
-    """搜索向量"""
+    """搜索向量（使用 Qdrant REST API，兼容新旧版本）"""
     from app.services.embed import embed_text
 
-    client = get_client()
-    query_vector = embed_text(query)
+    try:
+        query_vector = embed_text(query)
+    except Exception as e:
+        logger = __import__('logging').getLogger(__name__)
+        logger.warning("[VECTOR] embed_text failed, returning empty: %s", e)
+        return []
 
-    results = client.search(
-        collection_name=COLLECTION_NAME,
-        query_vector=query_vector,
-        limit=top_k
-    )
+    payload = {
+        "vector": query_vector,
+        "limit": top_k,
+        "with_payload": True,
+    }
+    if source_filter:
+        payload["filter"] = {"must": [{"key": "source", "match": {"value": source_filter}}]}
+
+    try:
+        resp = requests.post(
+            f"{QDRANT_URL}/collections/{COLLECTION_NAME}/points/search",
+            json=payload,
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("result", [])
+    except Exception as e:
+        logger = __import__('logging').getLogger(__name__)
+        logger.warning("[VECTOR] qdrant search failed, returning empty: %s", e)
+        return []
 
     return [
         {
-            "kb_id": r.payload.get("knowledge_id") or r.payload.get("kb_id"),
-            "title": r.payload["title"],
-            "content": r.payload["content"],
-            "source": r.payload["source"],
-            "publish_time": r.payload.get("publish_time"),
-            "similarity": r.score,
-            "chunk_index": r.payload.get("chunk_index"),
-            "chunk_type": r.payload.get("chunk_type"),
-            "point_id": r.id,
+            "kb_id": r["payload"].get("knowledge_id") or r["payload"].get("kb_id"),
+            "title": r["payload"]["title"],
+            "content": r["payload"]["content"],
+            "source": r["payload"]["source"],
+            "publish_time": r["payload"].get("publish_time"),
+            "similarity": r["score"],
+            "chunk_index": r["payload"].get("chunk_index"),
+            "chunk_type": r["payload"].get("chunk_type"),
+            "point_id": r["id"],
         }
         for r in results
     ]
