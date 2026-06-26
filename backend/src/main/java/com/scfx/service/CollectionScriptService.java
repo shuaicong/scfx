@@ -663,6 +663,7 @@ public class CollectionScriptService {
 
         List<CollectionScript> scripts = scriptMapper.selectList(wrapper);
         for (CollectionScript script : scripts) {
+            LocalDateTime prevNextExec = script.getNextExecutionTime();
             if (shouldExecuteRepeat(script, now)) {
                 log.info("触发周期脚本: {}", script.getScriptName());
                 // 创建执行记录，由 CollectorAgentService 轮询执行
@@ -672,6 +673,12 @@ public class CollectionScriptService {
                 script.setLastExecutionTime(now);
                 script.setExecutionCount(script.getExecutionCount() == null ? 1 : script.getExecutionCount() + 1);
                 scriptMapper.updateById(script);
+            } else if (prevNextExec == null && script.getNextExecutionTime() != null) {
+                // 首次计算出 nextExecutionTime（如周报等非每日执行脚本），持久化供前端展示
+                LambdaUpdateWrapper<CollectionScript> uw = new LambdaUpdateWrapper<>();
+                uw.eq(CollectionScript::getId, script.getId())
+                   .set(CollectionScript::getNextExecutionTime, script.getNextExecutionTime());
+                scriptMapper.update(null, uw);
             }
         }
     }
@@ -718,7 +725,7 @@ public class CollectionScriptService {
         // 跳过已触发过的时间点：cronExpr.next(now.minusMinutes(3)) 的 3 分钟回溯
         // 可能导致同一 cron 时间点被重复返回，使用 nextExecutionTime 判断
         //（lastExecutionTime 是调度器创建执行的时间，可能早于 cron 目标时间）
-        if (script.getNextExecutionTime() != null && !nextExec.isAfter(script.getNextExecutionTime())) {
+        if (script.getNextExecutionTime() != null && nextExec.isBefore(script.getNextExecutionTime())) {
             return false;
         }
 
@@ -726,6 +733,8 @@ public class CollectionScriptService {
             script.setNextExecutionTime(nextExec);
             return true;
         }
+        // 未来才执行：仍保存预计算值，供前端展示"下次执行时间"
+        script.setNextExecutionTime(nextExec);
         return false;
     }
 
@@ -881,5 +890,18 @@ public class CollectionScriptService {
             case "china_grain" -> "中华粮网";
             default -> source;
         };
+    }
+
+    /**
+     * 根据数据源编码获取启用中的采集任务
+     */
+    public Map<String, Object> getActiveScriptBySource(String source) {
+        LambdaQueryWrapper<CollectionScript> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(CollectionScript::getSource, source)
+               .eq(CollectionScript::getStatus, "enabled")
+               .last("LIMIT 1");
+        CollectionScript script = scriptMapper.selectOne(wrapper);
+        if (script == null) return null;
+        return Map.of("id", script.getId(), "scriptName", script.getScriptName());
     }
 }

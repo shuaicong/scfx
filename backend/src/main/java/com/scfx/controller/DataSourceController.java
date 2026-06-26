@@ -3,6 +3,7 @@ package com.scfx.controller;
 import com.scfx.common.Result;
 import com.scfx.entity.CollectorScriptVersion;
 import com.scfx.entity.DataSource;
+import com.scfx.service.CollectionScriptService;
 import com.scfx.service.CollectorScriptVersionService;
 import com.scfx.service.DataSourceService;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.regex.Pattern;
 public class DataSourceController {
     private final DataSourceService dataSourceService;
     private final CollectorScriptVersionService scriptVersionService;
+    private final CollectionScriptService collectionScriptService;
 
     // 编码规则：以小写字母开头，只能包含小写字母、数字、单个连字符，不能以连字符结尾
     private static final Pattern CODE_PATTERN = Pattern.compile("^[a-z][a-z0-9]*(-[a-z0-9]+)*$");
@@ -137,5 +139,19 @@ public class DataSourceController {
     @GetMapping("/{code}/versions")
     public Result<List<CollectorScriptVersion>> getVersions(@PathVariable String code) {
         return Result.success(scriptVersionService.getVersions(code));
+    }
+
+    /**
+     * 获取数据源的启用任务
+     * 用于 main.py 自动获取 task_id
+     * GET /api/datasource/{code}/active-script
+     */
+    @GetMapping("/{code}/active-script")
+    public Result<Map<String, Object>> getActiveScript(@PathVariable String code) {
+        Map<String, Object> script = collectionScriptService.getActiveScriptBySource(code);
+        if (script == null) {
+            return Result.error("该数据源未找到启用中的采集任务");
+        }
+        return Result.success(script);
     }
 }
