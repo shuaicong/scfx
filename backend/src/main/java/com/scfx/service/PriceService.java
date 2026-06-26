@@ -27,21 +27,42 @@ public class PriceService {
         if (records == null || records.isEmpty()) {
             return 0;
         }
-        // 写入前校验
+        // 写入前校验——跳过非法记录，不阻塞批次
+        List<Price> validRecords = new java.util.ArrayList<>();
         for (Price p : records) {
-            validatePrice(p);
+            try {
+                validatePrice(p);
+                validRecords.add(p);
+            } catch (IllegalArgumentException e) {
+                log.warn("跳过无效价格记录: {} region={} variety={}", e.getMessage(), p.getRegion(), p.getVariety());
+            }
         }
-        int affected = priceMapper.batchInsertOrUpdate(records);
-        log.info("batchInsertOrUpdate: {} records, affected: {}", records.size(), affected);
+        if (validRecords.isEmpty()) {
+            log.warn("所有记录均无效，跳过写入");
+            return 0;
+        }
+        // 补充 variety/region 非空校验
+        for (Price p : validRecords) {
+            if (p.getVariety() == null || p.getVariety().isBlank()) {
+                log.warn("品种不能为空，跳过: region={}", p.getRegion());
+                continue;
+            }
+            if (p.getRegion() == null || p.getRegion().isBlank()) {
+                log.warn("区域不能为空，跳过: variety={}", p.getVariety());
+                continue;
+            }
+        }
+        int affected = priceMapper.batchInsertOrUpdate(validRecords);
+        log.info("batchInsertOrUpdate: {} records ({} valid), affected: {}", records.size(), validRecords.size(), affected);
         return affected;
     }
 
     /**
      * 校验价格记录合法性
-     * - price 为 null 或 ≤0 时丢弃
-     * - price > 99999 时丢弃
-     * - change_val 绝对值 > 1000（生猪 > 5）时丢弃
-     * - area_type 为空时丢弃
+     * - price 为 null 或 ≤0 时抛出异常
+     * - price > 99999 时抛出异常
+     * - change_val 绝对值 > 1000（生猪 > 5）时抛出异常
+     * - area_type 为空时抛出异常
      */
     private void validatePrice(Price p) {
         if (p.getPrice() == null || p.getPrice().compareTo(BigDecimal.ZERO) <= 0) {

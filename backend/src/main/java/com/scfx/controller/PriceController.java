@@ -66,16 +66,28 @@ public class PriceController {
      */
     private Price mapToPrice(Map<String, Object> m) {
         Price p = new Price();
-        if (m.get("date") != null) p.setDate(java.time.LocalDate.parse(m.get("date").toString()));
+        try {
+            if (m.get("date") != null) p.setDate(java.time.LocalDate.parse(m.get("date").toString()));
+        } catch (java.time.format.DateTimeParseException e) {
+            log.warn("日期解析失败: {}", m.get("date"));
+        }
         if (m.get("variety") != null) p.setVariety(m.get("variety").toString());
         if (m.get("region") != null) p.setRegion(m.get("region").toString());
         if (m.get("province") != null) p.setProvince(m.get("province").toString());
         if (m.get("area_type") != null) p.setAreaType(m.get("area_type").toString());
-        if (m.get("price") != null) p.setPrice(new java.math.BigDecimal(m.get("price").toString()));
+        try {
+            if (m.get("price") != null) p.setPrice(new java.math.BigDecimal(m.get("price").toString()));
+        } catch (NumberFormatException e) {
+            log.warn("价格解析失败: {}", m.get("price"));
+        }
         if (m.get("change_val") != null) {
             String cv = m.get("change_val").toString();
             if (!cv.isEmpty()) {
-                p.setChangeVal(new java.math.BigDecimal(cv));
+                try {
+                    p.setChangeVal(new java.math.BigDecimal(cv));
+                } catch (NumberFormatException e) {
+                    log.warn("涨跌值解析失败: {}", cv);
+                }
             }
         }
         if (m.get("remark") != null) p.setRemark(m.get("remark").toString());
