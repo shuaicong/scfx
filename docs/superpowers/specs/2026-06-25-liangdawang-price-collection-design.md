@@ -381,14 +381,15 @@ CREATE TABLE `t_price` (
   `id`         bigint NOT NULL AUTO_INCREMENT,
   `report_id`  bigint DEFAULT NULL,
   `date`       date NOT NULL,              -- 价格日期
-  `variety`    varchar(50) NOT NULL,       -- 品种（玉米/小麦）
-  `region`     varchar(50) DEFAULT NULL,    -- 港口/区域
-  `province`   varchar(50) DEFAULT NULL,    -- 省份/大区（如"北港""南港"）
+  `variety`    varchar(50) NOT NULL,       -- 品种（玉米/小麦/进口粮/国产大豆/生猪）
+  `region`     varchar(50) DEFAULT NULL,    -- 地域/地点（港口名/企业名/省份/船期）
+  `province`   varchar(50) DEFAULT NULL,    -- 省份/大区（北港/黑龙江/美湾/东北等）
+  `area_type`  varchar(20) DEFAULT NULL,    -- region 分类：port/enterprise/region/origin/shipping
   `contract`   varchar(50) DEFAULT NULL,    -- 合约代码（未来扩展）
   `price`      decimal(12,2) DEFAULT NULL,
   `change_val` decimal(12,2) DEFAULT NULL,  -- 涨跌
-  `remark`     varchar(200) DEFAULT NULL,   -- 粮质备注（"二等散粮""一等集装箱"）
-  `unit`       varchar(50) DEFAULT NULL,    -- 元/吨
+  `remark`     varchar(200) DEFAULT NULL,   -- 备注（粮质/蛋白含量/关税/品种说明）
+  `unit`       varchar(50) DEFAULT NULL,    -- 单位（元/吨/元/斤）
   `source`     varchar(100) DEFAULT NULL,   -- 数据来源（liangdawang）
   `created_at` timestamp DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`)
@@ -412,18 +413,20 @@ CREATE TABLE `t_price` (
 | `remark` | `remark` | 透传（二等散粮/一等集装箱） |
 | `endDate` | `date` | 转 date |
 | `varietyName` | `variety` | 从 API 响应透传（玉米/小麦/进口粮/国产大豆/生猪） |
+| 固定 | `area_type` | 按品种+区域类型设定：港口→port，东北/华北/其他→enterprise，进口粮→shipping，国产大豆/生猪→region |
 | 固定 | `unit` | 按品种映射：玉米/小麦/进口粮/国产大豆→"元/吨"，生猪→"元/斤" |
 | 固定 | `source` | "liangdawang" |
 
 **品种特殊处理：**
 
-| 品种 | unit | region 取值 | remark 说明 | 特点 |
-|------|------|------------|------------|------|
-| 玉米 | 元/吨 | 港口名/企业名 | 二等散粮/干粮价 | 标准映射 |
-| 小麦 | 元/吨 | 面企名称 | 到港自提价/空 | remark 部分为空 |
-| 进口粮 | 元/吨 | 船期（"7月船期"） | 关税/CNF 信息 | province 存原产国 |
-| 国产大豆 | 元/吨 | 市县名 | 蛋白含量/市场价类型 | region 存地市 |
-| 生猪 | 元/斤 | 省份名 | 外三元 | province 存大区名，region 存省份名 |
+| 品种 | area_type | unit | region 取值 | remark 说明 | 特点 |
+|------|-----------|------|------------|------------|------|
+| 玉米（港口） | `port` | 元/吨 | 港口名（锦州港） | 二等散粮/一等集装箱 | 标准映射 |
+| 玉米（东北/华北/其他） | `enterprise` | 元/吨 | 企业名（青冈龙凤） | 干粮价/折干价 | 深加工收购价 |
+| 小麦 | `enterprise` | 元/吨 | 面企名（邯郸五得利） | 到港自提价/空 | remark 部分为空 |
+| 进口粮 | `shipping` | 元/吨 | 船期（"7月船期"） | 关税/CNF 信息 | province 存原产国 |
+| 国产大豆 | `region` | 元/吨 | 市县名（海伦） | 蛋白含量/市场价类型 | 产地区域 |
+| 生猪 | `region` | 元/斤 | 省份名（吉林） | 外三元 | province 存大区名，region 存省份名 |
 
 **priceDif → change_val 转换规则（全量枚举）：**
 
@@ -453,7 +456,7 @@ ALTER TABLE `t_price` ADD INDEX `idx_source_date` (`source`, `date`);
 ALTER TABLE `t_price` ADD INDEX `idx_variety_province` (`variety`, `province`);
 ```
 
-`idx_variety_region_date` 覆盖了最常见的查询模式：
+`idx_variety_region_date` 覆盖了最常见的查询模式（`area_type` 字段配合 `region` 一起使用可区分同名不同类的地点）：
 - `WHERE variety='玉米' AND region='海口港' ORDER BY date DESC`
 - `WHERE variety='玉米' AND region IN ('锦州港','蛇口港') AND date='2026-06-25'`
 - `WHERE variety='玉米' AND date BETWEEN '2026-06-01' AND '2026-06-25'`
@@ -902,7 +905,7 @@ class CollectObject(str, Enum):
 | `backend/src/main/java/com/scfx/service/PriceDataService.java`（新增） | 处理 t_price 入库和去重 |
 | `backend/src/main/java/com/scfx/service/CollectionScriptService.java`（修改） | 处理 price 类型的上报 |
 | `backend/src/main/java/com/scfx/mapper/PriceMapper.java`（新增） | t_price 的 MyBatis 映射 |
-| `backend/src/main/resources/db/migration/V6__alter_t_price_add_fields.sql`（新增） | 新增 province/remark 列和索引 |
+| `backend/src/main/resources/db/migration/V6__alter_t_price_add_fields.sql`（新增） | 新增 province/remark/area_type 列和索引 |
 
 ### 7.4 AI 问答服务（修改）
 
