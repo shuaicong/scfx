@@ -1413,6 +1413,64 @@ LiangxinCollector:
 |--------|----------|---------|---------|
 | 粮达网 | `liangdawang` | `LiangdawangCollector` | ✅ 预置，无需脚本 |
 | 粮信网 | `liangxin` | `LiangxinCollector` | ✅ 预置，可编辑脚本 |
+
+#### 采集器与后端的绑定机制
+
+```
+source 值              任务 ID
+  │                      │
+  ▼                      ▼
+python main.py run liangdawang --task_id=17
+  │
+  ├─ 1. 加载模块: dev/collectors/liangdawang.py
+  │     (或从 ~/.cache/collectors/ 加载后端下载的脚本)
+  │
+  ├─ 2. 查找 LiangdawangCollector 类
+  │     (第一个非抽象 BaseCollector 子类)
+  │
+  ├─ 3. 解析 __init__ 参数签名
+  │     config=ReporterConfig(api_base)
+  │     task_id=17
+  │     execution_id=None (首次运行自动创建)
+  │
+  ├─ 4. collector.run()
+  │     │
+  │     ├─ reporter.report_start(task_id=17)
+  │     │    POST /collector/exec/start
+  │     │    ← { executionId: "xxx", scriptId: 17 }
+  │     │
+  │     ├─ httpx 调粮达网 API 采集数据
+  │     │
+  │     ├─ reporter.report_log(level="INFO", message="玉米港口22条已采集")
+  │     │    POST /collector/exec/{id}/log
+  │     │
+  │     ├─ POST /api/price/batch { execution_id, records, stats }
+  │     │    → PriceController → t_price
+  │     │
+  │     └─ reporter.report_complete(collectedCount=224, stats={...})
+  │          POST /collector/exec/{id}/complete
+  │
+  └─ 5. 执行记录写入 t_task_execution（关联 scriptId=17）
+```
+
+**关键绑定关系：**
+
+| 概念 | 值 | 说明 |
+|------|-----|------|
+| 数据源 code | `liangdawang` | `t_data_source.code` → Python 文件名 |
+| 任务 ID | `17` | `t_collection_script.id` → 执行记录的 scriptId |
+| execution_id | `uuid` | `t_task_execution.execution_id` → 一次执行的生命周期 |
+| 采集器类 | `LiangdawangCollector` | `dev/collectors/liangdawang.py` 中定义的类 |
+
+**预置采集器 vs 自定义脚本的区别：**
+
+| 维度 | 预置采集器（粮达网） | 自定义脚本（粮信网） |
+|------|-------------------|-------------------|
+| 脚本位置 | `collectorsdk/collectors/liangdawang.py`（SDK 内建） | `dev/collectors/` 或后端下载 |
+| 用户可编辑 | ❌ 不可编辑（SDK 代码） | ✅ 可编辑 |
+| 脚本预览 | 隐藏，显示"预置采集器" | 显示 Python 代码 |
+| 加载方式 | `main.py run liangdawang` | `main.py run liangxin` |
+| 更新方式 | 随 SDK 版本更新 | 用户手动上传新版本 |
 | ... | ... | ... | ... |
 
 **实现改动清单：**
