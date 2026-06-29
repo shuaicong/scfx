@@ -24,6 +24,17 @@ from app.db.qdrant import get_client
 
 logger = logging.getLogger(__name__)
 
+
+def _split_text(text: str, max_len: int = 200) -> list[str]:
+    """将长文本分成多个片段，用于流式发送"""
+    if len(text) <= max_len:
+        return [text]
+    chunks = []
+    for i in range(0, len(text), max_len):
+        chunks.append(text[i:i+max_len])
+    return chunks
+
+
 # ============================================================
 # 流式标签解析器 — 三状态解析 <reasoning>/<answer> 标签
 # ============================================================
@@ -366,11 +377,12 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             else:
                 yield await gen.send_thought("知识库暂无相关数据")
 
-            # 4. 构建 messages
+            # 4. 构建 messages（价格/趋势类不传入知识库 sources，强制 LLM 使用工具）
+            _rag_sources = [] if qtype in (QuestionType.PRICE, QuestionType.TREND) else search_results
             messages = build_messages(
                 question=request.question,
                 history=history,
-                sources=search_results,
+                sources=_rag_sources,
                 qtype=TYPE_MAP.get(qtype, "general"),
                 request_id=rid,
                 session_id=request.session_id,
@@ -382,76 +394,52 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
             reasoning_text = ""
             _skip_llm_stream = False
 
-            if TOOL_SCHEMAS:
+            print("[DEBUG] qtype check:", qtype, "TOOL_SCHEMAS:", bool(TOOL_SCHEMAS), file=__import__('sys').stderr)
+                        # 价格/趋势类问题：直接查询数据库，绕过 LLM 工具调用（Qwen 不支持可靠函数调用）
+            if qtype in (QuestionType.PRICE, QuestionType.TREND) and TOOL_SCHEMAS:
                 try:
-                    first_response = await _call_llm_with_retry(
-                        messages, stream=False, tools=TOOL_SCHEMAS,
-                    )
-                    first_result = first_response.json()
-                    first_choice = first_result["choices"][0]
-                    first_message = first_choice.get("message", {})
-
-                    if first_choice.get("finish_reason") == "tool_calls" and first_message.get("tool_calls"):
-                        # 执行工具调用
-                        tool_calls = first_message["tool_calls"]
-                        for tc in tool_calls:
-                            tool_name = tc["function"]["name"]
-                            arguments = json.loads(tc["function"]["arguments"])
-
-                            if tool_name in TOOL_REGISTRY:
-                                # 发送思考事件：告知用户正在查数据库
-                                yield await gen.send_thought("正在查询粮达网结构化价格数据...")
-                                tool_result = await TOOL_REGISTRY[tool_name]["handler"](**arguments)
-
-                                # 注入 tool 调用记录到 messages
-                                messages.append({
-                                    "role": "assistant",
-                                    "content": None,
-                                    "tool_calls": [{
-                                        "id": tc["id"],
-                                        "type": "function",
-                                        "function": {
-                                            "name": tool_name,
-                                            "arguments": tc["function"]["arguments"],
-                                        },
-                                    }],
-                                })
-                                # 注入 tool 执行结果到 messages
-                                messages.append({
-                                    "role": "tool",
-                                    "tool_call_id": tc["id"],
-                                    "content": json.dumps(tool_result.get("content", ""), ensure_ascii=False),
-                                })
-
-                                # 发射 visualization SSE 事件
-                                if tool_result.get("visualization"):
-                                    yield json.dumps({
-                                        "type": "visualization",
-                                        "data": tool_result["visualization"],
-                                    }) + "\n"
-
-                                # 发射 sources SSE 事件
-                                if tool_result.get("sources"):
-                                    yield json.dumps({
-                                        "type": "sources",
-                                        "data": tool_result["sources"],
-                                    }) + "\n"
-
-                    elif first_message.get("content"):
-                        # LLM 直接回答（无工具调用），跳过后续流式调用
-                        content = first_message["content"]
-                        if content:
-                            answer_text = content
-                            event = await gen.send_content(content)
-                            if event:
-                                yield event
-                        _skip_llm_stream = True
-
+                    yield await gen.send_thought("正在查询粮达网结构化价格数据...")
+                    
+                    # 选择工具和参数
+                    q_lower = request.question
+                    for v in ["玉米", "小麦", "进口粮", "国产大豆", "生猪", "猪肉", "大豆"]:
+                        if v in q_lower:
+                            _variety = "生猪" if v == "猪肉" else v
+                            break
+                    else:
+                        _variety = "玉米"
+                    
+                    if qtype == QuestionType.TREND:
+                        tool_result = await TOOL_REGISTRY["query_price_trend"]["handler"](
+                            variety=_variety, region="锦州港", days=30
+                        )
+                    else:
+                        tool_result = await TOOL_REGISTRY["query_price_comparison"]["handler"](
+                            variety=_variety
+                        )
+                    
+                    # 发射 visualization
+                    if tool_result.get("visualization"):
+                        viz_json = json.dumps(tool_result["visualization"], ensure_ascii=False)
+                        yield "event: visualization\ndata: " + viz_json + "\n\n"
+                    
+                    # 发射 sources
+                    if tool_result.get("sources"):
+                        src_json = json.dumps(tool_result["sources"], ensure_ascii=False)
+                        yield "event: sources\ndata: " + src_json + "\n\n"
+                    
+                    # 直接用工具返回的文本作为回答
+                    answer_text = tool_result.get("content", "暂无数据")
+                    for i in range(0, len(answer_text), 200):
+                        chunk = answer_text[i:i+200]
+                        event = await gen.send_content(chunk)
+                        if event:
+                            yield event
+                    
+                    _skip_llm_stream = True
                 except Exception as e:
-                    logger.warning(
-                        "[AI_QA] [WARN] [tool_calling_failed] error=%s", e,
-                    )
-
+                    logger.warning("[AI_QA] [WARN] [tool_direct_query_failed] error=%s", e)
+            
             # 5. LLM 流式调用 + 深度思考标签解析
             if not _skip_llm_stream:
                 if request.deep_thinking:
