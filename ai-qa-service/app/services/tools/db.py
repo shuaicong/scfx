@@ -156,4 +156,30 @@ async def query_price_comparison_records(
                     """
                     await cur.execute(sql, (variety, limit))
             rows = await cur.fetchall()
+            # 当日无数据时回退到最近日期
+            if not rows and not date_str:
+                max_date_sql = "SELECT MAX(`date`) AS max_date FROM t_price WHERE variety = %s"
+                await cur.execute(max_date_sql, (variety,))
+                max_row = await cur.fetchone()
+                if max_row and max_row["max_date"]:
+                    if regions:
+                        placeholders = ",".join(["%s"] * len(regions))
+                        sql = f"""
+                            SELECT region, province, price, change_val, remark, unit, `date`, area_type
+                            FROM t_price
+                            WHERE variety = %s AND region IN ({placeholders}) AND `date` = %s
+                            ORDER BY price ASC
+                            LIMIT %s
+                        """
+                        await cur.execute(sql, (variety, *regions, max_row["max_date"], limit))
+                    else:
+                        sql = """
+                            SELECT region, province, price, change_val, remark, unit, `date`, area_type
+                            FROM t_price
+                            WHERE variety = %s AND `date` = %s
+                            ORDER BY price ASC
+                            LIMIT %s
+                        """
+                        await cur.execute(sql, (variety, max_row["max_date"], limit))
+                    rows = await cur.fetchall()
             return [dict(r) for r in rows]
