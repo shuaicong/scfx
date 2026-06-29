@@ -139,6 +139,7 @@
                 :collapsed="msg.reasoningCollapsed ?? true"
                 @toggle="msg.reasoningCollapsed = !msg.reasoningCollapsed"
               />
+              <ThoughtProcess v-if="msg.thoughts && msg.thoughts.length > 0" :thoughts="msg.thoughts" />
               <MessageContent :content="msg.content" :sources="msg.sources" @source-click="handleSourceClick" />
               <VisualizationRenderer v-if="msg.visualization" :visualization="msg.visualization" />
             </div>
@@ -374,7 +375,7 @@ async function loadHistoryMessages(sid: string) {
       id: `h-${m.message_id || i}`,
       time: m.created_at || '',
       reasoning: m.reasoning_content || '',
-      reasoningCollapsed: true,
+      reasoningCollapsed: false,
       // API 返回的 assistant 消息不含 sources，历史渲染不附带来源卡片
     }))
   } catch {
@@ -450,6 +451,7 @@ interface DisplayMessage {
   time?: string    // 消息时间（ISO 格式，可选）
   reasoning?: string   // ★ 推理过程（深度思考模式）
   reasoningCollapsed?: boolean  // ★ 推理面板折叠状态（历史消息独立控制）
+  thoughts?: string[]  // ★ 思考过程（如"正在检索知识库..."）
 }
 
 /** 格式化 ISO 时间为 HH:mm */
@@ -841,7 +843,7 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         if (!isArchived.value && lastQuestion.value) {
           const now = Date.now()
           displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
-          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, visualization: currentVisualization.value, reasoning: reasoningTrimmed, reasoningCollapsed: true, time: new Date(now).toISOString() })
+          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, visualization: currentVisualization.value, reasoning: reasoningTrimmed, reasoningCollapsed: false, thoughts: [...thoughts.value], time: new Date(now).toISOString() })
           isArchived.value = true
         }
         resetCurrentRound()
