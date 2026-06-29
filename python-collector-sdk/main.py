@@ -191,11 +191,37 @@ def cmd_run(args):
     code = args.code
     api_base = args.api_base or API_BASE_DEFAULT
 
-    if not args.local:
-        download_script(api_base, code)
+    # 优先尝试从 SDK 内置采集器加载（liangdawang 等预置采集器）
+    module, collector_class = None, None
+    try:
+        sdk_module = importlib.import_module(f"collectorsdk.collectors.{code}")
+        for attr_name in dir(sdk_module):
+            cls = getattr(sdk_module, attr_name)
+            if (isinstance(cls, type)
+                    and issubclass(cls, BaseCollector)
+                    and cls is not BaseCollector
+                    and not inspect.isabstract(cls)):
+                module, collector_class = sdk_module, cls
+                break
+    except (ImportError, ModuleNotFoundError):
+        pass
 
-    module, collector_class = load_collector_module(code, local=args.local)
+    # SDK 没有内置采集器 → 从后端下载
+    if collector_class is None:
+        if not args.local:
+            download_script(api_base, code)
+        module, collector_class = load_collector_module(code, local=args.local)
+
     params = build_collector_params(collector_class, code, args)
+
+    # 自动获取 task_id（从 active-script 接口），覆盖默认值
+    if not args.task_id or args.task_id == 1:
+        try:
+            resp_data = api_get(f"{api_base}/datasource/{code}/active-script")
+            if resp_data.get("code") == 200:
+                params["task_id"] = resp_data["data"]["id"]
+        except Exception:
+            pass  # 拿不到就用默认值
 
     collector = collector_class(**params)
     collector.run()
@@ -225,7 +251,7 @@ def main():
     # run
     p = sub.add_parser("run", help="运行指定采集器")
     p.add_argument("code", help="数据源编码 (如 liangxin)")
-    p.add_argument("--task-id", type=int, default=1, help="任务ID")
+    p.add_argument("--task-id", type=int, default=0, help="任务ID（默认自动获取）")
     p.add_argument("--execution-id", default=None, help="执行ID (不传则自动创建)")
     p.add_argument("--no-report", action="store_true", help="禁用上报（本地调试）")
     p.add_argument("--local", action="store_true", help="从 dev/collectors/ 加载脚本，不从后端下载")
