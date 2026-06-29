@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 # 常量
 # ============================================================
 API_BASE = "https://www.liangdawang.com/ldw-portal-mer/v1/infoCenter"
-PRICE_BATCH_URL = "/api/price/batch"
+PRICE_BATCH_URL = "/price/batch"
 
 # 品种 -> Subject 枚举映射
 VARIETY_TO_SUBJECT = {
