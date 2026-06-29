@@ -1,22 +1,30 @@
 import os
 import numpy as np
 import logging
+import httpx
 
 logger = logging.getLogger(__name__)
 
 MODEL_NAME = os.getenv("BGE_MODEL", "BAAI/bge-large-zh-v1.5")
+SILICON_FLOW_KEY = os.getenv("SILICON_FLOW_API_KEY", "")
+EMBED_API_URL = os.getenv("EMBED_API_URL", "https://api.siliconflow.cn/v1/embeddings")
 
 _model = None
 _use_mock = False
+_use_api = False  # 使用 SiliconFlow API 替代本地模型
 
-# sentence_transformers 可能因 torch 缺失而不可用，降级处理
+# sentence_transformers 可能因 torch 缺失而不可用，降级到 API
 try:
     from sentence_transformers import SentenceTransformer
     _sentence_transformers_available = True
 except ImportError:
     SentenceTransformer = None  # type: ignore
     _sentence_transformers_available = False
-    logger.warning("[EMBED] sentence_transformers 不可用，将使用 mock 嵌入")
+    if SILICON_FLOW_KEY:
+        _use_api = True
+        logger.info("[EMBED] sentence_transformers 不可用，切换到 SiliconFlow API 嵌入")
+    else:
+        logger.warning("[EMBED] sentence_transformers 不可用且无 API Key，将使用 mock 嵌入")
 
 def get_model():
     global _model, _use_mock
@@ -45,24 +53,72 @@ def get_model():
             return None
     return _model
 
+def _api_embed_text(text: str) -> list:
+    """通过 SiliconFlow API 获取文本向量"""
+    if not SILICON_FLOW_KEY:
+        return np.random.randn(1024).tolist()
+    try:
+        resp = httpx.post(
+            EMBED_API_URL,
+            json={"model": MODEL_NAME, "input": text},
+            headers={"Authorization": f"Bearer {SILICON_FLOW_KEY}"},
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        embedding = data["data"][0]["embedding"]
+        # 归一化
+        norm = np.linalg.norm(embedding)
+        if norm > 0:
+            embedding = (np.array(embedding) / norm).tolist()
+        return embedding
+    except Exception as e:
+        logger.error("[EMBED] API 嵌入失败，回退到 mock: %s", e)
+        return np.random.randn(1024).tolist()
+
+def _api_embed_batch(texts: list) -> list:
+    """批量通过 API 向量化"""
+    if not SILICON_FLOW_KEY:
+        return [np.random.randn(1024).tolist() for _ in texts]
+    try:
+        resp = httpx.post(
+            EMBED_API_URL,
+            json={"model": MODEL_NAME, "input": texts},
+            headers={"Authorization": f"Bearer {SILICON_FLOW_KEY}"},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = sorted(data["data"], key=lambda x: x["index"])
+        embeddings = [r["embedding"] for r in results]
+        # 归一化
+        norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
+        norms[norms == 0] = 1
+        embeddings = (np.array(embeddings) / norms).tolist()
+        return embeddings
+    except Exception as e:
+        logger.error("[EMBED] API 批量嵌入失败，回退到 mock: %s", e)
+        return [np.random.randn(1024).tolist() for _ in texts]
+
 def embed_text(text: str) -> list:
-    """使用 BGE 将文本转为向量"""
+    """将文本转为向量（优先本地 BGE，其次 API，最后 mock）"""
+    if _use_api:
+        return _api_embed_text(text)
     model = get_model()
     if model is None:
-        # Return mock embedding (1024 dimensions for BGE-large-zh-v1.5)
         return np.random.randn(1024).tolist()
     embedding = model.encode(text)
-    # 手动归一化（新版 sentence-transformers encode() 不再支持 normalize= 参数）
     norm = np.linalg.norm(embedding)
     if norm > 0:
         embedding = embedding / norm
     return embedding.tolist()
 
 def embed_batch(texts: list) -> list:
-    """批量向量化"""
+    """批量向量化（优先本地 BGE，其次 API，最后 mock）"""
+    if _use_api:
+        return _api_embed_batch(texts)
     model = get_model()
     if model is None:
-        # Return mock embeddings
         return [np.random.randn(1024).tolist() for _ in texts]
     embeddings = model.encode(texts)
     norms = np.linalg.norm(embeddings, axis=1, keepdims=True)
