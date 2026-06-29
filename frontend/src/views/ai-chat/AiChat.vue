@@ -139,7 +139,7 @@
                 :collapsed="msg.reasoningCollapsed ?? true"
                 @toggle="msg.reasoningCollapsed = !msg.reasoningCollapsed"
               />
-              <ThoughtProcess v-if="msg.thoughts && msg.thoughts.length > 0" :thoughts="msg.thoughts" />
+              <ThoughtProcess v-if="msg.thoughts && msg.thoughts.length > 0" :thoughts="msg.thoughts" :collapsed="msg.thoughtsCollapsed ?? false" @toggle="msg.thoughtsCollapsed = !msg.thoughtsCollapsed" />
               <MessageContent :content="msg.content" :sources="msg.sources" @source-click="handleSourceClick" />
               <VisualizationRenderer v-if="msg.visualization" :visualization="msg.visualization" />
             </div>
@@ -174,7 +174,7 @@
           </div>
           <div class="message-body">
             <!-- 思考过程 -->
-            <ThoughtProcess v-if="thoughts.length > 0" :thoughts="thoughts" />
+            <ThoughtProcess v-if="thoughts.length > 0" :thoughts="thoughts" :collapsed="currentThoughtsCollapsed" @toggle="currentThoughtsCollapsed = !currentThoughtsCollapsed" />
 
             <!-- 深度思考推理面板 -->
             <ReasoningPanel
@@ -434,6 +434,7 @@ const lastQuestion = ref('')
 const sources = ref<Source[]>([])
 const currentVisualization = ref<any>(null)
 const thoughts = ref<string[]>([])
+const currentThoughtsCollapsed = ref(false)
 const currentAnswer = ref('')
 const deepThinkingEnabled = ref(false)
 const reasoningContent = ref('')
@@ -452,6 +453,7 @@ interface DisplayMessage {
   reasoning?: string   // ★ 推理过程（深度思考模式）
   reasoningCollapsed?: boolean  // ★ 推理面板折叠状态（历史消息独立控制）
   thoughts?: string[]  // ★ 思考过程（如"正在检索知识库..."）
+  thoughtsCollapsed?: boolean  // ★ 思考过程折叠状态
 }
 
 /** 格式化 ISO 时间为 HH:mm */
@@ -843,7 +845,7 @@ function flushSSEEvent(eventType: string, dataLines: string[]) {
         if (!isArchived.value && lastQuestion.value) {
           const now = Date.now()
           displayMessages.value.push({ role: 'user', content: lastQuestion.value, id: `q-${now}-0`, time: new Date(now).toISOString() })
-          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, visualization: currentVisualization.value, reasoning: reasoningTrimmed, reasoningCollapsed: false, thoughts: [...thoughts.value], time: new Date(now).toISOString() })
+          displayMessages.value.push({ role: 'assistant', content: currentAnswer.value, id: `a-${now}-1`, sources: sources.value, visualization: currentVisualization.value, reasoning: reasoningTrimmed, reasoningCollapsed: false, thoughts: [...thoughts.value], thoughtsCollapsed: currentThoughtsCollapsed.value, time: new Date(now).toISOString() })
           isArchived.value = true
         }
         resetCurrentRound()
