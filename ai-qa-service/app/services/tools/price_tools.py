@@ -62,6 +62,13 @@ PROVINCE_MAP = {
     "其他": "其他",
 }
 
+# 品种别名 → 标准名映射（LLM 传了"猪肉"时自动转为"生猪"）
+VARIETY_MAP = {
+    "猪肉": "生猪",
+    "猪": "生猪",
+    "大豆": "国产大豆",
+}
+
 # 品种固定单位映射
 UNIT_MAP = {
     "玉米": "元/吨",
@@ -226,6 +233,8 @@ async def query_price(
     Returns:
         dict with content/sources/visualization
     """
+    # 品种别名归一化（猪肉→生猪, 大豆→国产大豆）
+    variety = VARIETY_MAP.get(variety, variety)
     try:
         records = await db.query_price_records(
             variety=variety,
@@ -344,6 +353,7 @@ async def query_price_trend(
     Returns:
         dict with content/sources/visualization
     """
+    variety = VARIETY_MAP.get(variety, variety)
     # 约束校验
     if days > 180:
         days = 180
@@ -493,6 +503,7 @@ async def query_price_comparison(
     Returns:
         dict with content/sources/visualization
     """
+    variety = VARIETY_MAP.get(variety, variety)
     try:
         records = await db.query_price_comparison_records(
             variety=variety,

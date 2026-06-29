@@ -13,7 +13,7 @@ QUERY_PRICE_SCHEMA = {
             "properties": {
                 "variety": {
                     "type": "string",
-                    "enum": ["玉米", "小麦", "进口粮", "国产大豆", "生猪"],
+                    "enum": ["玉米", "小麦", "进口粮", "国产大豆", "大豆", "生猪", "猪肉"],
                     "description": "品种"
                 },
                 "region": {
@@ -42,7 +42,7 @@ QUERY_PRICE_TREND_SCHEMA = {
             "properties": {
                 "variety": {
                     "type": "string",
-                    "enum": ["玉米", "小麦", "进口粮", "国产大豆", "生猪"],
+                    "enum": ["玉米", "小麦", "进口粮", "国产大豆", "大豆", "生猪", "猪肉"],
                     "description": "品种"
                 },
                 "region": {
@@ -79,7 +79,7 @@ QUERY_PRICE_COMPARISON_SCHEMA = {
             "properties": {
                 "variety": {
                     "type": "string",
-                    "enum": ["玉米", "小麦", "进口粮", "国产大豆", "生猪"],
+                    "enum": ["玉米", "小麦", "进口粮", "国产大豆", "大豆", "生猪", "猪肉"],
                     "description": "品种"
                 },
                 "regions": {
