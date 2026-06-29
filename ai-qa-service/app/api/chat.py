@@ -10,7 +10,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
-from app.services.llm import build_messages, generate_answer, generate_answer_stream
+from app.services.llm import build_messages, generate_answer, generate_answer_stream, _call_llm_with_retry
+from app.services.tools import TOOL_REGISTRY, TOOL_SCHEMAS
 from app.services.question_classifier import classify_question, QuestionType
 from app.services.sse_manager import SSEResponseGenerator, build_reasoning_event
 from app.services.history_manager import HistoryManager
@@ -322,22 +323,30 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                 if content_hash not in seen_content:
                     seen_content.add(content_hash)
                     content_deduped.append(r)
-            # 精细排序前先截取 top-N，减少排序开销
-            content_deduped = content_deduped[:SEARCH_TOP_K_PRE_SORT]
-            # 按时间倒序排列（最新数据优先）
-            # 同一天内：行情概述切片（内容以标题开头）排前面
-            def sort_key(r):
+            # 时间衰减加权排序：综合向量相似度 + 时间新鲜度
+            # 避免纯语义排序导致「旧数据因内容详细而排在最前」的问题
+            import datetime as _dt
+            _now_ts = _dt.datetime.now().timestamp()
+
+            def _time_weighted_key(r):
                 pt = r.get("publish_time", "") or ""
-                ts = 0
+                sim = r.get("similarity", 0)
                 try:
-                    import datetime as _dt
-                    ts = -_dt.datetime.fromisoformat(pt.replace("Z", "+00:00")).timestamp()
+                    pub_ts = _dt.datetime.fromisoformat(pt.replace("Z", "+00:00")).timestamp()
+                    days_ago = max(0, (_now_ts - pub_ts) / 86400)
                 except Exception:
-                    ts = 0
-                # 行情概述切片（以文章标题字符开头）优先
+                    days_ago = 999  # 无日期数据排到最后
+
+                # 时间衰减权重（指数衰减，半衰期约 7 天：0.9^days）
+                time_w = 0.90 ** days_ago
+                # 加性综合得分 = 40% 语义相似度 + 60% 时间新鲜度
+                # 即使语义匹配度高，日期较旧的数据也不会压倒最新数据
+                combined = 0.4 * sim + 0.6 * time_w
+                # 同一天内：概述切片优先
                 overview = 0 if r.get("content", "").startswith(("（", "(", "《", "【")) else 1
-                return (ts, overview)
-            content_deduped.sort(key=sort_key)
+                return (-combined, overview)
+
+            content_deduped.sort(key=_time_weighted_key)
             search_results = content_deduped[:SEARCH_TOP_K_FINAL]
             sources = []
             for r in search_results:
@@ -368,31 +377,125 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                 deep_thinking=request.deep_thinking,
             )
 
-            # 5. LLM 流式调用 + 深度思考标签解析
+            # 4.5. Tool calling（非流式，先判断 LLM 是否需调用工具）
             answer_text = ""
             reasoning_text = ""
+            _skip_llm_stream = False
 
-            if request.deep_thinking:
-                # 深度思考模式：使用标签解析器分流
-                cot_parser = CoTStreamParser()
-                _reasoning_seq = 0
-                async for chunk in generate_answer_stream(
-                    messages=messages,
-                    model=None,
-                ):
-                    async for hb in _drain_hb():
-                        yield hb
-                    if chunk.get("type") == "error":
-                        err = await gen.send_error("LLM_FAILED", chunk.get("content", ""))
-                        if err:
-                            yield err
-                        return
-                    content = chunk.get("content", "")
-                    if not content:
-                        continue
+            if TOOL_SCHEMAS:
+                try:
+                    first_response = await _call_llm_with_retry(
+                        messages, stream=False, tools=TOOL_SCHEMAS,
+                    )
+                    first_result = first_response.json()
+                    first_choice = first_result["choices"][0]
+                    first_message = first_choice.get("message", {})
 
-                    events = cot_parser.feed(content)
-                    for evt in events:
+                    if first_choice.get("finish_reason") == "tool_calls" and first_message.get("tool_calls"):
+                        # 执行工具调用
+                        tool_calls = first_message["tool_calls"]
+                        for tc in tool_calls:
+                            tool_name = tc["function"]["name"]
+                            arguments = json.loads(tc["function"]["arguments"])
+
+                            if tool_name in TOOL_REGISTRY:
+                                # 发送思考事件：告知用户正在查数据库
+                                yield await gen.send_thought("正在查询粮达网结构化价格数据...")
+                                tool_result = await TOOL_REGISTRY[tool_name]["handler"](**arguments)
+
+                                # 注入 tool 调用记录到 messages
+                                messages.append({
+                                    "role": "assistant",
+                                    "content": None,
+                                    "tool_calls": [{
+                                        "id": tc["id"],
+                                        "type": "function",
+                                        "function": {
+                                            "name": tool_name,
+                                            "arguments": tc["function"]["arguments"],
+                                        },
+                                    }],
+                                })
+                                # 注入 tool 执行结果到 messages
+                                messages.append({
+                                    "role": "tool",
+                                    "tool_call_id": tc["id"],
+                                    "content": json.dumps(tool_result.get("content", ""), ensure_ascii=False),
+                                })
+
+                                # 发射 visualization SSE 事件
+                                if tool_result.get("visualization"):
+                                    yield json.dumps({
+                                        "type": "visualization",
+                                        "data": tool_result["visualization"],
+                                    }) + "\n"
+
+                                # 发射 sources SSE 事件
+                                if tool_result.get("sources"):
+                                    yield json.dumps({
+                                        "type": "sources",
+                                        "data": tool_result["sources"],
+                                    }) + "\n"
+
+                    elif first_message.get("content"):
+                        # LLM 直接回答（无工具调用），跳过后续流式调用
+                        content = first_message["content"]
+                        if content:
+                            answer_text = content
+                            event = await gen.send_content(content)
+                            if event:
+                                yield event
+                        _skip_llm_stream = True
+
+                except Exception as e:
+                    logger.warning(
+                        "[AI_QA] [WARN] [tool_calling_failed] error=%s", e,
+                    )
+
+            # 5. LLM 流式调用 + 深度思考标签解析
+            if not _skip_llm_stream:
+                if request.deep_thinking:
+                    # 深度思考模式：使用标签解析器分流
+                    cot_parser = CoTStreamParser()
+                    _reasoning_seq = 0
+                    async for chunk in generate_answer_stream(
+                        messages=messages,
+                        model=None,
+                    ):
+                        async for hb in _drain_hb():
+                            yield hb
+                        if chunk.get("type") == "error":
+                            err = await gen.send_error("LLM_FAILED", chunk.get("content", ""))
+                            if err:
+                                yield err
+                            return
+                        content = chunk.get("content", "")
+                        if not content:
+                            continue
+
+                        events = cot_parser.feed(content)
+                        for evt in events:
+                            _content = evt["content"]
+                            if evt["type"] == "reasoning":
+                                reasoning_text += _content
+                                _reasoning_seq += 1
+                                yield build_reasoning_event(
+                                    _content,
+                                    seq=_reasoning_seq,
+                                )
+                            elif evt["type"] == "content":
+                                # 统一剥离残留标签（<answer> / </answer>）
+                                _content = _content.replace("<answer>", "").replace("</answer>", "")
+                                _content = _content.replace("<Answer>", "").replace("</Answer>", "")
+                                if _content:
+                                    answer_text += _content
+                                    event = await gen.send_content(_content)
+                                    if event:
+                                        yield event.replace("<answer>", "").replace("</answer>", "")
+
+                    # 流结束：处理残留缓冲区
+                    final_events = cot_parser.finalize()
+                    for evt in final_events:
                         _content = evt["content"]
                         if evt["type"] == "reasoning":
                             reasoning_text += _content
@@ -402,7 +505,6 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                                 seq=_reasoning_seq,
                             )
                         elif evt["type"] == "content":
-                            # 统一剥离残留标签（<answer> / </answer>）
                             _content = _content.replace("<answer>", "").replace("</answer>", "")
                             _content = _content.replace("<Answer>", "").replace("</Answer>", "")
                             if _content:
@@ -410,45 +512,25 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                                 event = await gen.send_content(_content)
                                 if event:
                                     yield event.replace("<answer>", "").replace("</answer>", "")
-
-                # 流结束：处理残留缓冲区
-                final_events = cot_parser.finalize()
-                for evt in final_events:
-                    _content = evt["content"]
-                    if evt["type"] == "reasoning":
-                        reasoning_text += _content
-                        _reasoning_seq += 1
-                        yield build_reasoning_event(
-                            _content,
-                            seq=_reasoning_seq,
-                        )
-                    elif evt["type"] == "content":
-                        _content = _content.replace("<answer>", "").replace("</answer>", "")
-                        _content = _content.replace("<Answer>", "").replace("</Answer>", "")
-                        if _content:
-                            answer_text += _content
-                            event = await gen.send_content(_content)
+                else:
+                    # 普通模式：不使用标签解析器
+                    async for chunk in generate_answer_stream(
+                        messages=messages,
+                        model=None,
+                    ):
+                        async for hb in _drain_hb():
+                            yield hb
+                        if chunk.get("type") == "error":
+                            err = await gen.send_error("LLM_FAILED", chunk.get("content", ""))
+                            if err:
+                                yield err
+                            return
+                        content = chunk.get("content", "")
+                        if content:
+                            answer_text += content
+                            event = await gen.send_content(content)
                             if event:
-                                yield event.replace("<answer>", "").replace("</answer>", "")
-            else:
-                # 普通模式：不使用标签解析器
-                async for chunk in generate_answer_stream(
-                    messages=messages,
-                    model=None,
-                ):
-                    async for hb in _drain_hb():
-                        yield hb
-                    if chunk.get("type") == "error":
-                        err = await gen.send_error("LLM_FAILED", chunk.get("content", ""))
-                        if err:
-                            yield err
-                        return
-                    content = chunk.get("content", "")
-                    if content:
-                        answer_text += content
-                        event = await gen.send_content(content)
-                        if event:
-                            yield event
+                                yield event
 
             # 最终清理：剥离所有残留标签（冗余安全网）
             answer_text = answer_text.replace("<answer>", "").replace("</answer>", "")
