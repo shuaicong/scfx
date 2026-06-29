@@ -410,8 +410,16 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                         _variety = "玉米"
                     
                     if qtype == QuestionType.TREND:
+                        # 从问题中提取时间范围
+                        _q = request.question
+                        _days = 7
+                        for _kw, _d in [("一周", 7), ("7天", 7), ("一个月", 30), ("30天", 30),
+                                        ("三个月", 90), ("90天", 90), ("今年", 180), ("半年", 180)]:
+                            if _kw in _q:
+                                _days = _d
+                                break
                         tool_result = await TOOL_REGISTRY["query_price_trend"]["handler"](
-                            variety=_variety, region="锦州港", days=30
+                            variety=_variety, region="锦州港", days=_days
                         )
                     else:
                         tool_result = await TOOL_REGISTRY["query_price_comparison"]["handler"](
