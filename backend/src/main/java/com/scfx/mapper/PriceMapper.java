@@ -15,4 +15,10 @@ public interface PriceMapper extends BaseMapper<Price> {
      * 唯一键: (date, variety, region, source)
      */
     int batchInsertOrUpdate(@Param("list") List<Price> list);
+
+    /** 获取有最新数据的品种列表 */
+    List<String> getDistinctVarieties();
+
+    /** 获取品种最新日的代表性地区 */
+    List<String> getRegionsByVariety(@Param("variety") String variety);
 }

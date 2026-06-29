@@ -2,11 +2,13 @@ package com.scfx.controller;
 
 import com.scfx.common.Result;
 import com.scfx.entity.Price;
+import com.scfx.mapper.PriceMapper;
 import com.scfx.service.PriceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -17,6 +19,7 @@ import java.util.Map;
 public class PriceController {
 
     private final PriceService priceService;
+    private final PriceMapper priceMapper;
 
     /**
      * 批量写入价格记录
@@ -94,5 +97,41 @@ public class PriceController {
         if (m.get("unit") != null) p.setUnit(m.get("unit").toString());
         if (m.get("source") != null) p.setSource(m.get("source").toString());
         return p;
+    }
+
+    /**
+     * 获取动态建议问题（基于 t_price 最新数据）
+     * GET /api/price/suggestions
+     */
+    @GetMapping("/suggestions")
+    public Result<List<String>> getSuggestions() {
+        List<String> suggestions = new ArrayList<>();
+
+        // 1. 价格查询建议
+        try {
+            List<String> varieties = priceMapper.getDistinctVarieties();
+            for (String v : varieties) {
+                List<String> regions = priceMapper.getRegionsByVariety(v);
+                if (!regions.isEmpty()) {
+                    suggestions.add("今天" + v + "价格是多少？");
+                    suggestions.add(v + " " + regions.get(0) + " 价格");
+                } else {
+                    suggestions.add("今天" + v + "价格是多少？");
+                }
+            }
+        } catch (Exception e) {
+            log.warn("获取价格建议失败: {}", e.getMessage());
+        }
+
+        // 2. 补充趋势/对比类建议
+        suggestions.add("最近一周玉米走势");
+        suggestions.add("北港和南港玉米价差");
+
+        // 限制返回数量
+        if (suggestions.size() > 8) {
+            suggestions = suggestions.subList(0, 8);
+        }
+
+        return Result.success(suggestions);
     }
 }

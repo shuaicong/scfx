@@ -500,13 +500,25 @@ const previewDocTitle = ref('')
 const availableSources = ['粮信网', '我的钢铁', '中华粮网', 'USDA', '气象数据']
 const selectedSources = ref<string[]>([])
 
-// 建议问题
-const suggestions = [
+// 建议问题（动态加载）
+const suggestions = ref<string[]>([
   '今天玉米价格是多少？',
-  '最近小麦市场行情如何？',
-  '大豆进口情况分析',
-  'USDA 最新供需报告'
-]
+  '最近一周玉米走势',
+  '各港口玉米价格对比'
+])
+
+// 加载动态建议问题（初始化时异步调用）
+async function loadSuggestions() {
+  try {
+    const res = await fetch('/api/chat/suggestions')
+    const data = await res.json()
+    if (data?.code === 200 && data?.data?.length) {
+      suggestions.value = data.data
+    }
+  } catch {
+    // 静默降级，使用默认建议
+  }
+}
 
 // ---- 心跳计时器 ----
 function resetHeartbeatTimer() {
@@ -529,6 +541,8 @@ function clearHeartbeatTimer() {
 }
 
 onMounted(async () => {
+  // 加载动态建议问题
+  loadSuggestions()
   // 如果已经有 currentSessionId（从历史页跳转），直接加载
   if (chatStore.currentSessionId) {
     const sid = chatStore.currentSessionId

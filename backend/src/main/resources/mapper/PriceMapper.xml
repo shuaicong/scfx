@@ -20,4 +20,20 @@
         unit = new.unit
     </insert>
 
+    <!-- 获取有最新数据的品种列表 -->
+    <select id="getDistinctVarieties" resultType="java.lang.String">
+        SELECT DISTINCT variety FROM t_price
+        WHERE source = 'liangdawang' AND `date` >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+        ORDER BY variety
+    </select>
+
+    <!-- 获取品种最新日的代表性地区 -->
+    <select id="getRegionsByVariety" resultType="java.lang.String">
+        SELECT region FROM t_price
+        WHERE variety = #{variety} AND source = 'liangdawang'
+          AND `date` = (SELECT MAX(`date`) FROM t_price WHERE variety = #{variety} AND source = 'liangdawang')
+        ORDER BY price ASC
+        LIMIT 3
+    </select>
+
 </mapper>
