@@ -1,7 +1,7 @@
 <template>
   <div class="echarts-line-container">
     <div class="chart-title">{{ title }}</div>
-    <div ref="chartRef" class="chart-canvas" :style="{ height: height + 'px' }"></div>
+    <div ref="chartRef" class="chart-canvas" :style="{ height: (height || 300) + 'px' }"></div>
     <div v-if="unit" class="chart-unit">{{ unit }}</div>
   </div>
 </template>
