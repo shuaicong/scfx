@@ -207,6 +207,11 @@ public class ParseController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String sourceType,
             @RequestParam(required = false) String status) {
+        // 分页参数有效性钳制
+        if (page < 1) page = 1;
+        if (size < 1) size = 20;
+        if (size > 200) size = 200;
+
         // 校验 status 枚举
         if (status != null && !status.isEmpty() && !ParseStatusEnum.isValid(status)) {
             return Result.error(400, "无效的 status: " + status);

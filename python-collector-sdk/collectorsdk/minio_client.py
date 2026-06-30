@@ -177,15 +177,18 @@ class MinioClient:
         """
         target_bucket = bucket or self.bucket
         try:
-            # 确保桶存在
-            try:
-                self._client.head_bucket(Bucket=target_bucket)
-            except ClientError:
-                logger.info(f"MinIO 桶不存在，正在创建: {target_bucket}")
-                self._client.create_bucket(Bucket=target_bucket)
-                # 设置公开读策略
-                policy = PUBLIC_READ_POLICY.replace("{bucket}", target_bucket)
-                self._client.put_bucket_policy(Bucket=target_bucket, Policy=policy)
+            # 仅首次使用该桶时检查存在性，后续复用缓存
+            if not hasattr(self, '_buckets_checked'):
+                self._buckets_checked = set()
+            if target_bucket not in self._buckets_checked:
+                try:
+                    self._client.head_bucket(Bucket=target_bucket)
+                except ClientError:
+                    logger.info(f"MinIO 桶不存在，正在创建: {target_bucket}")
+                    self._client.create_bucket(Bucket=target_bucket)
+                    policy = PUBLIC_READ_POLICY.replace("{bucket}", target_bucket)
+                    self._client.put_bucket_policy(Bucket=target_bucket, Policy=policy)
+                self._buckets_checked.add(target_bucket)
 
             self._client.put_object(
                 Bucket=target_bucket,

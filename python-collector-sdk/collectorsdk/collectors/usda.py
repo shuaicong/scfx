@@ -4,11 +4,12 @@
 PDF 存入 MinIO 并提交到知识库，XML 触发后端解析引擎提取结构化供需数据。
 """
 
+import calendar
 import logging
 import random
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import requests
@@ -52,11 +53,35 @@ class UsdaWasdeCollector(BaseCollector):
     MAX_RETRIES = 3
     RETRY_BASE_DELAY = 2  # 秒
 
-    # 2026 年 USDA 发布日历（月份 → 发布日）
-    PUBLISH_CALENDAR_2026 = {
-        1: 12, 2: 10, 3: 10, 4: 9, 5: 12,
-        6: 11, 7: 10, 8: 12, 9: 11, 10: 9, 11: 10, 12: 10,
-    }
+    # WASDE 发布日期规则：每月第二周的星期二（美国东部时间）
+    # 代码动态计算，不依赖硬编码日历
+
+    @staticmethod
+    def _get_wasde_release_day(year: int, month: int) -> int:
+        """计算 WASDE 发布日期（每月第二个周二）
+
+        USDA WASDE 在每月第二周的星期二发布（美国东部时间）。
+        这是固定的发布规则，自 2019 年起一直遵循此规律。
+
+        Returns:
+            发布日（1-31）
+        """
+        # 获取该月第一天是星期几（0=周一, 6=周日）
+        first_weekday, days_in_month = calendar.monthrange(year, month)
+
+        # 找到第一个星期二：周二=1
+        # 如果第一天是周二(1)，则第一个周二就是1号
+        # 否则：第一个周二 = (1 - first_weekday) % 7 + 1
+        if first_weekday <= 1:
+            first_tuesday = 1 + (1 - first_weekday)
+        else:
+            first_tuesday = 1 + (8 - first_weekday)
+
+        # 第二个周二
+        second_tuesday = first_tuesday + 7
+
+        # 确保不超过当月最后一天
+        return min(second_tuesday, days_in_month)
 
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('source', self.source)
@@ -67,6 +92,11 @@ class UsdaWasdeCollector(BaseCollector):
         super().__init__(*args, **kwargs)
         self._failed_months: list = []
         self._minio_client = None
+        self._page_cache = None  # USDA 页面缓存，批量回填时复用
+
+        # 从 config 注入后端 API 地址，修复 hardcoded localhost
+        raw = self.config.api_base.rstrip('/')
+        self._api_base = raw + '/api' if not raw.endswith('/api') else raw
 
     def _get_minio_client(self):
         """延迟初始化 MinIO 客户端（使用 reports 桶）"""
@@ -107,7 +137,7 @@ class UsdaWasdeCollector(BaseCollector):
                     start_m = start_month if year == start_year else 1
                     for month in range(start_m, end_month + 1):
                         if year == current_year and month == current_month:
-                            publish_day = self.PUBLISH_CALENDAR_2026.get(month, 10)
+                            publish_day = self._get_wasde_release_day(year, month)
                             if current_day <= publish_day:
                                 self.log_info(
                                     f"当月({year}-{month:02d})尚未到发布日({publish_day}日)，跳过",
@@ -119,7 +149,7 @@ class UsdaWasdeCollector(BaseCollector):
 
         if not months:
             # 兜底：只采当月
-            publish_day = self.PUBLISH_CALENDAR_2026.get(current_month, 10)
+            publish_day = self._get_wasde_release_day(current_year, current_month)
             if current_day > publish_day:
                 months.append((current_year, current_month))
 
@@ -141,20 +171,25 @@ class UsdaWasdeCollector(BaseCollector):
     def _fetch_report_date(self, year: int, month: int) -> Optional[str]:
         """从 USDA 页面提取该期报告的真实发布日期
 
+        页面内容会被缓存（self._page_cache），批量回填时只请求一次。
+
         Args:
             year: 年份
             month: 月份
 
         Returns:
-            YYYY-MM-DD 格式日期字符串，解析失败返回当月发布日
+            YYYY-MM-DD 格式日期字符串，解析失败返回计算出的当月发布日
         """
         try:
-            resp = requests.get(
-                self.WASDE_PAGE_URL,
-                headers={"User-Agent": self._random_ua()},
-                timeout=15,
-            )
-            resp.raise_for_status()
+            # 缓存页面内容，避免批量回填时重复 HTTP 请求
+            if self._page_cache is None:
+                resp = requests.get(
+                    self.WASDE_PAGE_URL,
+                    headers={"User-Agent": self._random_ua()},
+                    timeout=15,
+                )
+                resp.raise_for_status()
+                self._page_cache = resp.text
 
             month_name = [
                 "January", "February", "March", "April", "May", "June",
@@ -163,7 +198,7 @@ class UsdaWasdeCollector(BaseCollector):
 
             # 匹配 "Month DD, YYYY" 格式
             pattern = rf"{month_name}\s+\d+,\s+{year}"
-            match = re.search(pattern, resp.text)
+            match = re.search(pattern, self._page_cache)
             if match:
                 dt = datetime.strptime(match.group(0), "%B %d, %Y")
                 return dt.strftime("%Y-%m-%d")
@@ -171,8 +206,8 @@ class UsdaWasdeCollector(BaseCollector):
         except Exception as e:
             self.log_warn(f"获取发布日期失败: {e}", phase="crawl", category="parse")
 
-        # 兜底：返回当月发布日
-        publish_day = self.PUBLISH_CALENDAR_2026.get(month, 10)
+        # 兜底：返回计算出的发布日
+        publish_day = self._get_wasde_release_day(year, month)
         return f"{year}-{month:02d}-{publish_day:02d}"
 
     def _download_file(self, url: str, label: str = "") -> Optional[bytes]:

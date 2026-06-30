@@ -65,7 +65,7 @@ public class ReportParseService {
      * @param minioPath  MinIO 对象路径（相对桶的路径）
      * @param reportDate 报告日期
      */
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void triggerParse(String sourceType, String reportKey,
                               String minioPath, LocalDate reportDate) {
         // ---------- 1. 幂等校验 ----------
@@ -126,11 +126,17 @@ public class ReportParseService {
             }
             log.info("XML 解析完成, reportKey={}, 行数={}", reportKey, dataList.size());
 
-            // ---------- 6. 批量入库 ----------
-            int affectedRows = wasdeDataMapper.batchInsertOrUpdate(dataList);
+            // ---------- 6. 批量入库（分片写入，避免超过 max_allowed_packet） ----------
+            int chunkSize = 500;
+            int affectedRows = 0;
+            for (int i = 0; i < dataList.size(); i += chunkSize) {
+                int end = Math.min(i + chunkSize, dataList.size());
+                List<WasdeData> chunk = dataList.subList(i, end);
+                affectedRows += wasdeDataMapper.batchInsertOrUpdate(chunk);
+            }
             log.info("批量入库完成, reportKey={}, 影响行数={}", reportKey, affectedRows);
 
-            // ---------- 7. 更新记录为成功 ----------
+            // ---------- 7. 状态更新 ----------
             record.setStatus(ParseStatusEnum.SUCCESS.getCode());
             record.setParseAt(LocalDateTime.now());
             parseRecordMapper.updateById(record);
