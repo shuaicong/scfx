@@ -45,6 +45,16 @@
           <span class="menu-text">知识库管理</span>
           <div class="menu-indicator"></div>
         </el-menu-item>
+        <el-menu-item index="/reports" class="menu-item">
+          <el-icon class="menu-icon"><DataLine /></el-icon>
+          <span class="menu-text">智能研报</span>
+          <div class="menu-indicator"></div>
+        </el-menu-item>
+        <el-menu-item index="/reports/templates" class="menu-item">
+          <el-icon class="menu-icon"><CopyDocument /></el-icon>
+          <span class="menu-text">模板管理</span>
+          <div class="menu-indicator"></div>
+        </el-menu-item>
         <div class="menu-divider"></div>
         <el-menu-item index="/settings" class="menu-item">
           <el-icon class="menu-icon"><Setting /></el-icon>
@@ -148,7 +158,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Collection, Document, Setting, ChatDotRound, Connection, Bell, WarningFilled } from '@element-plus/icons-vue'
+import { Collection, Document, Setting, ChatDotRound, Connection, Bell, WarningFilled, DataLine, CopyDocument } from '@element-plus/icons-vue'
 import { useAlertPolling } from '@/composables/useAlertPolling'
 
 const route = useRoute()
@@ -163,6 +173,8 @@ const pageTitle = computed(() => {
     '/collection': '采集管理',
     '/ai-chat': 'AI 知识问答',
     '/knowledge': '知识库管理',
+    '/reports': '智能研报',
+    '/reports/templates': '模板管理',
     '/settings': '系统设置',
     '/system/datasource': '数据源管理',
     '/settings/alert-rules': '告警规则',

@@ -105,6 +105,30 @@ const routes = [
         name: 'AlertRecords',
         component: () => import('../views/settings/AlertRecords.vue'),
         meta: { title: '告警记录' }
+      },
+      {
+        path: 'reports',
+        name: 'Reports',
+        component: () => import('../views/reports/ReportList.vue'),
+        meta: { title: '智能研报' }
+      },
+      {
+        path: 'reports/editor/:id',
+        name: 'ReportEditor',
+        component: () => import('../views/reports/ReportEditor.vue'),
+        meta: { title: '报告编辑器', hideSidebar: true }
+      },
+      {
+        path: 'reports/templates',
+        name: 'ReportTemplates',
+        component: () => import('../views/reports/TemplateList.vue'),
+        meta: { title: '模板管理' }
+      },
+      {
+        path: 'reports/templates/editor/:id',
+        name: 'TemplateEditor',
+        component: () => import('../views/reports/TemplateEditor.vue'),
+        meta: { title: '模板编辑器', hideSidebar: true }
       }
     ]
   }
