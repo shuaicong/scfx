@@ -1,0 +1,35 @@
+{
+  "variety": "玉米",
+  "default_days": 7,
+  "price_data": {
+    "tables": [
+      {"name": "产区价格", "region": "产区", "area_type": "enterprise", "limit": 10},
+      {"name": "港口价格对比", "region": "港口", "area_type": "port", "limit": 15}
+    ],
+    "trend_charts": [
+      {"region": "锦州港", "days": 30, "title": "锦州港玉米价格走势"},
+      {"region": "蛇口港", "days": 30, "title": "蛇口港玉米价格走势"},
+      {"region": "海口港", "days": 30, "title": "海口港玉米价格走势"}
+    ]
+  },
+  "knowledge_search": {
+    "categories": ["玉米周报", "玉米晨报", "玉米日报"],
+    "max_results": 5,
+    "days_range": 30
+  },
+  "data_sources": {
+    "mysteel": {"status": "planned", "note": "我的钢铁数据采集任务待建设"},
+    "usda_wasde": {"status": "planned", "note": "USDA报告采集任务待建设"},
+    "conab": {"status": "planned", "note": "CONAB报告采集任务待建设"},
+    "bage": {"status": "planned", "note": "BAGE报告采集任务待建设"},
+    "hainan_local": {"status": "manual", "note": "海南粮批价格,用户手动上传知识库"},
+    "cma_weather": {"status": "ready", "note": "中央气象台数据已接入知识库"},
+    "tencent_weather": {"status": "planned", "note": "腾讯天气追踪采集任务待建设"},
+    "cngrain": {"status": "planned", "note": "中华粮网采集任务待建设"}
+  },
+  "schedule": {
+    "enabled": false,
+    "cron": "0 9 * * MON",
+    "variety": "玉米"
+  }
+}

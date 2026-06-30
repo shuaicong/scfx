@@ -1,0 +1,29 @@
+{
+  "variety": "稻米",
+  "default_days": 7,
+  "price_data": {
+    "tables": [
+      {"name": "产区稻谷价格", "region": "稻谷", "area_type": "region", "limit": 10},
+      {"name": "产区大米价格", "region": "大米", "area_type": "region", "limit": 10}
+    ],
+    "trend_charts": []
+  },
+  "knowledge_search": {
+    "categories": ["稻米周报", "稻米市场"],
+    "max_results": 5,
+    "days_range": 30
+  },
+  "data_sources": {
+    "mysteel": {"status": "planned", "note": "我的钢铁数据采集任务待建设"},
+    "cma_weather": {"status": "ready", "note": "中央气象台数据已接入知识库"},
+    "tencent_weather": {"status": "planned", "note": "腾讯天气追踪采集任务待建设"},
+    "thai_rice_exports": {"status": "manual", "note": "泰国大米出口商协会FOB报价,手动更新"},
+    "hainan_local": {"status": "manual", "note": "海南粮批价格,用户手动上传知识库"},
+    "cngrain": {"status": "planned", "note": "中华粮网采集任务待建设"}
+  },
+  "schedule": {
+    "enabled": false,
+    "cron": "0 9 * * MON",
+    "variety": "稻米"
+  }
+}
