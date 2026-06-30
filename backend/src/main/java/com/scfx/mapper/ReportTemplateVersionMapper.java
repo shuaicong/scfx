@@ -14,6 +14,9 @@ public interface ReportTemplateVersionMapper extends BaseMapper<ReportTemplateVe
     @Select("SELECT MAX(version_number) FROM t_report_template_version WHERE template_id = #{templateId}")
     Integer selectMaxVersion(@Param("templateId") Long templateId);
 
+    @Select("SELECT DISTINCT template_id FROM t_report_template_version")
+    List<Long> selectDistinctTemplateIds();
+
     @Select("SELECT * FROM t_report_template_version WHERE template_id = #{templateId} ORDER BY version_number DESC")
     List<ReportTemplateVersion> selectByTemplateId(@Param("templateId") Long templateId);
 }
