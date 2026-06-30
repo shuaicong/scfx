@@ -11,7 +11,8 @@ export const reportApi = {
 
   delete: (id: number) => request.delete(`/reports/${id}`),
 
-  generate: (id: number) => request.post(`/reports/${id}/generate`),
+  generate: (id: number, data?: { dateRange?: string; instructions?: string }) =>
+    request.post(`/reports/${id}/generate`, data || {}),
 
   generationStatus: (id: number) => request.get(`/reports/${id}/generation-status`),
 
