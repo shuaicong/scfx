@@ -1,6 +1,8 @@
 package com.scfx.service;
 
 import com.scfx.entity.WasdeData;
+import com.scfx.enums.CommodityEnum;
+import com.scfx.enums.AttributeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
@@ -94,7 +96,12 @@ public class WasdeXmlParser {
             }
         }
 
-        // 如果按行节点未解析到数据，尝试从根节点寻找 Commodity 子标签
+        // 如果按行节点未解析到数据，尝试 sr08 子报告格式
+        if (list.isEmpty()) {
+            list.addAll(parseWasdeSr08(doc, sourceType, reportKey, reportDate));
+        }
+
+        // 如果 sr08 也未解析到，尝试扁平结构
         if (list.isEmpty()) {
             list.addAll(parseFlatStructure(doc, sourceType, reportKey, reportDate));
         }
@@ -162,6 +169,185 @@ public class WasdeXmlParser {
         }
 
         return list;
+    }
+
+    /**
+     * 解析 WASDE XML 的 sr08/sr09 子报告格式（Crystal Reports 输出）。
+     *
+     * WASDE XML 结构示例:
+     * <m1_commodity_group commodity1="CORN">
+     *   <m1_year_group market_year1="2024/25">
+     *     <m1_attribute_group>
+     *       <s3 attribute1="Output">
+     *         <s4><Cell cell_value1="15115" /></s4>
+     *       </s3>
+     *     </m1_attribute_group>
+     *   </m1_year_group>
+     * </m1_commodity_group>
+     */
+    private List<WasdeData> parseWasdeSr08(Document doc, String sourceType,
+                                            String reportKey, LocalDate reportDate) {
+        List<WasdeData> list = new ArrayList<>();
+
+        // 1) 解析 sr08 m1_commodity_group 格式（全球总量）
+        list.addAll(parseM1CommodityGroup(doc, sourceType, reportKey, reportDate));
+
+        // 2) 解析 table1/commodity_group 格式（美豆/玉米等具体品种）
+        list.addAll(parseTableCommodityGroup(doc, sourceType, reportKey, reportDate));
+
+        log.info("WASDE sr08 解析完成, reportKey={}, 行数={}", reportKey, list.size());
+        return list;
+    }
+
+    /** 解析 sr08 m1_commodity_group 格式（全球总量） */
+    private List<WasdeData> parseM1CommodityGroup(Document doc, String sourceType,
+                                                    String reportKey, LocalDate reportDate) {
+        List<WasdeData> list = new ArrayList<>();
+        NodeList commodityGroups = doc.getElementsByTagName("m1_commodity_group");
+        for (int c = 0; c < commodityGroups.getLength(); c++) {
+            Element commodityEl = (Element) commodityGroups.item(c);
+            String commodityName = commodityEl.getAttribute("commodity1");
+            if (commodityName == null || commodityName.isEmpty()) continue;
+            if (!isCoreCommodity(commodityName)) continue;
+
+            // 遍历市场年（直接搜索当前 commodity 内的 m1_year_group）
+            NodeList yearGroups = commodityEl.getElementsByTagName("m1_year_group");
+            for (int y = 0; y < yearGroups.getLength(); y++) {
+                Element yearEl = (Element) yearGroups.item(y);
+                String marketYear = yearEl.getAttribute("market_year1");
+
+                // 遍历属性
+                NodeList attrGroups = yearEl.getElementsByTagName("m1_attribute_group");
+                for (int a = 0; a < attrGroups.getLength(); a++) {
+                    Element attrGroup = (Element) attrGroups.item(a);
+
+                    // 提取 attribute1 值
+                    NodeList s3List = attrGroup.getElementsByTagName("s3");
+                    if (s3List.getLength() == 0) continue;
+                    Element s3 = (Element) s3List.item(0);
+                    String attrName = s3.getAttribute("attribute1");
+                    if (attrName == null || attrName.isEmpty()) continue;
+
+                    // 提取 cell_value1
+                    NodeList cellList = s3.getElementsByTagName("Cell");
+                    if (cellList.getLength() == 0) continue;
+                    Element cell = (Element) cellList.item(0);
+                    String valueStr = cell.getAttribute("cell_value1");
+                    if (valueStr == null || valueStr.trim().isEmpty()) continue;
+
+                    // 映射指标
+                    String mappedAttr = mapWasdeAttribute(attrName);
+                    if (mappedAttr == null) continue;
+
+                    WasdeData data = new WasdeData();
+                    data.setReportKey(reportKey);
+                    data.setSourceType(sourceType);
+                    data.setCommodity(normalizeCommodity(commodityName));
+                    data.setAttribute(mappedAttr);
+                    try {
+                        data.setValue(new BigDecimal(valueStr.trim()));
+                    } catch (NumberFormatException e) {
+                        log.warn("数值格式异常: commodity={}, attr={}, value='{}'",
+                                commodityName, attrName, valueStr);
+                        continue;
+                    }
+                    data.setReportDate(reportDate);
+                    list.add(data);
+                }
+            }
+        }
+
+        log.info("M1 解析完成, reportKey={}, 行数={}", reportKey, list.size());
+        return list;
+    }
+
+    /** 解析 table1/commodity_group 格式（具体品种统计） */
+    private List<WasdeData> parseTableCommodityGroup(Document doc, String sourceType,
+                                                      String reportKey, LocalDate reportDate) {
+        List<WasdeData> list = new ArrayList<>();
+        NodeList commodityGroups = doc.getElementsByTagName("commodity_group");
+        for (int c = 0; c < commodityGroups.getLength(); c++) {
+            Element commodityEl = (Element) commodityGroups.item(c);
+            String commodityName = commodityEl.getAttribute("commodity1");
+            if (commodityName == null || commodityName.isEmpty()) continue;
+            if (!isCoreCommodity(commodityName)) continue;
+
+            NodeList attrGroups = commodityEl.getElementsByTagName("attribute_group");
+            for (int a = 0; a < attrGroups.getLength(); a++) {
+                Element attrEl = (Element) attrGroups.item(a);
+                String attrName = attrEl.getAttribute("attribute");
+                if (attrName == null || attrName.isEmpty()) continue;
+
+                // 映射指标
+                String mappedAttr = mapWasdeAttribute(attrName);
+                if (mappedAttr == null) continue;
+
+                // 提取 cell_value 或 root_mean_square_error1
+                String valueStr = attrEl.getAttribute("cell_value");
+                if (valueStr == null || valueStr.isEmpty()) {
+                    valueStr = attrEl.getAttribute("root_mean_square_error1");
+                }
+                if (valueStr == null || valueStr.trim().isEmpty()) continue;
+
+                WasdeData data = new WasdeData();
+                data.setReportKey(reportKey);
+                data.setSourceType(sourceType);
+                data.setCommodity(normalizeCommodity(commodityName));
+                data.setAttribute(mappedAttr);
+                try {
+                    data.setValue(new BigDecimal(valueStr.trim()));
+                } catch (NumberFormatException e) {
+                    log.warn("数值格式异常: commodity={}, attr={}, value='{}'",
+                            commodityName, attrName, valueStr);
+                    continue;
+                }
+                data.setReportDate(reportDate);
+                list.add(data);
+            }
+        }
+        log.info("Table 解析完成, reportKey={}, 行数={}", reportKey, list.size());
+        return list;
+    }
+
+    /** 是否核心品种 */
+    private boolean isCoreCommodity(String name) {
+        String upper = name.toUpperCase().trim();
+        return "CORN".equals(upper)
+            || "WHEAT".equals(upper)
+            || "SOYBEANS".equals(upper)
+            || "RICE".equals(upper)
+            || "COARSE GRAINS 5/".equals(upper);
+    }
+
+    /** 归一化品种名 */
+    private String normalizeCommodity(String raw) {
+        String upper = raw.toUpperCase().trim();
+        if ("CORN".equals(upper)) return CommodityEnum.CORN.getCode();
+        if ("WHEAT".equals(upper)) return CommodityEnum.WHEAT.getCode();
+        if ("SOYBEANS".equals(upper)) return CommodityEnum.SOYBEANS.getCode();
+        if ("RICE, MILLED".equals(upper)) return CommodityEnum.RICE.getCode();
+        if ("COARSE GRAINS 5/".equals(upper)) return "COARSE_GRAINS";
+        return upper;
+    }
+
+    /** 映射 WASDE 属性名到标准指标枚举 */
+    private String mapWasdeAttribute(String raw) {
+        String trimmed = raw.trim().toUpperCase()
+            .replaceAll("\\s+", " ")
+            .replaceAll("\\d+/", "").trim();
+        if (trimmed.contains("OUTPUT") || trimmed.contains("PRODUCTION")) {
+            return AttributeEnum.PRODUCTION.getCode();
+        }
+        if (trimmed.contains("IMPORT")) {
+            return AttributeEnum.IMPORTS.getCode();
+        }
+        if (trimmed.contains("EXPORT") || trimmed.contains("TRADE")) {
+            return AttributeEnum.EXPORTS.getCode();
+        }
+        if (trimmed.contains("ENDING STOCK") || trimmed.contains("ENDING STOCKS")) {
+            return AttributeEnum.ENDING_STOCK.getCode();
+        }
+        return null;
     }
 
     /**

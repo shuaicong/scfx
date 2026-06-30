@@ -211,4 +211,4 @@ parse:
       max-size: 4
       queue-capacity: 20
   minio:
-    bucket: wasde-xml
+    bucket: reports
