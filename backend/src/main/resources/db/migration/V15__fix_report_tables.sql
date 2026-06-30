@@ -1,7 +1,13 @@
--- V13: 智能研报 - 报告相关6张建表
--- 包含：报告主表、版本快照、图表元数据、模板、模板版本、生成日志
+-- V14: 重建报告相关表（因 V13 的 IF NOT EXISTS 未覆盖旧表结构）
 
-CREATE TABLE IF NOT EXISTS t_report (
+DROP TABLE IF EXISTS t_report_version;
+DROP TABLE IF EXISTS t_report_chart;
+DROP TABLE IF EXISTS t_report_template_version;
+DROP TABLE IF EXISTS t_report_generation_log;
+DROP TABLE IF EXISTS t_report_template;
+DROP TABLE IF EXISTS t_report;
+
+CREATE TABLE t_report (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     title           VARCHAR(500) NOT NULL COMMENT '报告标题',
     variety         VARCHAR(50) COMMENT '品种',
@@ -21,9 +27,9 @@ CREATE TABLE IF NOT EXISTS t_report (
     INDEX idx_variety (variety),
     INDEX idx_status (status),
     INDEX idx_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='报告主表';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS t_report_version (
+CREATE TABLE t_report_version (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     report_id       BIGINT NOT NULL,
     version_number  INT NOT NULL,
@@ -35,9 +41,9 @@ CREATE TABLE IF NOT EXISTS t_report_version (
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_report_version (report_id, version_number),
     INDEX idx_report_version (report_id, version_number)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='版本快照';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS t_report_chart (
+CREATE TABLE t_report_chart (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY,
     report_id   BIGINT NOT NULL,
     version_id  BIGINT,
@@ -50,9 +56,9 @@ CREATE TABLE IF NOT EXISTS t_report_chart (
     query_params JSON COMMENT '完整行情查询参数',
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_chart_report (report_id, version_id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='图表元数据';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS t_report_template (
+CREATE TABLE t_report_template (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     name            VARCHAR(200) NOT NULL,
     variety         VARCHAR(50),
@@ -64,9 +70,9 @@ CREATE TABLE IF NOT EXISTS t_report_template (
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_variety (variety)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模板';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS t_report_template_version (
+CREATE TABLE t_report_template_version (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY,
     template_id     BIGINT NOT NULL,
     version_number  INT NOT NULL,
@@ -77,9 +83,9 @@ CREATE TABLE IF NOT EXISTS t_report_template_version (
     change_summary  VARCHAR(500),
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_template_version (template_id, version_number)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='模板版本';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-CREATE TABLE IF NOT EXISTS t_report_generation_log (
+CREATE TABLE t_report_generation_log (
     id           BIGINT AUTO_INCREMENT PRIMARY KEY,
     report_id    BIGINT NOT NULL,
     execution_id VARCHAR(50),
@@ -89,4 +95,9 @@ CREATE TABLE IF NOT EXISTS t_report_generation_log (
     duration_ms  INT,
     created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_report_log (report_id, created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='生成日志';
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- 重新插入模板数据
+INSERT INTO t_report_template (name, variety, report_type, description, current_version) VALUES
+('玉米分析周报', '玉米', 'weekly', '港口价格对比、产区价格、供需分析、海南市场行情', 0),
+('稻米分析周报', '稻米', 'weekly', '国投收购、国际FOB报价、米厂开机率、价格走势', 0);
