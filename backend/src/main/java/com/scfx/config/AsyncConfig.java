@@ -42,6 +42,12 @@ public class AsyncConfig {
         return createExecutor("viz-exec-", 2, 5, 50, new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
+    /** 报告生成异步执行器（AI 生成、Gotenberg 导出等耗时任务） */
+    @Bean("reportExecutor")
+    public Executor reportExecutor() {
+        return createExecutor("report-", 2, 4, 100, new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+
     private static ThreadPoolTaskExecutor createExecutor(
             String prefix, int core, int max, int queue,
             java.util.concurrent.RejectedExecutionHandler handler) {

@@ -189,3 +189,12 @@ spring:
     baseline-on-migrate: true
     baseline-version: 5
     clean-disabled: true       # 严格禁止清空库
+
+# 智能研报配置
+gotenberg:
+  endpoint: http://localhost:3001
+  timeout: 60000
+
+report:
+  export-dir: reports/
+  max-versions: 50
