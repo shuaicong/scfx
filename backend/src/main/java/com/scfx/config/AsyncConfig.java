@@ -48,6 +48,12 @@ public class AsyncConfig {
         return createExecutor("report-", 2, 4, 100, new ThreadPoolExecutor.CallerRunsPolicy());
     }
 
+    /** WASDE 解析异步执行器 */
+    @Bean("parseTaskExecutor")
+    public Executor parseTaskExecutor() {
+        return createExecutor("parse-async-", 2, 4, 20, new ThreadPoolExecutor.CallerRunsPolicy());
+    }
+
     private static ThreadPoolTaskExecutor createExecutor(
             String prefix, int core, int max, int queue,
             java.util.concurrent.RejectedExecutionHandler handler) {

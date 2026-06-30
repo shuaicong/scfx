@@ -190,6 +190,7 @@ spring:
     baseline-version: 5
     clean-disabled: true       # 严格禁止清空库
 
+---
 # 智能研报配置
 gotenberg:
   endpoint: http://localhost:3001
@@ -198,3 +199,16 @@ gotenberg:
 report:
   export-dir: reports/
   max-versions: 50
+
+# WASDE 解析配置
+parse:
+  retry:
+    max-attempts: 3
+    base-delay-ms: 1000
+  async:
+    pool:
+      core-size: 2
+      max-size: 4
+      queue-capacity: 20
+  minio:
+    bucket: wasde-xml
