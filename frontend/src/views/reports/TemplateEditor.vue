@@ -129,31 +129,31 @@
           <template #dropdown>
             <el-dropdown-menu class="dark-dropdown">
               <el-dropdown-item command="PRICE_TABLE">
-                <span class="ph-item">{{'{{'}}PRICE_TABLE{{'}}'}}</span>
+                <span class="ph-item">{{ ph('PRICE_TABLE') }}</span>
                 <span class="ph-desc">价格数据表格</span>
               </el-dropdown-item>
               <el-dropdown-item command="PRICE_CHART">
-                <span class="ph-item">{{'{{'}}PRICE_CHART{{'}}'}}</span>
+                <span class="ph-item">{{ ph('PRICE_CHART') }}</span>
                 <span class="ph-desc">价格走势图</span>
               </el-dropdown-item>
               <el-dropdown-item command="PRICE_COMPARE">
-                <span class="ph-item">{{'{{'}}PRICE_COMPARE{{'}}'}}</span>
+                <span class="ph-item">{{ ph('PRICE_COMPARE') }}</span>
                 <span class="ph-desc">港口价格对比</span>
               </el-dropdown-item>
               <el-dropdown-item command="REGION_PRICE">
-                <span class="ph-item">{{'{{'}}REGION_PRICE{{'}}'}}</span>
+                <span class="ph-item">{{ ph('REGION_PRICE') }}</span>
                 <span class="ph-desc">产区价格</span>
               </el-dropdown-item>
               <el-dropdown-item command="PROCESS_PRICE">
-                <span class="ph-item">{{'{{'}}PROCESS_PRICE{{'}}'}}</span>
+                <span class="ph-item">{{ ph('PROCESS_PRICE') }}</span>
                 <span class="ph-desc">深加工收购价</span>
               </el-dropdown-item>
               <el-dropdown-item command="WEATHER">
-                <span class="ph-item">{{'{{'}}WEATHER{{'}}'}}</span>
+                <span class="ph-item">{{ ph('WEATHER') }}</span>
                 <span class="ph-desc">天气概况</span>
               </el-dropdown-item>
               <el-dropdown-item command="KNOWLEDGE">
-                <span class="ph-item">{{'{{'}}KNOWLEDGE{{'}}'}}</span>
+                <span class="ph-item">{{ ph('KNOWLEDGE') }}</span>
                 <span class="ph-desc">知识库检索结果</span>
               </el-dropdown-item>
             </el-dropdown-menu>
@@ -291,6 +291,7 @@ import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
+const ph = (name: string) => `{{${name}}}`
 import { useEditor, EditorContent } from '@tiptap/vue-3'
 import { Mark, Node } from '@tiptap/core'
 import StarterKit from '@tiptap/starter-kit'
