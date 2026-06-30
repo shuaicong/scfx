@@ -471,112 +471,254 @@ src/views/reports/
 
 ## 10. 风险与补充设计
 
-### 8.1 MinIO 图片跨容器访问
+### 10.1 MinIO 跨容器访问
 
-**问题：** HTML 中写 `http://minio:9000` Docker 内网域名，Gotenberg 容器无法解析，导出 Word/PDF 图片空白。
+**问题：** HTML 中图片地址写死 `http://minio:9000`，生产环境 K8s/网络变更时 Gotenberg 无法解析，导出 Word/PDF 图片空白。
 
-**方案：** 统一使用 Docker Compose 内部 DNS 可解析的 MinIO 服务名，Gotenberg 容器加入同一网络。
+**方案：** 双地址兜底 + 运行时动态解析。
 
-```yaml
-services:
-  minio:
-    image: minio/minio
-    networks: [app-net]
-    hostname: minio
+| 层级 | 地址 | 说明 |
+|------|------|------|
+| 首选 | `http://minio:9000` | Docker Compose 内部 DNS，跨容器可访问 |
+| 兜底 | `http://{固定内网IP}:9000` | 容器启动时通过 `MINIO_INTERNAL_IP` 环境变量注入 |
 
-  gotenberg:
-    image: gotenberg/gotenberg:8
-    networks: [app-net]
-    depends_on: [minio]
-
-networks:
-  app-net:
-    driver: bridge
+图片 URL 存储格式不写死域名，改为运行时替换：
+```
+存储: /reports/{path}
+渲染: {{MINIO_ENDPOINT}}/reports/{path}
 ```
 
-图片 URL 格式：`http://minio:9000/reports/{path}`（跨容器可访问）。
+`MINIO_ENDPOINT` 由应用配置动态注入，K8s 部署时改为 Ingress 域名，无需改代码。
 
-### 8.2 AI 生成数据缺失兜底
+### 10.2 AI 生成数据缺失兜底
 
-**问题：** 占位符填充仅正常查询逻辑，某港口本周无粮达网采集价格时表格直接空白。
+**问题：** 某港口无采集价格时表格空白，批量定时周报无人值守产出错误报告。
 
-**方案：**
+**方案：** 文本兜底 + 阈值拦截 + 生成阻断。
 
 | 场景 | 行为 |
 |------|------|
-| PRICE_TABLE 查无数据 | 输出「本周暂无采集数据」占位行，非空表 |
+| PRICE_TABLE 查无数据 | 输出「本周暂无采集数据」占位行 |
 | PRICE_CHART 查无数据 | 输出「暂无价格走势数据」占位图 |
-| KNOWLEDGE 检索空结果 | 跳过该段落，生成日志标记「知识库无相关报告」 |
-| 占位符正则匹配失败 | 保留 `{{...}}` 原文，日志告警 |
+| **关键数据缺失 > 3 个点位** | **终止生成**，推送告警，不产出报告 |
+| 非关键数据缺失 | 跳过该段落，生成日志标记 |
+| 占位符正则匹配失败 | 保留 `{{...}}` 原文，日志 ERROR |
 
-生成日志 `t_report_generation_log` 记录每一步的数据缺失详情，供人工核查。
+**阈值配置（`t_report_template.generation_config`）：**
+```json
+{
+  "abort_threshold": {
+    "max_empty_price_tables": 3,
+    "max_empty_charts": 2
+  }
+}
+```
 
-### 8.3 并发与资源管控
+### 10.3 并发与资源管控
 
-**问题：** Gotenberg 无排队机制，批量导出/生成打满资源。
+**问题：** 高峰期批量导出 + 用户手动生成并行，无超时取消、无互斥锁、无优先级。
 
 **方案：**
 
 | 维度 | 方案 |
 |------|------|
-| 导出排队 | 新增 Redis 队列 `report:export:queue`，单次仅执行 3 个导出任务，超额排队等待 |
-| AI 生成排队 | 新增 Redis 队列 `report:generate:queue`，单次最多 2 个生成任务并行 |
-| 超时熔断 | Gotenberg 超时 60s → 自动失败 → 重试 1 次 → 仍失败写入 failed 日志 |
-| 数据库保护 | 批量生成时限制 `@Async("reportExecutor")` 线程池大小 `core=2, max=4` |
+| 导出排队 | Redis 队列 `report:export:queue`，单次最多 3 个并行，超时 60s 自动取消 |
+| AI 生成排队 | Redis 队列 `report:generate:queue`，单次最多 2 个并行 |
+| 任务互斥锁 | 同一模板 + 同一品种批量生成时加 Redis 锁 `lock:generate:{template_id}`，防止重复触发 |
+| 优先级 | 用户手动触发 > 定时批量任务（定时任务检测队列负载，高负载时跳过本轮） |
+| 熔断 | Gotenberg 连续 3 次超时 → 熔断 5min → 期间返回友好错误提示 |
+| 数据库保护 | `@Async("reportExecutor")` 线程池 `core=2, max=4`，队列容量 100 |
 
-### 8.4 WASDE 供需数据扩展设计
+### 10.4 WASDE 供需数据扩展设计
 
-**预留接口，二期实现。**
+**预留接口，二期实现。** 包含完整数据表 + 采集流水线 + 模板占位符联动。
 
 #### 数据表
 
 ```sql
 CREATE TABLE t_wasde_data (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    report_date DATE NOT NULL COMMENT 'USDA 报告发布日期',
-    commodity   VARCHAR(50) NOT NULL COMMENT '品种（corn/wheat/rice/soybean）',
-    country     VARCHAR(100) COMMENT '国家/地区',
+    report_date DATE NOT NULL,
+    commodity   VARCHAR(50) NOT NULL COMMENT 'corn/wheat/rice/soybean',
+    country     VARCHAR(100),
     production  DECIMAL(12,2) COMMENT '产量（百万吨）',
-    exports     DECIMAL(12,2) COMMENT '出口量（百万吨）',
-    imports     DECIMAL(12,2) COMMENT '进口量（百万吨）',
-    ending_stock DECIMAL(12,2) COMMENT '期末库存（百万吨）',
-    stock_use_ratio DECIMAL(5,2) COMMENT '库存用量比（%）',
+    exports     DECIMAL(12,2),
+    imports     DECIMAL(12,2),
+    ending_stock DECIMAL(12,2) COMMENT '期末库存',
+    stock_use_ratio DECIMAL(5,2) COMMENT '库存用量比',
     source_url  VARCHAR(500),
     created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_commodity (commodity, report_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ```
 
-#### 占位符
+#### 占位符与当前系统联动
 
-| 占位符 | 说明 |
-|--------|------|
-| `{{WASDE:玉米,全球产量}}` | 全球玉米产量数据 |
-| `{{WASDE:玉米,期末库存}}` | 全球玉米期末库存 |
-| `{{WASDE:小麦,全球产量}}` | 全球小麦产量 |
+占位符 `{{WASDE:玉米,全球产量}}` 的解析复用现有 PRICE_TABLE 的占位符解析流程（§5.2），仅数据查询器替换为 `WasdeDataMapper`。新增占位符类型注册到 `PlaceholderResolverRegistry`，无需改动生成主流程。
 
-采集流水线：USDA WASDE PDF → Python 解析 → 翻译 → 入库 → 研报模板引用。
+### 10.5 导出文件生命周期
 
-### 8.5 导出文件生命周期
+| 阶段 | 规则 | 定时任务 |
+|------|------|----------|
+| 热存储 | MinIO 标准存储，180 天 | — |
+| 冷存储 | > 180 天 → 迁移至低频/归档存储 | 每日凌晨 3:00 扫描 |
+| 自动删除 | > 365 天的文件可配置自动清理 | 每日凌晨 3:30 执行 |
+| 清理记录 | 删除操作写入 `t_report_clean_log` | — |
 
-| 阶段 | 规则 |
-|------|------|
-| 热存储 | MinIO `reports` 桶，标准存储，180 天 |
-| 冷存储 | 超 180 天的文件迁移至 MinIO 低频/归档存储 |
-| 自动清理 | 超 365 天的文件可配置自动删除（`t_report.export_docx_path` 置空） |
-| 定时任务 | 每日凌晨扫描清理，记录删除日志 |
-
-### 8.6 告警通知机制
+### 10.6 告警通知机制
 
 | 事件 | 触发条件 | 通知方式 |
 |------|----------|----------|
-| AI 生成失败 | 连续 3 次生成异常 | 钉钉/邮件告警 |
-| 导出异常 | Gotenberg 返回非 200 | 日志 WARN + 钉钉通知 |
-| MinIO 上传失败 | 上传重试 3 次仍失败 | ERROR 日志 + 告警 |
-| 行情数据缺失 | PRICE_TABLE 返回 0 条 | 生成日志标记，不告警（人工核查） |
-| 定时任务失败 | 自动周报生成失败 | 钉钉通知 |
+| AI 生成失败 | 连续 3 次异常 | 钉钉 + 邮件 |
+| 导出异常 | Gotenberg 返回非 200 | WARN 日志 + 钉钉 |
+| MinIO 上传失败 | 重试 3 次仍失败 | ERROR 日志 + 钉钉 |
+| **行情大面积缺失** | **关键数据缺失 > 3 个点位，生成被阻断** | **钉钉紧急告警** |
+| **定时周报静默故障** | **生成完成但数据大面积缺失（阈值内未阻断）** | **钉钉通知「报告已生成但数据不完整」** |
+| MinIO 存储 > 80% | 每日扫描 | 钉钉通知运维 |
+| Gotenberg 宕机 | 心跳检测 3 次无响应 | 钉钉紧急告警 |
+| 版本清理执行失败 | 定时任务异常 | WARN 日志 |
 
-告警渠道一期使用日志 + 钉钉 Webhook，二期接入统一告警中心。
+### 10.7 版本清理定时任务
+
+**问题：** 文档仅文字限制 50 版本，无后端定时清理 Job。
+
+**方案：** Spring `@Scheduled` 每日凌晨 2:00 执行。
+
+```java
+@Scheduled(cron = "0 0 2 * * ?")
+@Transactional
+public void cleanOldVersions() {
+    // t_report_version: 保留每个 report_id 最新的 50 条
+    // t_report_template_version: 保留每个 template_id 最新的 50 条
+    // 超出部分按 created_at ASC 删除
+    // 记录删除条数到日志
+}
+```
+
+### 10.8 HTML 清洗过滤器
+
+**问题：** TipTap 输出携带 `data-*`、ProseMirror class，Gotenberg 解析异常导致排版崩溃。
+
+**方案：** 后端统一清洗过滤器，保存/导出前强制经过。
+
+```java
+public class HtmlSanitizer {
+    public String sanitize(String html) {
+        // 1. 删除所有 data-* 属性
+        // 2. 删除 ProseMirror 特定 class（.ProseMirror, .ProseMirror-gapcursor 等）
+        // 3. 保留内联 style（color, background-color, font-size）
+        // 4. 删除空标签 <p></p>, <span></span>
+        // 5. table 补充 <col width="..."> 固定列宽
+        // 6. img 检查 src 有效性
+    }
+}
+```
+
+此过滤器在 `POST /save` 和 `POST /export` 两个入口统一调用，前端无需感知。
+
+### 10.9 模板与生成配置校验
+
+**问题：** 模板删除 `{{PRICE_TABLE}}` 但配置仍保留拉取规则，后端空查浪费性能。
+
+**方案：** 保存模板/配置时自动校验。
+
+```java
+public class TemplateConfigValidator {
+    public List<String> validate(String html, JsonNode config) {
+        // 1. 正则提取 HTML 中所有 {{TYPE:...}} 占位符
+        // 2. 提取 generation_config 中定义的数据规则
+        // 3. 检查：配置中的规则是否都有对应占位符
+        //    如果配置有 PRICE_TABLE 但 HTML 中无 {{PRICE_TABLE}} → WARN 日志
+        //    如果 HTML 有 {{PRICE_TABLE}} 但配置无对应规则 → WARN 日志
+        // 4. 返回不匹配列表
+    }
+}
+```
+
+### 10.10 图表元数据增强
+
+**问题：** `t_report_chart` 仅存图片路径，后期无法还原查询条件。
+
+**方案：** `t_report_chart` 补充查询参数字段。
+
+```sql
+ALTER TABLE t_report_chart
+    ADD COLUMN query_params JSON COMMENT '完整行情查询参数（品种/地区/日期/图表类型等）';
+```
+
+### 10.11 模板编辑器与报告编辑器分离
+
+**问题：** 共用 ReportEditor 加大量 if 判断区分类型，代码臃肿易出 bug。
+
+**方案：** 两个独立的编辑器组件。
+
+| 组件 | 用途 | 不同点 |
+|------|------|--------|
+| `ReportEditor.vue` | 编辑已生成的报告 | 工具栏有「导出」「AI 生成」「版本历史」 |
+| `TemplateEditor.vue` | 编辑模板 | 工具栏有「占位符插入」「保存配置」，无导出/生成 |
+
+路由区分：
+- `/reports/editor/:id` → `ReportEditor.vue`
+- `/reports/templates/editor/:id` → `TemplateEditor.vue`
+
+### 10.12 SSE 推送替代轮询
+
+**问题：** 前端循环轮询 `generation-status`，高频请求浪费资源。
+
+**方案：** AI 生成状态通过 SSE（Server-Sent Events）实时推送。
+
+```
+POST /api/reports/{id}/generate → 立即返回
+→ 后端生成过程中通过 SSE 推送进度事件：
+  event: generation-progress
+  data: {"step": "price_query", "progress": 25}
+→ 前端监听 SSE 事件更新 UI，无需轮询
+```
+
+复用现有 AI 聊天的 SSE 基础设施（`chat.py` 的流式模式），后端新增 `ReportGenerationSSEService`。
+
+### 10.13 数据库索引优化
+
+**问题：** `t_report_version`、`t_report_generation_log` 缺少联合索引。
+
+**补充索引：**
+
+```sql
+ALTER TABLE t_report_version ADD INDEX idx_report_version (report_id, version_number);
+ALTER TABLE t_report_generation_log ADD INDEX idx_report_log (report_id, created_at);
+ALTER TABLE t_report ADD INDEX idx_template_variety (template_id, variety);
+-- t_report_chart 补充
+ALTER TABLE t_report_chart ADD INDEX idx_chart_report (report_id, version_id);
+```
+
+### 10.14 占位符转义
+
+**问题：** 模板正文中出现 `{{普通文字}}` 被误识别为占位符。
+
+**方案：** 支持转义语法 `\{{不解析}}`。
+
+正则匹配前先替换 `\{{` 为 Unicode 私有占位 ``，替换完成后再恢复。
+
+```java
+String escapePlaceholders(String html) {
+    // 1. 将 \{{ 替换为 
+    // 2. 正常解析 {{TYPE:...}}
+    // 3. 将  替换回 {{
+}
+```
+
+### 10.15 导出文件命名规范
+
+**问题：** MinIO 文件无业务标识，运维排查困难。
+
+**规范：** `{report_id}_{version}_{variety}_{date}.{ext}`
+
+```
+格式: {reportId}_v{version}_{variety}_{yyyyMMdd}.docx
+示例: 42_v3_玉米_20260630.docx
+```
+
+路径前缀：`reports/{year}/{month}/{reportId}_{version}_{variety}_{date}.docx`
 
 ---
 
