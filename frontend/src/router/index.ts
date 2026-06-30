@@ -4,14 +4,8 @@ const routes = [
   {
     path: '/',
     component: () => import('../views/layout/Layout.vue'),
-    redirect: '/dashboard',
+    redirect: '/scripts',
     children: [
-      {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: () => import('../views/dashboard/Dashboard.vue'),
-        meta: { title: '仪表板' }
-      },
       {
         path: 'collection',
         redirect: '/scripts'

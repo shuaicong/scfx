@@ -30,11 +30,6 @@
         active-text-color="#f5c87a"
         :ellipsis="false"
       >
-        <el-menu-item index="/dashboard" class="menu-item">
-          <el-icon class="menu-icon"><DataAnalysis /></el-icon>
-          <span class="menu-text">仪表板</span>
-          <div class="menu-indicator"></div>
-        </el-menu-item>
         <el-menu-item index="/collection" class="menu-item">
           <el-icon class="menu-icon"><Collection /></el-icon>
           <span class="menu-text">采集管理</span>
@@ -153,7 +148,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { DataAnalysis, Collection, Document, Setting, ChatDotRound, Connection, Bell, WarningFilled } from '@element-plus/icons-vue'
+import { Collection, Document, Setting, ChatDotRound, Connection, Bell, WarningFilled } from '@element-plus/icons-vue'
 import { useAlertPolling } from '@/composables/useAlertPolling'
 
 const route = useRoute()
@@ -165,7 +160,6 @@ const activeMenu = computed(() => route.path)
 
 const pageTitle = computed(() => {
   const titleMap: Record<string, string> = {
-    '/dashboard': '数据仪表板',
     '/collection': '采集管理',
     '/ai-chat': 'AI 知识问答',
     '/knowledge': '知识库管理',
