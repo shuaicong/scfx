@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.scfx.mapper.ReportMapper">
+
+    <select id="searchReports" resultType="com.scfx.entity.Report">
+        SELECT * FROM t_report
+        <where>
+            deleted = 0
+            <if test="variety != null and variety != ''"> AND variety = #{variety} </if>
+            <if test="status != null and status != ''"> AND status = #{status} </if>
+            <if test="keyword != null and keyword != ''"> AND title LIKE CONCAT('%', #{keyword}, '%') </if>
+        </where>
+        ORDER BY created_at DESC
+    </select>
+
+</mapper>
