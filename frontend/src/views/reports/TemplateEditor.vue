@@ -386,6 +386,7 @@ const editor = useEditor({
   extensions: [
     StarterKit.configure({
       heading: { levels: [1, 2, 3] },
+      underline: false,
     }),
     Table.configure({ resizable: true }),
     TableRow,
