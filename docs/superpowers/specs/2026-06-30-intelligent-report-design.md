@@ -132,6 +132,7 @@ CREATE TABLE t_report_template (
     current_version INT DEFAULT 0,
     thumbnail       VARCHAR(500) COMMENT '缩略图 MinIO 路径',
     description     TEXT,
+    generation_config JSON COMMENT '生成规则配置（品种/数据源/定时等）',
     deleted         INT DEFAULT 0,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -273,9 +274,84 @@ CREATE TABLE t_report_generation_log (
 | `{{GENERATE_DATE}}` | 生成日期 | 自动填充 |
 | `{{WEEK_NUMBER}}` | 周数 | 如"第26周" |
 
+### 5.3 生成规则配置
+
+每个模板关联一份 **JSON 配置**，定义生成时拉什么数据、搜哪些知识库。存储在 `t_report_template.generation_config` 字段。
+
+```json
+{
+  "variety": "玉米",
+  "default_days": 7,
+  "price_data": {
+    "tables": [
+      {"region": "港口", "area_type": "port"},
+      {"region": "东北", "area_type": "enterprise"},
+      {"region": "华北", "area_type": "enterprise"}
+    ],
+    "comparison": {"area_type": "port"},
+    "trend_charts": [
+      {"region": "锦州港", "days": 30},
+      {"region": "蛇口港", "days": 30}
+    ]
+  },
+  "knowledge_search": {
+    "categories": ["玉米周报", "玉米晨报"],
+    "max_results": 5,
+    "days_range": 30
+  },
+  "schedule": {
+    "enabled": false,
+    "cron": "0 9 * * MON",
+    "variety": "玉米"
+  }
+}
+```
+
+#### 配置 vs 占位符的关系
+
+```
+模板 HTML（排版结构）         生成配置（数据规则）
+─────────────────           ─────────────────
+{{PRICE_TABLE:玉米,港口}}  ←  price_data.tables[0]
+{{PRICE_CHART:锦州港,30}} ←  price_data.trend_charts[0]
+{{KNOWLEDGE_SUMMARY}}     ←  knowledge_search
+{{DATE_RANGE}}            ←  自动计算
+```
+
+**关键原则：** 模板管「放在哪」，配置管「取什么」。两者独立修改：
+- 编辑模板不改变数据规则
+- 修改配置不改变排版结构
+- 生成时两者合并：按配置拉数据 → 按模板位置插入
+
+#### 生成配置 UI
+
+在模板编辑器中，右侧增加一个「数据规则」面板（非 TipTap 工具栏）：
+
+```
+┌─────────────────────┬──────────────────────┐
+│  TipTap 编辑器       │  数据规则             │
+│                     │                      │
+│  {{PRICE_TABLE}}    │  品种: [玉米    ▼]    │
+│  {{PRICE_CHART}}    │  港口对比: [✅]       │
+│  {{KNOWLEDGE}}      │  东北产区: [✅]       │
+│                     │  华北产区: [✅]       │
+│                     │  走势图:             │
+│                     │    ┌──────────────┐ │
+│                     │    │ 锦州港  30天  │ │
+│                     │    │ 蛇口港  30天  │ │
+│                     │    └──────────────┘ │
+│                     │  知识库: [玉米周报  ▼]│
+│                     │  定时: [☐ 每周一9:00]│
+│                     │  [保存配置]          │
+└─────────────────────┴──────────────────────┘
+```
+
+配置保存为 JSON 写入 `t_report_template.generation_config`，生成时 ReportGenerationService 读取。
+
 #### 后端解析流程
 
-1. 正则提取 `{{TYPE:params}}` 占位符列表
+1. 读取模板 HTML + generation_config
+2. 正则提取 `{{TYPE:params}}` 占位符列表
 2. 按类型路由到不同的数据查询器：
    - `PRICE_TABLE` → PriceMapper 查 t_price → 渲染 HTML 表格
    - `PRICE_CHART` → 查 t_price → 生成 ECharts 图片 → 上传 MinIO → `<img>` 标签
@@ -324,7 +400,22 @@ CREATE TABLE t_report_generation_log (
 
 ---
 
-## 7. 前端组件
+## 7. 前端路由
+
+```
+路径                    | 组件              | 菜单名称   | 说明
+/reports                | ReportList.vue    | 报告模板   | 基于模板生成的报告列表
+/reports/editor/:id     | ReportEditor.vue  | —          | 报告编辑器（新建/编辑）
+/reports/templates      | TemplateList.vue  | 模板列表   | 模板管理列表
+/reports/templates/editor/:id | ReportEditor.vue | —     | 模板编辑器（含占位符工具栏）
+/reports/templates/new  | ReportEditor.vue  | —          | 新建模板
+```
+
+侧边栏菜单：报告模板 + 模板列表 两个入口平级。
+
+---
+
+## 9. 前端组件
 
 ```
 src/views/reports/
@@ -341,7 +432,7 @@ src/views/reports/
 
 ---
 
-## 8. 实施阶段
+## 10. 实施阶段
 
 ### Phase 1：基础设施 + 后端（约 3 天）
 
@@ -378,7 +469,7 @@ src/views/reports/
 
 ---
 
-## 9. 约束与注意事项
+## 11. 约束与注意事项
 
 | 约束 | 规则 |
 |------|------|
