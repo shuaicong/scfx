@@ -360,7 +360,7 @@ CREATE TABLE t_report_generation_log (
 3. 替换占位符为实际内容
 4. 返回完整 HTML
 
-### 5.3 HTML 输出规范
+### 5.4 HTML 输出规范
 
 ```
 1. 表格统一加固定列宽属性（<col width="100">），防止 Word 导出变形
@@ -415,7 +415,7 @@ CREATE TABLE t_report_generation_log (
 
 ---
 
-## 9. 前端组件
+## 8. 前端组件
 
 ```
 src/views/reports/
@@ -432,7 +432,7 @@ src/views/reports/
 
 ---
 
-## 10. 实施阶段
+## 9. 实施阶段
 
 ### Phase 1：基础设施 + 后端（约 3 天）
 
@@ -466,6 +466,117 @@ src/views/reports/
 | 16 | 端到端：创建报告 → AI 生成 → 编辑 → 保存版本 → 导出 docx/PDF → 下载 |
 | 17 | 版本：保存多次 → 版本列表 → 回滚 → 内容恢复 |
 | 18 | 图表：插入行情图 → 保存 → 导出 → Word 中图片可见 |
+
+---
+
+## 10. 风险与补充设计
+
+### 8.1 MinIO 图片跨容器访问
+
+**问题：** HTML 中写 `http://minio:9000` Docker 内网域名，Gotenberg 容器无法解析，导出 Word/PDF 图片空白。
+
+**方案：** 统一使用 Docker Compose 内部 DNS 可解析的 MinIO 服务名，Gotenberg 容器加入同一网络。
+
+```yaml
+services:
+  minio:
+    image: minio/minio
+    networks: [app-net]
+    hostname: minio
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    networks: [app-net]
+    depends_on: [minio]
+
+networks:
+  app-net:
+    driver: bridge
+```
+
+图片 URL 格式：`http://minio:9000/reports/{path}`（跨容器可访问）。
+
+### 8.2 AI 生成数据缺失兜底
+
+**问题：** 占位符填充仅正常查询逻辑，某港口本周无粮达网采集价格时表格直接空白。
+
+**方案：**
+
+| 场景 | 行为 |
+|------|------|
+| PRICE_TABLE 查无数据 | 输出「本周暂无采集数据」占位行，非空表 |
+| PRICE_CHART 查无数据 | 输出「暂无价格走势数据」占位图 |
+| KNOWLEDGE 检索空结果 | 跳过该段落，生成日志标记「知识库无相关报告」 |
+| 占位符正则匹配失败 | 保留 `{{...}}` 原文，日志告警 |
+
+生成日志 `t_report_generation_log` 记录每一步的数据缺失详情，供人工核查。
+
+### 8.3 并发与资源管控
+
+**问题：** Gotenberg 无排队机制，批量导出/生成打满资源。
+
+**方案：**
+
+| 维度 | 方案 |
+|------|------|
+| 导出排队 | 新增 Redis 队列 `report:export:queue`，单次仅执行 3 个导出任务，超额排队等待 |
+| AI 生成排队 | 新增 Redis 队列 `report:generate:queue`，单次最多 2 个生成任务并行 |
+| 超时熔断 | Gotenberg 超时 60s → 自动失败 → 重试 1 次 → 仍失败写入 failed 日志 |
+| 数据库保护 | 批量生成时限制 `@Async("reportExecutor")` 线程池大小 `core=2, max=4` |
+
+### 8.4 WASDE 供需数据扩展设计
+
+**预留接口，二期实现。**
+
+#### 数据表
+
+```sql
+CREATE TABLE t_wasde_data (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    report_date DATE NOT NULL COMMENT 'USDA 报告发布日期',
+    commodity   VARCHAR(50) NOT NULL COMMENT '品种（corn/wheat/rice/soybean）',
+    country     VARCHAR(100) COMMENT '国家/地区',
+    production  DECIMAL(12,2) COMMENT '产量（百万吨）',
+    exports     DECIMAL(12,2) COMMENT '出口量（百万吨）',
+    imports     DECIMAL(12,2) COMMENT '进口量（百万吨）',
+    ending_stock DECIMAL(12,2) COMMENT '期末库存（百万吨）',
+    stock_use_ratio DECIMAL(5,2) COMMENT '库存用量比（%）',
+    source_url  VARCHAR(500),
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_commodity (commodity, report_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+```
+
+#### 占位符
+
+| 占位符 | 说明 |
+|--------|------|
+| `{{WASDE:玉米,全球产量}}` | 全球玉米产量数据 |
+| `{{WASDE:玉米,期末库存}}` | 全球玉米期末库存 |
+| `{{WASDE:小麦,全球产量}}` | 全球小麦产量 |
+
+采集流水线：USDA WASDE PDF → Python 解析 → 翻译 → 入库 → 研报模板引用。
+
+### 8.5 导出文件生命周期
+
+| 阶段 | 规则 |
+|------|------|
+| 热存储 | MinIO `reports` 桶，标准存储，180 天 |
+| 冷存储 | 超 180 天的文件迁移至 MinIO 低频/归档存储 |
+| 自动清理 | 超 365 天的文件可配置自动删除（`t_report.export_docx_path` 置空） |
+| 定时任务 | 每日凌晨扫描清理，记录删除日志 |
+
+### 8.6 告警通知机制
+
+| 事件 | 触发条件 | 通知方式 |
+|------|----------|----------|
+| AI 生成失败 | 连续 3 次生成异常 | 钉钉/邮件告警 |
+| 导出异常 | Gotenberg 返回非 200 | 日志 WARN + 钉钉通知 |
+| MinIO 上传失败 | 上传重试 3 次仍失败 | ERROR 日志 + 告警 |
+| 行情数据缺失 | PRICE_TABLE 返回 0 条 | 生成日志标记，不告警（人工核查） |
+| 定时任务失败 | 自动周报生成失败 | 钉钉通知 |
+
+告警渠道一期使用日志 + 钉钉 Webhook，二期接入统一告警中心。
 
 ---
 
