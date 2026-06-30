@@ -413,7 +413,7 @@ async def chat_v2_stream(request: ChatV2Request, http_request: Request):
                         # 从问题中提取时间范围和地区
                         _q = request.question
                         _days = 7
-                        for _kw, _d in [("一周", 7), ("7天", 7), ("一个月", 30), ("30天", 30),
+                        for _kw, _d in [("两周", 14), ("14天", 14), ("一周", 7), ("7天", 7), ("一个月", 30), ("30天", 30),
                                         ("三个月", 90), ("90天", 90), ("今年", 180), ("半年", 180)]:
                             if _kw in _q:
                                 _days = _d
