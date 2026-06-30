@@ -130,3 +130,73 @@ class MinioClient:
             Delete={"Objects": objects},
         )
         logger.info("MinIO 批量删除 %d 个对象", len(object_paths))
+
+    def stat_object(self, object_path: str, bucket: str = None) -> bool:
+        """检查 MinIO 中对象是否存在
+
+        Args:
+            object_path: 对象路径, 如 "wasde/2026/wasde0626v2.pdf"
+                         （不含桶名，桶名由 bucket 参数或实例默认 bucket 决定）
+            bucket: 桶名，为 None 时使用实例初始化时的默认 bucket (knowledge-img)
+
+        Returns:
+            True 如果对象存在, False 如果不存在或无法访问
+        """
+        target_bucket = bucket or self.bucket
+        try:
+            self._client.head_object(Bucket=target_bucket, Key=object_path)
+            return True
+        except ClientError as e:
+            error_code = e.response['Error']['Code']
+            if error_code == '404' or error_code == 'NoSuchKey':
+                logger.debug(f"MinIO 对象不存在: {target_bucket}/{object_path}")
+                return False
+            logger.error(f"MinIO head_object 错误: {target_bucket}/{object_path} - {e}")
+            return False
+        except Exception as e:
+            logger.error(f"MinIO 访问异常: {target_bucket}/{object_path} - {e}")
+            return False
+
+    def put_object(self, object_path: str, data: bytes,
+                   content_type: str = "application/octet-stream",
+                   bucket: str = None) -> str:
+        """上传文件到 MinIO（支持指定桶）
+
+        与 upload_fileobj 的区别:
+        - upload_fileobj: 使用实例默认 bucket (knowledge-img)，主用于图片
+        - put_object: 可指定 bucket，用于 reports 等非图片桶
+
+        Args:
+            object_path: 对象路径, 如 "wasde/2026/wasde0626v2.pdf"
+            data: 文件二进制数据
+            content_type: MIME 类型
+            bucket: 桶名，为 None 时使用实例默认 bucket
+
+        Returns:
+            文件的公开访问 URL
+        """
+        target_bucket = bucket or self.bucket
+        try:
+            # 确保桶存在
+            try:
+                self._client.head_bucket(Bucket=target_bucket)
+            except ClientError:
+                logger.info(f"MinIO 桶不存在，正在创建: {target_bucket}")
+                self._client.create_bucket(Bucket=target_bucket)
+                # 设置公开读策略
+                policy = PUBLIC_READ_POLICY.replace("{bucket}", target_bucket)
+                self._client.put_bucket_policy(Bucket=target_bucket, Policy=policy)
+
+            self._client.put_object(
+                Bucket=target_bucket,
+                Key=object_path,
+                Body=data,
+                ContentType=content_type,
+            )
+
+            url = f"{self.endpoint}/{target_bucket}/{object_path}"
+            logger.info(f"MinIO 上传成功: {url}")
+            return url
+        except Exception as e:
+            logger.error(f"MinIO 上传失败: {target_bucket}/{object_path} - {e}")
+            raise
