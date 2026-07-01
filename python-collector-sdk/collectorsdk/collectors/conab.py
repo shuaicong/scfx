@@ -192,30 +192,30 @@ class ConabCornCollector(BaseCollector):
             safe_name = self._sanitize_filename(filename)
             minio_path = f"conab/{year}/{safe_name}"
 
-            # MinIO 去重
-            if mc.stat_object(minio_path):
+            # MinIO 去重（跳过下载，但仍需尝试知识库提交）
+            exists_in_minio = mc.stat_object(minio_path)
+            if not exists_in_minio:
+                # 下载
+                time.sleep(self.DOWNLOAD_INTERVAL)
+                data = self._download_file(pdf_url, label=safe_name)
+                if data is None:
+                    fail_count += 1
+                    continue
+
+                # 上传 MinIO
+                try:
+                    mc.put_object(minio_path, data, content_type="application/pdf")
+                    self.log_info(f"PDF 上传成功: {minio_path}",
+                                  phase="report", category="minio")
+                except Exception as e:
+                    self.log_error(f"MinIO 上传失败: {minio_path} - {e}",
+                                   phase="report", category="error")
+                    fail_count += 1
+                    continue
+            else:
                 skip_count += 1
-                self.log_info(f"文件已存在，跳过: {minio_path}",
+                self.log_info(f"文件已存在，跳过下载: {minio_path}",
                               phase="crawl", category="skip")
-                continue
-
-            # 下载
-            time.sleep(self.DOWNLOAD_INTERVAL)
-            data = self._download_file(pdf_url, label=safe_name)
-            if data is None:
-                fail_count += 1
-                continue
-
-            # 上传 MinIO
-            try:
-                mc.put_object(minio_path, data, content_type="application/pdf")
-                self.log_info(f"PDF 上传成功: {minio_path}",
-                              phase="report", category="minio")
-            except Exception as e:
-                self.log_error(f"MinIO 上传失败: {minio_path} - {e}",
-                               phase="report", category="error")
-                fail_count += 1
-                continue
 
             # 提取日期范围用于标题
             date_range = self._extract_date_range(filename)
