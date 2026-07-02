@@ -120,8 +120,25 @@
       <div v-show="isDocx && !docxError" class="docx-preview-wrapper">
         <div class="docx-render-area" ref="docxPreviewRef"></div>
       </div>
+      <!-- PDF 预览 -->
+      <div v-show="isPdf" class="pdf-preview-wrapper">
+        <iframe
+          :src="pdfPreviewUrl"
+          class="pdf-iframe"
+          frameborder="0"
+        ></iframe>
+        <div class="pdf-toolbar">
+          <a :href="pdfPreviewUrl" target="_blank" rel="noopener noreferrer" class="pdf-open-link">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <path d="M7 1L13 7L7 13" stroke="currentColor" stroke-width="1.5"/>
+              <path d="M1 7H13" stroke="currentColor" stroke-width="1.5"/>
+            </svg>
+            在新标签页打开 PDF
+          </a>
+        </div>
+      </div>
       <!-- docx 渲染失败提示条 + 原始 HTML 内容（含图片和文本，TABLE_MARKER 区域会被过滤） -->
-      <div class="detail-body" v-show="!isDocx || docxError">
+      <div class="detail-body" v-show="(!isDocx && !isPdf) || docxError">
         <div v-if="docxError" class="docx-error-bar">
           <span class="docx-error-text">Word 文档渲染失败，已降级显示文本内容</span>
         </div>
@@ -265,6 +282,12 @@ const docxPreviewRef = ref<HTMLDivElement | null>(null)
 const docxLoading = ref(false)
 const docxError = ref(false)
 const isDocx = computed(() => knowledge.value?.fileType === 'docx')
+const isPdf = computed(() => knowledge.value?.fileType === 'pdf')
+const pdfPreviewUrl = computed(() => {
+  if (!knowledge.value) return ''
+  // 优先使用 original_url（MinIO 公开链接），否则用 file_path 拼接
+  return knowledge.value.originalUrl || `http://localhost:9000/reports/${knowledge.value.filePath}`
+})
 const docxRendered = ref(false)
 
 // 知识数据加载完成后，如果 fileType=docx 则触发渲染
@@ -1194,6 +1217,44 @@ onMounted(async () => {
   padding: 16px 20px;
   color: #c9d1d9 !important;
   background: #0d1117 !important;
+}
+
+.pdf-preview-wrapper {
+  margin: 16px 0;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fafbfc;
+}
+.pdf-iframe {
+  width: 100%;
+  height: 80vh;
+  border: none;
+  display: block;
+}
+.pdf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  background: #ffffff;
+  border-top: 1px solid #e8eaed;
+}
+.pdf-open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #1a73e8;
+  text-decoration: none;
+  padding: 6px 14px;
+  border: 1px solid #d0d5dd;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+.pdf-open-link:hover {
+  background: #f0f6ff;
+  border-color: #1a73e8;
 }
 
 .html-content {
